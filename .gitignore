@@ -1,0 +1,13 @@
+node_modules/
+client/mobile/node_modules/
+client/mobile/.expo/
+client/mobile/dist/
+client/mobile/web-build/
+.env
+*.env
+*.log
+.DS_Store
+client/mobile/.vscode/
+client/mobile/.git/
+client/FarmConnect/
+~$*.rtf

@@ -1,0 +1,35 @@
+{
+  "name": "farmconnect",
+  "version": "1.0.0",
+  "description": "FarmConnect monorepo for the mobile client and marketplace API.",
+  "main": "server/server.js",
+  "scripts": {
+    "server": "nodemon server/server.js",
+    "server:start": "node server/server.js",
+    "server:seed": "node server/data/seed.js",
+    "server:trust": "node server/scripts/recalculate-trust-scores.js",
+    "client": "npm --prefix client/mobile start",
+    "android": "npm --prefix client/mobile run android",
+    "ios": "npm --prefix client/mobile run ios",
+    "web": "npm --prefix client/mobile run web",
+    "lint:mobile": "npm --prefix client/mobile run lint"
+  },
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.9.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.0",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.4.1",
+    "multer": "^2.1.1",
+    "socket.io": "^4.8.3"
+  }
+}
