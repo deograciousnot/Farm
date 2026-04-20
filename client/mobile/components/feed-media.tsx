@@ -2,7 +2,7 @@ import { useEventListener } from 'expo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { Colors, Fonts } from '@/constants/theme';
@@ -19,7 +19,7 @@ type FeedMediaProps = {
   onPlaybackTimeChange?: (mediaUrl: string, currentTime: number) => void;
 };
 
-export function FeedMedia({
+export const FeedMedia = memo(function FeedMedia({
   media,
   onToggleLike,
   onOpenPost,
@@ -120,7 +120,7 @@ export function FeedMedia({
       ) : null}
     </View>
   );
-}
+});
 
 function VideoMedia({
   url,
@@ -276,6 +276,12 @@ function VideoMedia({
         </View>
       ) : null}
 
+      {mode === 'feed' ? (
+        <Pressable onPress={handleToggleMute} style={styles.feedMuteButton} hitSlop={8}>
+          <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={15} color="#ffffff" />
+        </Pressable>
+      ) : null}
+
     </Pressable>
   );
 }
@@ -329,5 +335,16 @@ const styles = StyleSheet.create({
     inset: 0,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  feedMuteButton: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.42)',
   },
 });

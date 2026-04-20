@@ -14,27 +14,27 @@ export default function SettingsScreen() {
 
   const sections = [
     {
-      title: 'Activity',
+      title: 'Profile',
       items: [
-        { label: 'Comments activity', hint: 'Track replies and conversations you joined.' },
-        { label: 'Bookmarks', hint: 'Quick access to posts and listings you saved.' },
-        { label: 'Viewing activity', hint: 'Control how your recent activity is remembered.' },
+        { label: 'Edit profile', hint: 'Update your name, bio, avatar, and interests.', action: () => router.push('/(tabs)/profile?edit=1') },
+        { label: 'My posts', hint: 'Manage the knowledge and market stories you have shared.', action: () => router.push('/(tabs)/profile?tab=posts') },
+        { label: 'My listings', hint: 'Jump straight into your marketplace items.', action: () => router.push('/(tabs)/profile?tab=listings') },
       ],
     },
     {
-      title: 'Privacy',
+      title: 'Social',
       items: [
-        { label: 'Profile visibility', hint: 'Choose how discoverable your account feels.' },
-        { label: 'Followers and following', hint: 'Review the people connected to your account.' },
-        { label: 'Muted and blocked accounts', hint: 'Manage who can interact with you.' },
+        { label: 'Followers', hint: 'See who is following your farm or seller account.', action: () => router.push('/(tabs)/profile?tab=followers') },
+        { label: 'Following', hint: 'Review the people and sellers you follow.', action: () => router.push('/(tabs)/profile?tab=following') },
+        { label: 'Notifications', hint: 'Catch up on likes, comments, replies, and orders.', action: () => router.push('/(tabs)/profile') },
       ],
     },
     {
       title: 'Account',
       items: [
-        { label: 'Login and security', hint: 'Password changes, trusted devices, and sessions.' },
-        { label: 'Notifications', hint: 'Tune what updates FarmConnect sends you.' },
-        { label: 'Help and support', hint: 'Get assistance or report an issue.' },
+        { label: 'Continue as guest', hint: 'Quickly step out of your account without leaving the app.', action: () => void logoutToGuest() },
+        { label: 'Login and security', hint: 'Password changes, trusted devices, and sessions.', action: () => handlePlaceholder('Login and security') },
+        { label: 'Help and support', hint: 'Get assistance or report an issue.', action: () => handlePlaceholder('Help and support') },
       ],
     },
   ];
@@ -75,10 +75,7 @@ export default function SettingsScreen() {
             <Text style={[styles.sectionTitle, { color: palette.text }]}>{section.title}</Text>
             <View style={styles.sectionRows}>
               {section.items.map((item) => (
-                <Pressable
-                  key={item.label}
-                  onPress={() => handlePlaceholder(item.label)}
-                  style={[styles.rowCard, { backgroundColor: palette.surface }]}>
+                <Pressable key={item.label} onPress={item.action} style={[styles.rowCard, { backgroundColor: palette.surface }]}>
                   <View style={styles.rowCopy}>
                     <Text style={[styles.rowTitle, { color: palette.text }]}>{item.label}</Text>
                     <Text style={[styles.rowHint, { color: palette.muted }]}>{item.hint}</Text>
@@ -91,6 +88,9 @@ export default function SettingsScreen() {
         ))}
 
         <View style={styles.bottomActions}>
+          <Pressable onPress={() => router.push('/(tabs)/profile')} style={[styles.secondaryButton, { backgroundColor: palette.surface }]}>
+            <Text style={[styles.secondaryButtonText, { color: palette.text }]}>Back to profile</Text>
+          </Pressable>
           <Pressable onPress={handleLogoutPress} style={[styles.logoutButton, { backgroundColor: palette.surface }]}>
             <Text style={[styles.logoutText, { color: palette.accent }]}>Log out or switch account</Text>
           </Pressable>
@@ -119,6 +119,8 @@ const styles = StyleSheet.create({
   rowTitle: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
   rowHint: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
   bottomActions: { paddingTop: 8 },
+  secondaryButton: { borderRadius: 18, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  secondaryButtonText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
   logoutButton: { borderRadius: 18, paddingVertical: 15, alignItems: 'center', justifyContent: 'center' },
   logoutText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
 });

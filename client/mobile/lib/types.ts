@@ -45,6 +45,13 @@ export type FeedPost = {
   createdAt?: string;
   author: ApiUser;
   recentComments: Comment[];
+  linkedProduct?: {
+    _id: string;
+    name: string;
+    price: number;
+    unit: string;
+    location: string;
+  } | null;
   media?: Array<{
     type: 'image' | 'video';
     url: string;

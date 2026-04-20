@@ -322,6 +322,21 @@ export default function PostDetailScreen() {
               <Text style={[styles.body, { color: palette.text }]}>{post.body}</Text>
             </View>
 
+            {post.linkedProduct ? (
+              <Pressable
+                onPress={() => router.push({ pathname: '/product/[id]', params: { id: post.linkedProduct!._id } })}
+                style={[styles.linkedListingCard, { backgroundColor: palette.surface }]}>
+                <View style={styles.linkedListingCopy}>
+                  <Text style={[styles.linkedListingLabel, { color: palette.tint }]}>Tagged listing</Text>
+                  <Text style={[styles.linkedListingName, { color: palette.text }]}>{post.linkedProduct.name}</Text>
+                  <Text style={[styles.linkedListingMeta, { color: palette.muted }]}>
+                    KES {post.linkedProduct.price} / {post.linkedProduct.unit} - {post.linkedProduct.location}
+                  </Text>
+                </View>
+                <Feather name="arrow-up-right" size={16} color={palette.muted} />
+              </Pressable>
+            ) : null}
+
             {post.media?.length ? (
               <FeedMedia media={post.media} onToggleLike={() => void handleToggleLike()} mode="detail" />
             ) : null}
@@ -454,6 +469,19 @@ const styles = StyleSheet.create({
   storyMetaPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   storyMetaText: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
   copyBlock: { gap: 10 },
+  linkedListingCard: {
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  linkedListingCopy: { flex: 1, gap: 3 },
+  linkedListingLabel: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.9 },
+  linkedListingName: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
+  linkedListingMeta: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
   headline: { fontFamily: Fonts.rounded, fontSize: 28, fontWeight: '700', lineHeight: 34 },
   body: { fontFamily: Fonts.sans, fontSize: 16, lineHeight: 25 },
   actionRow: { flexDirection: 'row', gap: 18, alignItems: 'center', paddingTop: 4 },

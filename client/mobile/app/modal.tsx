@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { api } from '@/lib/api';
-import type { UploadableAsset } from '@/lib/types';
+import type { Product, UploadableAsset } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 
 type ComposerMode = 'post' | 'listing';
@@ -34,6 +34,8 @@ export default function ComposerModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<UploadableAsset[]>([]);
   const [submissionStage, setSubmissionStage] = useState<'idle' | 'preparing' | 'uploading' | 'publishing'>('idle');
+  const [availableListings, setAvailableListings] = useState<Product[]>([]);
+  const [linkedProductId, setLinkedProductId] = useState('');
 
   const [headline, setHeadline] = useState('');
   const [body, setBody] = useState('');
@@ -78,6 +80,29 @@ export default function ComposerModal() {
           ? `${selectedMedia.length}/${mediaLimit} selected${hasVideo ? ' - includes video' : ''}`
           : `Add up to ${mediaLimit} photos or videos.`;
 
+  useEffect(() => {
+    if (mode === 'post') {
+      void loadMyListings();
+      return;
+    }
+
+    setLinkedProductId('');
+  }, [mode, token, isSeller]);
+
+  async function loadMyListings() {
+    if (!token || !isSeller) {
+      setAvailableListings([]);
+      return;
+    }
+
+    try {
+      const response = await api.getProfile(token);
+      setAvailableListings(response.listings);
+    } catch (error) {
+      console.warn('Failed to load listings for post tagging.', error);
+    }
+  }
+
   async function pickMedia(options?: { cropSingleImage?: boolean }) {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -112,6 +137,14 @@ export default function ComposerModal() {
     setSelectedMedia((current) => current.filter((_, index) => index !== indexToRemove));
   }
 
+  async function handleModeChange(nextMode: ComposerMode) {
+    setMode(nextMode);
+
+    if (nextMode === 'post') {
+      await loadMyListings();
+    }
+  }
+
   async function handleSubmit() {
     if (!token) {
       Alert.alert('Sign in required', 'Please sign in before creating posts or listings.');
@@ -134,6 +167,7 @@ export default function ComposerModal() {
           body,
           tag,
           location,
+          linkedProductId,
           media: selectedMedia,
         });
       } else {
@@ -184,12 +218,12 @@ export default function ComposerModal() {
 
         <View style={[styles.modeTabs, { backgroundColor: palette.surface }]}>
           <Pressable
-            onPress={() => setMode('post')}
+            onPress={() => void handleModeChange('post')}
             style={[styles.modeTab, { backgroundColor: mode === 'post' ? palette.surfaceRaised : 'transparent' }]}>
             <Text style={[styles.modeTabText, { color: palette.text }]}>Post</Text>
           </Pressable>
           <Pressable
-            onPress={() => setMode('listing')}
+            onPress={() => void handleModeChange('listing')}
             style={[styles.modeTab, { backgroundColor: mode === 'listing' ? palette.surfaceRaised : 'transparent' }]}>
             <Text style={[styles.modeTabText, { color: palette.text }]}>Listing</Text>
           </Pressable>
@@ -269,6 +303,34 @@ export default function ComposerModal() {
                 </Pressable>
               ))}
             </ScrollView>
+            {isSeller && availableListings.length ? (
+              <View style={styles.linkedListingSection}>
+                <Text style={[styles.linkedListingTitle, { color: palette.text }]}>Tag one of your listings</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                  <Pressable
+                    onPress={() => setLinkedProductId('')}
+                    style={[styles.chip, { backgroundColor: !linkedProductId ? `${palette.tint}14` : palette.surface }]}>
+                    <Text style={[styles.chipText, { color: !linkedProductId ? palette.tint : palette.text }]}>None</Text>
+                  </Pressable>
+                  {availableListings.map((listing) => (
+                    <Pressable
+                      key={listing._id}
+                      onPress={() => setLinkedProductId((current) => (current === listing._id ? '' : listing._id))}
+                      style={[
+                        styles.chip,
+                        { backgroundColor: linkedProductId === listing._id ? `${palette.tint}14` : palette.surface },
+                      ]}>
+                      <Text style={[styles.chipText, { color: linkedProductId === listing._id ? palette.tint : palette.text }]}>
+                        {listing.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <Text style={[styles.helperText, { color: palette.muted }]}>
+                  Tagged listings show up beneath the post and open directly in Marketplace.
+                </Text>
+              </View>
+            ) : null}
             {!canSubmitPost ? (
               <Text style={[styles.validationText, { color: palette.muted }]}>
                 A feed post needs both a headline and some context in the body.
@@ -400,6 +462,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   helperText: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
+  linkedListingSection: { gap: 8 },
+  linkedListingTitle: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
   formCard: { borderRadius: 24, padding: 14, gap: 12 },
   titleInput: {
     borderRadius: 18,

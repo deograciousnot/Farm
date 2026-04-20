@@ -1,8 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,6 +22,7 @@ import type { NotificationItem, ProfileResponse, UploadableAsset } from '@/lib/t
 import { useSession } from '@/providers/session-provider';
 
 export default function ProfileScreen() {
+  const params = useLocalSearchParams<{ tab?: string; edit?: string }>();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const { token, isLoading: isSessionLoading, updateUser } = useSession();
@@ -71,6 +72,18 @@ export default function ProfileScreen() {
 
   const showLoading = isSessionLoading || isLoading;
   const unreadCount = profileData?.notificationMeta.unreadCount ?? 0;
+
+  useEffect(() => {
+    if (params.tab === 'posts' || params.tab === 'listings' || params.tab === 'followers' || params.tab === 'following') {
+      setActiveTab(params.tab);
+    }
+  }, [params.tab]);
+
+  useEffect(() => {
+    if (params.edit === '1' && profileData) {
+      setIsEditing(true);
+    }
+  }, [params.edit, profileData]);
 
   function formatRelativeTime(value: string) {
     const date = new Date(value);

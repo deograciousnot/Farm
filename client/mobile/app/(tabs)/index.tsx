@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -18,12 +18,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { FeedMedia } from '@/components/feed-media';
-import { ProductCard } from '@/components/product-card';
 import { SocialAvatar } from '@/components/social-avatar';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { api } from '@/lib/api';
-import type { Comment, FeedPost, Product } from '@/lib/types';
+import type { Comment, FeedPost } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 
 function formatRelativeTime(value?: string) {
@@ -51,6 +50,180 @@ function formatRelativeTime(value?: string) {
   return `${Math.floor(diffHours / 24)}d`;
 }
 
+type Palette = (typeof Colors)['light'] | (typeof Colors)['dark'];
+
+const FeedPostCard = memo(function FeedPostCard({
+  post,
+  index,
+  palette,
+  isFocused,
+  isVisible,
+  playbackPositions,
+  processingPostId,
+  token,
+  onOpenAuthor,
+  onOpenPost,
+  onOpenLinkedProduct,
+  onToggleLike,
+  onOpenComments,
+  onToggleSave,
+  onToggleFollow,
+  onPlaybackTimeChange,
+}: {
+  post: FeedPost;
+  index: number;
+  palette: Palette;
+  isFocused: boolean;
+  isVisible: boolean;
+  playbackPositions: Record<string, number>;
+  processingPostId: string | null;
+  token?: string | null;
+  onOpenAuthor: (post: FeedPost) => void;
+  onOpenPost: (postId: string) => void;
+  onOpenLinkedProduct: (productId: string) => void;
+  onToggleLike: (postId: string) => void;
+  onOpenComments: (post: FeedPost) => void;
+  onToggleSave: (postId: string) => void;
+  onToggleFollow: (post: FeedPost) => void;
+  onPlaybackTimeChange: (mediaUrl: string, currentTime: number) => void;
+}) {
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(Math.min(index, 5) * 35).duration(320)}
+      style={[styles.postShell, { borderBottomColor: palette.border }]}>
+      <View style={styles.postTopRow}>
+        <Pressable onPress={() => onOpenAuthor(post)} style={styles.postIdentity}>
+          <SocialAvatar name={post.author.name} imageUrl={post.author.avatarUrl} size={38} />
+          <View style={styles.postIdentityText}>
+            <View style={styles.postNameRow}>
+              <Text style={[styles.postAuthor, { color: palette.text }]}>{post.author.name}</Text>
+              {post.author.verificationStatus === 'top-rated' ? (
+                <Ionicons name="checkmark-circle" size={14} color={palette.tint} />
+              ) : null}
+              <Text style={[styles.postMeta, { color: palette.muted }]}>{formatRelativeTime(post.createdAt)}</Text>
+            </View>
+            <Text style={[styles.postMeta, { color: palette.muted }]}>
+              {post.author.role} · {post.location}
+            </Text>
+          </View>
+        </Pressable>
+
+        <View style={styles.postRightMeta}>
+          <View
+            style={[
+              styles.postTag,
+              {
+                backgroundColor: post.isSponsored ? `${palette.accent}12` : `${palette.accentSecondary}16`,
+              },
+            ]}>
+            <Text style={[styles.postTagText, { color: post.isSponsored ? palette.accent : palette.accentSecondary }]}>
+              {post.tag}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <Pressable onPress={() => onOpenPost(post._id)} style={styles.postCopy}>
+        <Text style={[styles.postHeadline, { color: palette.text }]}>{post.headline}</Text>
+        <Text style={[styles.postBody, { color: palette.text }]}>
+          {post.body.length > 220 ? `${post.body.slice(0, 220)}...` : post.body}
+        </Text>
+      </Pressable>
+
+      {post.linkedProduct ? (
+        <Pressable
+          onPress={() => onOpenLinkedProduct(post.linkedProduct!._id)}
+          style={[styles.linkedListingCard, { backgroundColor: palette.surface }]}>
+          <View style={styles.linkedListingCopy}>
+            <Text style={[styles.linkedListingLabel, { color: palette.tint }]}>Tagged listing</Text>
+            <Text style={[styles.linkedListingName, { color: palette.text }]}>{post.linkedProduct.name}</Text>
+            <Text style={[styles.linkedListingMeta, { color: palette.muted }]}>
+              KES {post.linkedProduct.price} / {post.linkedProduct.unit} · {post.linkedProduct.location}
+            </Text>
+          </View>
+          <Feather name="arrow-up-right" size={16} color={palette.muted} />
+        </Pressable>
+      ) : null}
+
+      {post.media?.length ? (
+        <FeedMedia
+          media={post.media}
+          onToggleLike={() => onToggleLike(post._id)}
+          onOpenPost={() => onOpenPost(post._id)}
+          allowPlayback={isFocused && isVisible}
+          playbackPositions={playbackPositions}
+          onPlaybackTimeChange={onPlaybackTimeChange}
+        />
+      ) : null}
+
+      <View style={styles.postFooter}>
+        <View style={styles.postActionsLeft}>
+          <Pressable onPress={() => onToggleLike(post._id)} hitSlop={8} style={styles.iconMetric}>
+            <Ionicons
+              name={post.hasLiked ? 'heart' : 'heart-outline'}
+              size={22}
+              color={post.hasLiked ? palette.accent : palette.text}
+            />
+            <Text style={[styles.iconMetricText, { color: post.hasLiked ? palette.accent : palette.text }]}>
+              {post.likesCount}
+            </Text>
+          </Pressable>
+
+          <Pressable onPress={() => onOpenComments(post)} hitSlop={8} style={styles.iconMetric}>
+            <Ionicons name="chatbubble-outline" size={20} color={palette.text} />
+            <Text style={[styles.iconMetricText, { color: palette.text }]}>{post.commentsCount}</Text>
+          </Pressable>
+        </View>
+
+        <Pressable onPress={() => onToggleSave(post._id)} hitSlop={8} style={styles.iconMetric}>
+          <Ionicons
+            name={post.hasSaved ? 'bookmark' : 'bookmark-outline'}
+            size={20}
+            color={post.hasSaved ? palette.accent : palette.text}
+          />
+        </Pressable>
+      </View>
+
+      {!post.isOwner && post.canFollowAuthor ? (
+        <Pressable
+          onPress={() => onToggleFollow(post)}
+          style={[
+            styles.followButton,
+            { backgroundColor: post.isFollowingAuthor ? palette.surface : `${palette.tint}12` },
+          ]}>
+          <Text style={[styles.followButtonText, { color: post.isFollowingAuthor ? palette.text : palette.tint }]}>
+            {processingPostId === post._id ? 'Updating...' : post.isFollowingAuthor ? 'Following' : 'Follow for insights'}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {post.recentComments.length > 0 ? (
+        <Pressable onPress={() => onOpenComments(post)} style={styles.commentsPreview}>
+          <Text style={[styles.viewCommentsText, { color: palette.muted }]}>
+            View {post.commentsCount > 1 ? `all ${post.commentsCount} comments` : 'comment'}
+          </Text>
+          {post.recentComments.slice(0, 1).map((comment: Comment) => (
+            <View key={comment._id} style={styles.commentRow}>
+              <Text numberOfLines={2} style={[styles.commentText, { color: palette.muted }]}>
+                <Text style={[styles.commentAuthor, { color: palette.text }]}>{comment.author.name} </Text>
+                {comment.body}
+              </Text>
+            </View>
+          ))}
+        </Pressable>
+      ) : token ? (
+        <Pressable onPress={() => onOpenComments(post)}>
+          <Text style={[styles.viewCommentsText, { color: palette.muted }]}>Be the first to comment</Text>
+        </Pressable>
+      ) : (
+        <Text style={[styles.guestActionHint, { color: palette.muted }]}>
+          Sign in to comment, save, follow people, and personalize your feed.
+        </Text>
+      )}
+    </Animated.View>
+  );
+});
+
 export default function HomeScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
@@ -59,7 +232,6 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [interestChips, setInterestChips] = useState<string[]>([]);
   const [posts, setPosts] = useState<FeedPost[]>([]);
-  const [previewProducts, setPreviewProducts] = useState<Product[]>([]);
   const [activeFilter, setActiveFilter] = useState('All');
   const [commentDraft, setCommentDraft] = useState('');
   const [commentSheetPostId, setCommentSheetPostId] = useState<string | null>(null);
@@ -78,7 +250,6 @@ export default function HomeScreen() {
       const response = await api.getFeed(token, activeFilter === 'All' ? undefined : activeFilter);
       setInterestChips(response.interestChips);
       setPosts(response.posts);
-      setPreviewProducts(response.previewProducts);
       setActiveFilter(response.activeFilter || 'All');
     } catch (error) {
       console.warn('Failed to load FarmConnect feed.', error);
@@ -106,109 +277,132 @@ export default function HomeScreen() {
     }
   );
 
-  async function handleToggleSave(postId: string) {
-    if (!token) {
-      return;
-    }
+  const handleToggleSave = useCallback(
+    async (postId: string) => {
+      if (!token) {
+        return;
+      }
 
-    try {
-      const response = await api.toggleSave(token, postId);
+      try {
+        const response = await api.toggleSave(token, postId);
 
-      setPosts((current) =>
-        current.map((post) =>
-          post._id === postId ? { ...post, hasSaved: response.saved, savesCount: response.savesCount } : post
-        )
-      );
-    } catch (error) {
-      console.warn('Failed to toggle save.', error);
-    }
-  }
+        setPosts((current) =>
+          current.map((post) =>
+            post._id === postId ? { ...post, hasSaved: response.saved, savesCount: response.savesCount } : post
+          )
+        );
+      } catch (error) {
+        console.warn('Failed to toggle save.', error);
+      }
+    },
+    [token]
+  );
 
-  async function handleToggleLike(postId: string) {
-    if (!token) {
-      return;
-    }
+  const handleToggleLike = useCallback(
+    async (postId: string) => {
+      if (!token) {
+        return;
+      }
 
-    const previousPosts = posts;
+      let previousPostsSnapshot: FeedPost[] = [];
 
-    setPosts((current) =>
-      current.map((post) =>
-        post._id === postId
-          ? {
-              ...post,
-              hasLiked: !post.hasLiked,
-              likesCount: post.hasLiked ? Math.max(0, post.likesCount - 1) : post.likesCount + 1,
-            }
-          : post
-      )
-    );
+      setPosts((current) => {
+        previousPostsSnapshot = current;
 
-    try {
-      const response = await api.toggleLike(token, postId);
-
-      setPosts((current) =>
-        current.map((post) =>
+        return current.map((post) =>
           post._id === postId
             ? {
                 ...post,
-                hasLiked: response.liked,
-                likesCount: response.likesCount,
+                hasLiked: !post.hasLiked,
+                likesCount: post.hasLiked ? Math.max(0, post.likesCount - 1) : post.likesCount + 1,
               }
             : post
-        )
-      );
-    } catch (error) {
-      setPosts(previousPosts);
-      console.warn('Failed to toggle like.', error);
-    }
-  }
+        );
+      });
 
-  async function handleToggleFollow(post: FeedPost) {
-    if (!token || !post.canFollowAuthor) {
-      return;
-    }
+      try {
+        const response = await api.toggleLike(token, postId);
 
+        setPosts((current) =>
+          current.map((post) =>
+            post._id === postId
+              ? {
+                  ...post,
+                  hasLiked: response.liked,
+                  likesCount: response.likesCount,
+                }
+              : post
+          )
+        );
+      } catch (error) {
+        setPosts(previousPostsSnapshot);
+        console.warn('Failed to toggle like.', error);
+      }
+    },
+    [token]
+  );
+
+  const handleToggleFollow = useCallback(
+    async (post: FeedPost) => {
+      if (!token || !post.canFollowAuthor) {
+        return;
+      }
+
+      const authorId = post.author._id ?? post.author.id;
+
+      if (!authorId) {
+        return;
+      }
+
+      setProcessingPostId(post._id);
+
+      try {
+        const response = await api.toggleFollow(token, authorId);
+
+        setPosts((current) => {
+          const nextPosts = current.map((item) =>
+            (item.author._id ?? item.author.id) === authorId
+              ? {
+                  ...item,
+                  isFollowingAuthor: response.following,
+                  author: {
+                    ...item.author,
+                    followersCount: response.followersCount,
+                  },
+                }
+              : item
+          );
+
+          return activeFilter === 'Following' && !response.following
+            ? nextPosts.filter((item) => (item.author._id ?? item.author.id) !== authorId)
+            : nextPosts;
+        });
+      } catch (error) {
+        console.warn('Failed to toggle follow.', error);
+      } finally {
+        setProcessingPostId(null);
+      }
+    },
+    [activeFilter, token]
+  );
+
+  const openPost = useCallback((postId: string) => {
+    router.push({ pathname: '/post/[id]', params: { id: postId } });
+  }, []);
+
+  const openAuthorProfile = useCallback((post: FeedPost) => {
     const authorId = post.author._id ?? post.author.id;
 
-    if (!authorId) {
-      return;
+    if (authorId) {
+      router.push({ pathname: '/profile/[id]', params: { id: authorId } });
     }
+  }, []);
 
-    setProcessingPostId(post._id);
+  const openLinkedProduct = useCallback((productId: string) => {
+    router.push({ pathname: '/product/[id]', params: { id: productId } });
+  }, []);
 
-    try {
-      const response = await api.toggleFollow(token, authorId);
-
-      setPosts((current) => {
-        const nextPosts = current.map((item) =>
-          (item.author._id ?? item.author.id) === authorId
-            ? {
-                ...item,
-                isFollowingAuthor: response.following,
-                author: {
-                  ...item.author,
-                  followersCount: response.followersCount,
-                },
-              }
-            : item
-        );
-
-        return activeFilter === 'Following' && !response.following
-          ? nextPosts.filter((item) => (item.author._id ?? item.author.id) !== authorId)
-          : nextPosts;
-      });
-    } catch (error) {
-      console.warn('Failed to toggle follow.', error);
-    } finally {
-      setProcessingPostId(null);
-    }
-  }
-
-  function openPost(postId: string) {
-    router.push({ pathname: '/post/[id]', params: { id: postId } });
-  }
-
-  function handlePlaybackTimeChange(mediaUrl: string, currentTime: number) {
+  const handlePlaybackTimeChange = useCallback((mediaUrl: string, currentTime: number) => {
     setPlaybackPositions((current) => {
       if (Math.abs((current[mediaUrl] ?? 0) - currentTime) < 0.2) {
         return current;
@@ -219,9 +413,9 @@ export default function HomeScreen() {
         [mediaUrl]: currentTime,
       };
     });
-  }
+  }, []);
 
-  async function openComments(post: FeedPost) {
+  const openComments = useCallback(async (post: FeedPost) => {
     setCommentSheetPostId(post._id);
     setCommentDraft('');
     setSheetComments(post.recentComments);
@@ -235,15 +429,15 @@ export default function HomeScreen() {
     } finally {
       setIsCommentsLoading(false);
     }
-  }
+  }, []);
 
-  function closeComments() {
+  const closeComments = useCallback(() => {
     setCommentSheetPostId(null);
     setCommentDraft('');
     setSheetComments([]);
-  }
+  }, []);
 
-  async function handleCreateComment() {
+  const handleCreateComment = useCallback(async () => {
     if (!token || !activePost) {
       return;
     }
@@ -277,13 +471,13 @@ export default function HomeScreen() {
     } finally {
       setIsSubmittingComment(false);
     }
-  }
+  }, [activePost, commentDraft, token]);
 
-  function renderFeedHeader() {
-    return (
+  const renderFeedHeader = useMemo(
+    () => (
       <>
         <Animated.View
-          entering={FadeInDown.duration(450).springify()}
+          entering={FadeInDown.duration(420).springify()}
           style={[styles.heroShell, { backgroundColor: palette.backgroundSecondary }]}>
           <View style={[styles.heroGlowLarge, { backgroundColor: `${palette.tint}18` }]} />
           <View style={[styles.heroGlowSmall, { backgroundColor: `${palette.accent}16` }]} />
@@ -326,7 +520,7 @@ export default function HomeScreen() {
         </Animated.View>
 
         {user ? (
-          <Animated.View entering={FadeIn.duration(350)} style={styles.accountStrip}>
+          <Animated.View entering={FadeIn.duration(300)} style={styles.accountStrip}>
             <SocialAvatar name={user.name} imageUrl={user.avatarUrl} size={34} />
             <View style={styles.accountText}>
               <Text style={[styles.accountTitle, { color: palette.text }]}>
@@ -336,7 +530,7 @@ export default function HomeScreen() {
             </View>
           </Animated.View>
         ) : mode === 'guest' ? (
-          <Animated.View entering={FadeIn.duration(350)} style={styles.accountStrip}>
+          <Animated.View entering={FadeIn.duration(300)} style={styles.accountStrip}>
             <Text style={[styles.accountTitle, { color: palette.text }]}>Guest mode</Text>
             <Text style={[styles.accountHint, { color: palette.muted }]}>
               Browse now, then sign in when you want comments, saves, orders, and your profile.
@@ -370,153 +564,48 @@ export default function HomeScreen() {
           </View>
         ) : null}
       </>
-    );
-  }
+    ),
+    [activeFilter, interestChips, isLoading, mode, palette, posts.length, user]
+  );
 
-  function renderFeedItem({ item: post, index }: { item: FeedPost; index: number }) {
-    return (
-      <Animated.View
-        entering={FadeInDown.delay(index * 45).duration(420)}
-        style={[styles.postShell, { borderBottomColor: palette.border }]}>
-        <View style={styles.postTopRow}>
-          <Pressable
-            onPress={() => {
-              const authorId = post.author._id ?? post.author.id;
-
-              if (authorId) {
-                router.push({ pathname: '/profile/[id]', params: { id: authorId } });
-              }
-            }}
-            style={styles.postIdentity}>
-            <SocialAvatar name={post.author.name} imageUrl={post.author.avatarUrl} size={38} />
-            <View style={styles.postIdentityText}>
-              <View style={styles.postNameRow}>
-                <Text style={[styles.postAuthor, { color: palette.text }]}>{post.author.name}</Text>
-                {post.author.verificationStatus === 'top-rated' ? (
-                  <Ionicons name="checkmark-circle" size={14} color={palette.tint} />
-                ) : null}
-                <Text style={[styles.postMeta, { color: palette.muted }]}>{formatRelativeTime(post.createdAt)}</Text>
-              </View>
-              <Text style={[styles.postMeta, { color: palette.muted }]}>
-                {post.author.role} · {post.location}
-              </Text>
-            </View>
-          </Pressable>
-
-          <View style={styles.postRightMeta}>
-            <View
-              style={[
-                styles.postTag,
-                {
-                  backgroundColor: post.isSponsored ? `${palette.accent}12` : `${palette.accentSecondary}16`,
-                },
-              ]}>
-              <Text style={[styles.postTagText, { color: post.isSponsored ? palette.accent : palette.accentSecondary }]}>
-                {post.tag}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <Pressable onPress={() => openPost(post._id)} style={styles.postCopy}>
-          <Text style={[styles.postHeadline, { color: palette.text }]}>{post.headline}</Text>
-          <Text style={[styles.postBody, { color: palette.text }]}>
-            {post.body.length > 220 ? `${post.body.slice(0, 220)}...` : post.body}
-          </Text>
-        </Pressable>
-
-        {post.media?.length ? (
-          <FeedMedia
-            media={post.media}
-            onToggleLike={() => void handleToggleLike(post._id)}
-            onOpenPost={() => openPost(post._id)}
-            allowPlayback={isFocused && visiblePostIdsSet.has(post._id)}
-            playbackPositions={playbackPositions}
-            onPlaybackTimeChange={handlePlaybackTimeChange}
-          />
-        ) : null}
-
-        <View style={styles.postFooter}>
-          <View style={styles.postActionsLeft}>
-            <Pressable onPress={() => handleToggleLike(post._id)} hitSlop={8} style={styles.iconMetric}>
-              <Ionicons
-                name={post.hasLiked ? 'heart' : 'heart-outline'}
-                size={22}
-                color={post.hasLiked ? palette.accent : palette.text}
-              />
-              <Text style={[styles.iconMetricText, { color: post.hasLiked ? palette.accent : palette.text }]}>
-                {post.likesCount}
-              </Text>
-            </Pressable>
-
-            <Pressable onPress={() => void openComments(post)} hitSlop={8} style={styles.iconMetric}>
-              <Ionicons name="chatbubble-outline" size={20} color={palette.text} />
-              <Text style={[styles.iconMetricText, { color: palette.text }]}>{post.commentsCount}</Text>
-            </Pressable>
-          </View>
-
-          <Pressable onPress={() => handleToggleSave(post._id)} hitSlop={8} style={styles.iconMetric}>
-            <Ionicons
-              name={post.hasSaved ? 'bookmark' : 'bookmark-outline'}
-              size={20}
-              color={post.hasSaved ? palette.accent : palette.text}
-            />
-          </Pressable>
-        </View>
-
-        {!post.isOwner && post.canFollowAuthor ? (
-          <Pressable
-            onPress={() => void handleToggleFollow(post)}
-            style={[
-              styles.followButton,
-              { backgroundColor: post.isFollowingAuthor ? palette.surface : `${palette.tint}12` },
-            ]}>
-            <Text style={[styles.followButtonText, { color: post.isFollowingAuthor ? palette.text : palette.tint }]}>
-              {processingPostId === post._id ? 'Updating...' : post.isFollowingAuthor ? 'Following' : 'Follow for insights'}
-            </Text>
-          </Pressable>
-        ) : null}
-
-        {post.recentComments.length > 0 ? (
-          <Pressable onPress={() => void openComments(post)} style={styles.commentsPreview}>
-            <Text style={[styles.viewCommentsText, { color: palette.muted }]}>
-              View {post.commentsCount > 1 ? `all ${post.commentsCount} comments` : 'comment'}
-            </Text>
-            {post.recentComments.slice(0, 1).map((comment: Comment) => (
-              <View key={comment._id} style={styles.commentRow}>
-                <Text numberOfLines={2} style={[styles.commentText, { color: palette.muted }]}>
-                  <Text style={[styles.commentAuthor, { color: palette.text }]}>{comment.author.name} </Text>
-                  {comment.body}
-                </Text>
-              </View>
-            ))}
-          </Pressable>
-        ) : token ? (
-          <Pressable onPress={() => void openComments(post)}>
-            <Text style={[styles.viewCommentsText, { color: palette.muted }]}>Be the first to comment</Text>
-          </Pressable>
-        ) : (
-          <Text style={[styles.guestActionHint, { color: palette.muted }]}>
-            Sign in to comment, save, follow people, and personalize your feed.
-          </Text>
-        )}
-      </Animated.View>
-    );
-  }
-
-  function renderFeedFooter() {
-    return (
-      <>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: palette.text }]}>Marketplace picks</Text>
-        </View>
-
-        {previewProducts.map((product) => (
-          <ProductCard key={product._id} product={product} />
-        ))}
-      </>
-    );
-  }
+  const renderFeedItem = useCallback(
+    ({ item, index }: { item: FeedPost; index: number }) => (
+      <FeedPostCard
+        post={item}
+        index={index}
+        palette={palette}
+        isFocused={isFocused}
+        isVisible={visiblePostIdsSet.has(item._id)}
+        playbackPositions={playbackPositions}
+        processingPostId={processingPostId}
+        token={token}
+        onOpenAuthor={openAuthorProfile}
+        onOpenPost={openPost}
+        onOpenLinkedProduct={openLinkedProduct}
+        onToggleLike={handleToggleLike}
+        onOpenComments={openComments}
+        onToggleSave={handleToggleSave}
+        onToggleFollow={handleToggleFollow}
+        onPlaybackTimeChange={handlePlaybackTimeChange}
+      />
+    ),
+    [
+      handlePlaybackTimeChange,
+      handleToggleFollow,
+      handleToggleLike,
+      handleToggleSave,
+      isFocused,
+      openAuthorProfile,
+      openComments,
+      openLinkedProduct,
+      openPost,
+      palette,
+      playbackPositions,
+      processingPostId,
+      token,
+      visiblePostIdsSet,
+    ]
+  );
 
   return (
     <>
@@ -528,9 +617,13 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={renderFeedHeader}
-        ListFooterComponent={renderFeedFooter}
         onViewableItemsChanged={onViewableItemsChanged.current}
         viewabilityConfig={viewabilityConfigRef.current}
+        removeClippedSubviews
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={5}
+        updateCellsBatchingPeriod={60}
       />
 
       <Modal visible={Boolean(activePost)} animationType="slide" transparent onRequestClose={closeComments}>
@@ -665,6 +758,19 @@ const styles = StyleSheet.create({
   postTag: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   postTagText: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700' },
   postCopy: { gap: 6 },
+  linkedListingCard: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  linkedListingCopy: { flex: 1, gap: 2 },
+  linkedListingLabel: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.9 },
+  linkedListingName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
+  linkedListingMeta: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
   postHeadline: { fontFamily: Fonts.rounded, fontSize: 19, fontWeight: '700', lineHeight: 25 },
   postBody: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
   postFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, paddingTop: 2 },

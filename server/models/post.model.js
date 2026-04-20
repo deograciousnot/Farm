@@ -32,6 +32,11 @@ const postSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    linkedProduct: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      default: null,
+    },
     likesCount: {
       type: Number,
       default: 0,

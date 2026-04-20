@@ -204,6 +204,7 @@ export const api = {
       tag?: string;
       location?: string;
       postType?: string;
+      linkedProductId?: string;
       media?: UploadableAsset[];
     }
   ) {
@@ -213,6 +214,7 @@ export const api = {
     formData.append('tag', input.tag ?? '');
     formData.append('location', input.location ?? '');
     formData.append('postType', input.postType ?? 'knowledge');
+    formData.append('linkedProductId', input.linkedProductId ?? '');
     appendMediaAssets(formData, input.media ?? []);
 
     return requestFormData<{ item: FeedPost; message: string }>('/feed', {

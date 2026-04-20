@@ -61,6 +61,7 @@ export const getFeed = asyncHandler(async (_req, res) => {
 
   const posts = await Post.find(filters)
     .populate("author", "name role location verificationStatus trustScore avatarUrl")
+    .populate("linkedProduct", "name price unit location")
     .sort({ isSponsored: -1, createdAt: -1 })
     .limit(10)
     .lean();
@@ -130,6 +131,7 @@ export const getFeedPostById = asyncHandler(async (req, res) => {
 
   const post = await Post.findById(postId)
     .populate("author", "name role location verificationStatus trustScore avatarUrl followers following")
+    .populate("linkedProduct", "name price unit location")
     .lean();
 
   if (!post) {
@@ -159,10 +161,29 @@ export const getFeedPostById = asyncHandler(async (req, res) => {
 });
 
 export const createFeedPost = asyncHandler(async (req, res) => {
-  const { headline, body, tag = "", location = "", postType = "knowledge" } = req.body;
+  const { headline, body, tag = "", location = "", postType = "knowledge", linkedProductId = "" } = req.body;
 
   if (!headline || !body) {
     throw new AppError("Headline and body are required.", 400);
+  }
+
+  let linkedProduct = null;
+
+  if (linkedProductId) {
+    if (!mongoose.Types.ObjectId.isValid(linkedProductId)) {
+      throw new AppError("Invalid linked listing.", 400);
+    }
+
+    linkedProduct = await Product.findOne({
+      _id: linkedProductId,
+      seller: req.user._id,
+    })
+      .select("_id")
+      .lean();
+
+    if (!linkedProduct) {
+      throw new AppError("You can only tag one of your own listings.", 403);
+    }
   }
 
   const media = await uploadManyToCloudinary(req.files, {
@@ -176,11 +197,13 @@ export const createFeedPost = asyncHandler(async (req, res) => {
     tag,
     location,
     postType,
+    linkedProduct: linkedProduct?._id ?? null,
     media,
   });
 
   const populatedPost = await Post.findById(post._id)
     .populate("author", "name role location verificationStatus trustScore avatarUrl")
+    .populate("linkedProduct", "name price unit location")
     .lean();
 
   await recalculateTrustScoreForUser(req.user._id);
