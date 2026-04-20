@@ -8,14 +8,14 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSession } from '@/providers/session-provider';
 
 const featureNotes = [
-  'Follow market tea, farming tips, and produce updates in a social feed.',
-  'Shop serious marketplace listings from farmers and farm-input sellers.',
-  'Join focused communities that feel closer to Reddit and Quora than old-school forums.',
+  'A social feed for farm signals, short videos, market tea, and useful posts.',
+  'A marketplace where trust, seller identity, and speed matter.',
+  'Focused communities for questions, answers, and practical agriculture discussion.',
 ];
 
 const secondaryActions = [
-  { label: 'Continue with Google', note: 'UI ready, backend/provider hookup next.' },
-  { label: 'Continue with phone', note: 'Ideal for OTP login once SMS provider is added.' },
+  { label: 'Continue with Google', note: 'Best next auth path once provider setup is wired.' },
+  { label: 'Continue with phone', note: 'Great for OTP-based sign-in and quick account switching.' },
 ];
 
 export default function GetStartedScreen() {
@@ -35,67 +35,64 @@ export default function GetStartedScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={[styles.hero, { backgroundColor: palette.backgroundSecondary }]}>
-          <View style={[styles.heroGlowLarge, { backgroundColor: `${palette.accent}20` }]} />
-          <View style={[styles.heroGlowSmall, { backgroundColor: `${palette.tint}18` }]} />
-          <View style={[styles.brandBadge, { backgroundColor: palette.surfaceRaised }]}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.heroMediaWrap}>
+          <View style={[styles.heroImage, { backgroundColor: palette.backgroundSecondary }]}>
+            <View style={[styles.heroGlowLarge, { backgroundColor: `${palette.accent}20` }]} />
+            <View style={[styles.heroGlowSmall, { backgroundColor: `${palette.tint}16` }]} />
+            <View style={[styles.photoCircle, { backgroundColor: palette.surfaceRaised }]}>
+              <View style={[styles.photoInner, { backgroundColor: palette.backgroundTertiary }]} />
+              <View style={[styles.photoBody, { backgroundColor: palette.tint }]} />
+              <View style={[styles.photoBasket, { backgroundColor: palette.accentSecondary }]} />
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.heroCopy}>
+          <View style={[styles.brandBadge, { backgroundColor: palette.surface }]}>
             <Feather name="sunrise" size={14} color={palette.tint} />
             <Text style={[styles.brandBadgeText, { color: palette.text }]}>FarmConnect</Text>
           </View>
           <Text style={[styles.eyebrow, { color: palette.tint }]}>Fresh local connected</Text>
           <Text style={[styles.heading, { color: palette.text }]}>
-            Social energy for the next generation of agriculture.
+            Agriculture with social energy, marketplace trust, and real community.
           </Text>
           <Text style={[styles.subheading, { color: palette.muted }]}>
-            FarmConnect blends discovery, learning, communities, and buying into one playful mobile experience.
+            FarmConnect blends discovery, buying, discussion, and identity into one more modern mobile experience.
           </Text>
+        </View>
 
-          <View style={styles.featureStack}>
-            {featureNotes.map((note, index) => (
+        <View style={styles.featureList}>
+          {featureNotes.map((note, index) => (
+            <View key={note} style={styles.featureRow}>
               <View
-                key={note}
                 style={[
-                  styles.featureCard,
+                  styles.featureDot,
                   {
-                    backgroundColor: index === 1 ? `${palette.accent}12` : palette.surfaceRaised,
+                    backgroundColor:
+                      index === 0 ? palette.tint : index === 1 ? palette.accent : palette.accentSecondary,
                   },
-                ]}>
-                <View
-                  style={[
-                    styles.featureDot,
-                    { backgroundColor: index === 1 ? palette.accent : index === 2 ? palette.accentSecondary : palette.tint },
-                  ]}
-                />
-                <Text style={[styles.featureText, { color: palette.text }]}>{note}</Text>
-              </View>
-            ))}
-          </View>
+                ]}
+              />
+              <Text style={[styles.featureText, { color: palette.text }]}>{note}</Text>
+            </View>
+          ))}
         </View>
 
         <View style={styles.primaryActions}>
           <Pressable onPress={() => goToAuth('signup')} style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
             <Text style={styles.primaryButtonText}>Create account</Text>
           </Pressable>
-
-          <Pressable onPress={() => goToAuth('login')} style={[styles.secondaryButton, { backgroundColor: palette.accent }]}>
-            <Text style={styles.primaryButtonText}>I already have an account</Text>
+          <Pressable onPress={() => goToAuth('login')} style={[styles.secondaryButton, { backgroundColor: palette.surface }]}>
+            <Text style={[styles.secondaryButtonText, { color: palette.text }]}>I already have an account</Text>
           </Pressable>
         </View>
 
-        <View style={[styles.altCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
-          <Text style={[styles.altTitle, { color: palette.text }]}>More ways in</Text>
+        <View style={styles.moreWays}>
           {secondaryActions.map((action) => (
-            <Pressable
-              key={action.label}
-              onPress={() => goToAuth('login')}
-              style={[styles.altAction, { backgroundColor: palette.surface }]}>
+            <Pressable key={action.label} onPress={() => goToAuth('login')} style={[styles.altAction, { backgroundColor: palette.surface }]}>
               <View style={styles.altActionRow}>
-                <Feather
-                  name={action.label.includes('Google') ? 'chrome' : 'smartphone'}
-                  size={16}
-                  color={palette.text}
-                />
+                <Feather name={action.label.includes('Google') ? 'chrome' : 'smartphone'} size={16} color={palette.text} />
                 <Text style={[styles.altActionLabel, { color: palette.text }]}>{action.label}</Text>
               </View>
               <Text style={[styles.altActionNote, { color: palette.muted }]}>{action.note}</Text>
@@ -103,13 +100,15 @@ export default function GetStartedScreen() {
           ))}
         </View>
 
-        <View style={[styles.guestCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
-          <Text style={[styles.guestTitle, { color: palette.text }]}>Proceed as guest</Text>
-          <Text style={[styles.guestCopy, { color: palette.muted }]}>
-            Guests can browse the feed, marketplace, and communities, but commenting, saving, orders, and seller tools stay locked.
-          </Text>
-          <Pressable onPress={handleGuest} style={[styles.guestButton, { borderColor: palette.border, backgroundColor: palette.surface }]}>
-            <Text style={[styles.guestButtonText, { color: palette.text }]}>Continue as guest</Text>
+        <View style={[styles.guestStrip, { borderTopColor: palette.border }]}>
+          <View style={styles.guestCopyWrap}>
+            <Text style={[styles.guestTitle, { color: palette.text }]}>Continue as guest</Text>
+            <Text style={[styles.guestCopy, { color: palette.muted }]}>
+              Browse the feed, marketplace, and communities now, then sign in later for comments, saves, and orders.
+            </Text>
+          </View>
+          <Pressable onPress={handleGuest} style={[styles.guestButton, { backgroundColor: palette.backgroundSecondary }]}>
+            <Text style={[styles.guestButtonText, { color: palette.text }]}>Browse</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -119,46 +118,39 @@ export default function GetStartedScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  content: { padding: 20, gap: 18, paddingBottom: 36 },
-  hero: { borderRadius: 32, padding: 20, gap: 12, overflow: 'hidden' },
-  brandBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
+  content: { padding: 18, gap: 18, paddingBottom: 36 },
+  heroMediaWrap: { alignItems: 'center' },
+  heroImage: { width: '100%', height: 280, borderRadius: 34, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  heroGlowLarge: { position: 'absolute', width: 220, height: 220, borderRadius: 999, right: -50, top: -70 },
+  heroGlowSmall: { position: 'absolute', width: 140, height: 140, borderRadius: 999, left: -28, bottom: -22 },
+  photoCircle: { width: 170, height: 170, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  photoInner: { position: 'absolute', width: 136, height: 136, borderRadius: 999 },
+  photoBody: { position: 'absolute', width: 72, height: 92, borderRadius: 28, bottom: 26 },
+  photoBasket: { position: 'absolute', width: 54, height: 28, borderRadius: 14, right: 34, bottom: 44 },
+  heroCopy: { gap: 10 },
+  brandBadge: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', gap: 8, alignItems: 'center' },
   brandBadgeText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  heroGlowLarge: { position: 'absolute', width: 180, height: 180, borderRadius: 999, right: -36, top: -42 },
-  heroGlowSmall: { position: 'absolute', width: 112, height: 112, borderRadius: 999, left: -20, bottom: -20 },
-  eyebrow: {
-    fontFamily: Fonts.rounded,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-  },
-  heading: { fontFamily: Fonts.rounded, fontSize: 32, fontWeight: '700', lineHeight: 38 },
+  eyebrow: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.4 },
+  heading: { fontFamily: Fonts.rounded, fontSize: 34, fontWeight: '700', lineHeight: 40 },
   subheading: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 22 },
-  featureStack: { gap: 10, marginTop: 6 },
-  featureCard: { borderRadius: 20, padding: 14, flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  featureDot: { width: 12, height: 12, borderRadius: 999, marginTop: 5 },
+  featureList: { gap: 10 },
+  featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  featureDot: { width: 10, height: 10, borderRadius: 999, marginTop: 7 },
   featureText: { flex: 1, fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
-  primaryActions: { gap: 12 },
+  primaryActions: { gap: 10 },
   primaryButton: { borderRadius: 999, paddingVertical: 16, alignItems: 'center' },
-  secondaryButton: { borderRadius: 999, paddingVertical: 16, alignItems: 'center' },
   primaryButtonText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
-  altCard: { borderRadius: 28, borderWidth: 1, padding: 18, gap: 12 },
-  altTitle: { fontFamily: Fonts.rounded, fontSize: 20, fontWeight: '700' },
-  altAction: { borderRadius: 20, padding: 14, gap: 4 },
+  secondaryButton: { borderRadius: 999, paddingVertical: 16, alignItems: 'center' },
+  secondaryButtonText: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
+  moreWays: { gap: 10 },
+  altAction: { borderRadius: 24, padding: 16, gap: 5 },
   altActionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   altActionLabel: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
   altActionNote: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  guestCard: { borderRadius: 28, borderWidth: 1, padding: 18, gap: 12 },
-  guestTitle: { fontFamily: Fonts.rounded, fontSize: 20, fontWeight: '700' },
-  guestCopy: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
-  guestButton: { borderRadius: 999, borderWidth: 1, paddingVertical: 15, alignItems: 'center' },
-  guestButtonText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
+  guestStrip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16 },
+  guestCopyWrap: { flex: 1, gap: 4 },
+  guestTitle: { fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '700' },
+  guestCopy: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
+  guestButton: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 12 },
+  guestButtonText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
 });

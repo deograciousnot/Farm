@@ -1,9 +1,20 @@
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { FeedMedia } from '@/components/feed-media';
@@ -15,17 +26,50 @@ import { api } from '@/lib/api';
 import type { Comment, FeedPost, Product } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 
+function formatRelativeTime(value?: string) {
+  if (!value) {
+    return 'Now';
+  }
+
+  const date = new Date(value);
+  const diffMinutes = Math.max(0, Math.round((Date.now() - date.getTime()) / (1000 * 60)));
+
+  if (diffMinutes < 1) {
+    return 'Just now';
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+
+  if (diffHours < 24) {
+    return `${diffHours}h`;
+  }
+
+  return `${Math.floor(diffHours / 24)}d`;
+}
+
 export default function HomeScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+  const isFocused = useIsFocused();
   const { token, user, mode } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [interestChips, setInterestChips] = useState<string[]>([]);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [previewProducts, setPreviewProducts] = useState<Product[]>([]);
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
-  const [activePostId, setActivePostId] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [commentDraft, setCommentDraft] = useState('');
+  const [commentSheetPostId, setCommentSheetPostId] = useState<string | null>(null);
+  const [sheetComments, setSheetComments] = useState<Comment[]>([]);
+  const [isCommentsLoading, setIsCommentsLoading] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [processingPostId, setProcessingPostId] = useState<string | null>(null);
+  const [visiblePostIds, setVisiblePostIds] = useState<string[]>([]);
+  const [playbackPositions, setPlaybackPositions] = useState<Record<string, number>>({});
+  const viewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 65, minimumViewTime: 160 });
 
   const loadFeed = useCallback(async () => {
     setIsLoading(true);
@@ -49,19 +93,18 @@ export default function HomeScreen() {
     }, [loadFeed])
   );
 
-  const storyUsers = useMemo(() => {
-    const uniqueUsers = new Map<string, FeedPost['author']>();
+  const activePost = commentSheetPostId ? posts.find((post) => post._id === commentSheetPostId) ?? null : null;
+  const visiblePostIdsSet = useMemo(() => new Set(visiblePostIds), [visiblePostIds]);
 
-    for (const post of posts) {
-      const key = post.author._id ?? post.author.id ?? post.author.name;
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<{ item: FeedPost | null }> }) => {
+      const nextVisibleIds = viewableItems
+        .map((entry) => entry.item?._id)
+        .filter((value): value is string => Boolean(value));
 
-      if (!uniqueUsers.has(key)) {
-        uniqueUsers.set(key, post.author);
-      }
+      setVisiblePostIds(nextVisibleIds);
     }
-
-    return Array.from(uniqueUsers.values());
-  }, [posts]);
+  );
 
   async function handleToggleSave(postId: string) {
     if (!token) {
@@ -73,9 +116,7 @@ export default function HomeScreen() {
 
       setPosts((current) =>
         current.map((post) =>
-          post._id === postId
-            ? { ...post, hasSaved: response.saved, savesCount: response.savesCount }
-            : post
+          post._id === postId ? { ...post, hasSaved: response.saved, savesCount: response.savesCount } : post
         )
       );
     } catch (error) {
@@ -122,23 +163,105 @@ export default function HomeScreen() {
     }
   }
 
-  async function handleCreateComment(postId: string) {
-    if (!token) {
+  async function handleToggleFollow(post: FeedPost) {
+    if (!token || !post.canFollowAuthor) {
       return;
     }
 
-    const body = commentDrafts[postId]?.trim();
+    const authorId = post.author._id ?? post.author.id;
+
+    if (!authorId) {
+      return;
+    }
+
+    setProcessingPostId(post._id);
+
+    try {
+      const response = await api.toggleFollow(token, authorId);
+
+      setPosts((current) => {
+        const nextPosts = current.map((item) =>
+          (item.author._id ?? item.author.id) === authorId
+            ? {
+                ...item,
+                isFollowingAuthor: response.following,
+                author: {
+                  ...item.author,
+                  followersCount: response.followersCount,
+                },
+              }
+            : item
+        );
+
+        return activeFilter === 'Following' && !response.following
+          ? nextPosts.filter((item) => (item.author._id ?? item.author.id) !== authorId)
+          : nextPosts;
+      });
+    } catch (error) {
+      console.warn('Failed to toggle follow.', error);
+    } finally {
+      setProcessingPostId(null);
+    }
+  }
+
+  function openPost(postId: string) {
+    router.push({ pathname: '/post/[id]', params: { id: postId } });
+  }
+
+  function handlePlaybackTimeChange(mediaUrl: string, currentTime: number) {
+    setPlaybackPositions((current) => {
+      if (Math.abs((current[mediaUrl] ?? 0) - currentTime) < 0.2) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [mediaUrl]: currentTime,
+      };
+    });
+  }
+
+  async function openComments(post: FeedPost) {
+    setCommentSheetPostId(post._id);
+    setCommentDraft('');
+    setSheetComments(post.recentComments);
+    setIsCommentsLoading(true);
+
+    try {
+      const response = await api.getComments(post._id);
+      setSheetComments(response.items);
+    } catch (error) {
+      console.warn('Failed to load comments.', error);
+    } finally {
+      setIsCommentsLoading(false);
+    }
+  }
+
+  function closeComments() {
+    setCommentSheetPostId(null);
+    setCommentDraft('');
+    setSheetComments([]);
+  }
+
+  async function handleCreateComment() {
+    if (!token || !activePost) {
+      return;
+    }
+
+    const body = commentDraft.trim();
 
     if (!body) {
       return;
     }
 
+    setIsSubmittingComment(true);
+
     try {
-      const response = await api.createComment(token, postId, body);
+      const response = await api.createComment(token, activePost._id, body);
 
       setPosts((current) =>
         current.map((post) =>
-          post._id === postId
+          post._id === activePost._id
             ? {
                 ...post,
                 commentsCount: response.commentsCount,
@@ -147,136 +270,140 @@ export default function HomeScreen() {
             : post
         )
       );
-      setCommentDrafts((current) => ({ ...current, [postId]: '' }));
-      setActivePostId(null);
+      setSheetComments((current) => [response.item, ...current]);
+      setCommentDraft('');
     } catch (error) {
       console.warn('Failed to create comment.', error);
+    } finally {
+      setIsSubmittingComment(false);
     }
   }
 
-  return (
-    <ScrollView
-      style={[styles.screen, { backgroundColor: palette.background }]}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}>
-      <Animated.View
-        entering={FadeInDown.duration(450).springify()}
-        style={[styles.heroShell, { backgroundColor: palette.backgroundSecondary }]}>
-        <View style={[styles.heroGlowLarge, { backgroundColor: `${palette.tint}18` }]} />
-        <View style={[styles.heroGlowSmall, { backgroundColor: `${palette.accent}16` }]} />
+  function renderFeedHeader() {
+    return (
+      <>
+        <Animated.View
+          entering={FadeInDown.duration(450).springify()}
+          style={[styles.heroShell, { backgroundColor: palette.backgroundSecondary }]}>
+          <View style={[styles.heroGlowLarge, { backgroundColor: `${palette.tint}18` }]} />
+          <View style={[styles.heroGlowSmall, { backgroundColor: `${palette.accent}16` }]} />
 
-        <View style={styles.heroTopRow}>
-          <View style={styles.heroTitleWrap}>
-            <Text style={[styles.eyebrow, { color: palette.tint }]}>Feed</Text>
-            <Text style={[styles.title, { color: palette.text }]}>Fresh signals from farms, markets, and communities.</Text>
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroTitleWrap}>
+              <Text style={[styles.eyebrow, { color: palette.tint }]}>Feed</Text>
+              <Text style={[styles.title, { color: palette.text }]}>Fresh signals from farms, markets, and communities.</Text>
+            </View>
+            <View style={styles.heroIconRow}>
+              <Pressable style={[styles.heroIconButton, { backgroundColor: palette.surface }]} hitSlop={8}>
+                <Feather name="search" size={16} color={palette.text} />
+              </Pressable>
+              <Pressable style={[styles.heroIconButton, { backgroundColor: palette.surface }]} hitSlop={8}>
+                <Feather name="sliders" size={16} color={palette.text} />
+              </Pressable>
+              <Pressable
+                onPress={() => router.push('/modal')}
+                style={[styles.heroIconButton, { backgroundColor: `${palette.tint}18` }]}
+                hitSlop={8}>
+                <Feather name="plus" size={16} color={palette.tint} />
+              </Pressable>
+            </View>
           </View>
-          <View style={[styles.signalChip, { backgroundColor: `${palette.tint}12` }]}>
-            <Text style={[styles.signalChipText, { color: palette.tint }]}>For you</Text>
+
+          <Text style={[styles.subtitle, { color: palette.muted }]}>
+            A tighter stream built for quick scanning, strong writing, and attached media.
+          </Text>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topicRow}>
+            {interestChips.map((chip) => (
+              <Pressable
+                onPress={() => setActiveFilter(chip)}
+                key={chip}
+                style={[styles.topicChip, { backgroundColor: activeFilter === chip ? `${palette.tint}12` : palette.surface }]}>
+                <Text style={[styles.topicChipText, { color: activeFilter === chip ? palette.tint : palette.text }]}>{chip}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </Animated.View>
+
+        {user ? (
+          <Animated.View entering={FadeIn.duration(350)} style={styles.accountStrip}>
+            <SocialAvatar name={user.name} imageUrl={user.avatarUrl} size={34} />
+            <View style={styles.accountText}>
+              <Text style={[styles.accountTitle, { color: palette.text }]}>
+                {user.name} <Text style={[styles.accountMeta, { color: palette.muted }]}>· {user.role}</Text>
+              </Text>
+              <Text style={[styles.accountHint, { color: palette.muted }]}>Your feed actions are live.</Text>
+            </View>
+          </Animated.View>
+        ) : mode === 'guest' ? (
+          <Animated.View entering={FadeIn.duration(350)} style={styles.accountStrip}>
+            <Text style={[styles.accountTitle, { color: palette.text }]}>Guest mode</Text>
+            <Text style={[styles.accountHint, { color: palette.muted }]}>
+              Browse now, then sign in when you want comments, saves, orders, and your profile.
+            </Text>
+          </Animated.View>
+        ) : null}
+
+        {isLoading ? (
+          <View style={styles.loadingShell}>
+            <ActivityIndicator color={palette.tint} />
+            <Text style={[styles.loadingText, { color: palette.muted }]}>Loading your feed...</Text>
           </View>
+        ) : null}
+
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: palette.text }]}>
+            {activeFilter === 'Following' ? 'Following' : activeFilter === 'All' ? 'Latest' : activeFilter}
+          </Text>
         </View>
 
-        <Text style={[styles.subtitle, { color: palette.muted }]}>
-          Cleaner, tighter, and less boxed-in. This feed now leans more editorial than dashboard.
-        </Text>
+        {!isLoading && posts.length === 0 ? (
+          <View style={styles.emptyFeedState}>
+            <Text style={[styles.emptyFeedTitle, { color: palette.text }]}>
+              {activeFilter === 'Following' ? 'No followed posts yet' : 'Nothing here yet'}
+            </Text>
+            <Text style={[styles.emptyFeedBody, { color: palette.muted }]}>
+              {activeFilter === 'Following'
+                ? 'Follow farmers and sellers to build a tighter, more personal stream.'
+                : 'Try another filter or come back after more stories are shared.'}
+            </Text>
+          </View>
+        ) : null}
+      </>
+    );
+  }
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storiesRow}>
-          {storyUsers.map((storyUser) => (
-            <View key={storyUser._id ?? storyUser.id ?? storyUser.name} style={styles.storyItem}>
-              <View style={[styles.storyRing, { backgroundColor: `${palette.tint}14` }]}>
-                <SocialAvatar name={storyUser.name} imageUrl={storyUser.avatarUrl} size={52} />
+  function renderFeedItem({ item: post, index }: { item: FeedPost; index: number }) {
+    return (
+      <Animated.View
+        entering={FadeInDown.delay(index * 45).duration(420)}
+        style={[styles.postShell, { borderBottomColor: palette.border }]}>
+        <View style={styles.postTopRow}>
+          <Pressable
+            onPress={() => {
+              const authorId = post.author._id ?? post.author.id;
+
+              if (authorId) {
+                router.push({ pathname: '/profile/[id]', params: { id: authorId } });
+              }
+            }}
+            style={styles.postIdentity}>
+            <SocialAvatar name={post.author.name} imageUrl={post.author.avatarUrl} size={38} />
+            <View style={styles.postIdentityText}>
+              <View style={styles.postNameRow}>
+                <Text style={[styles.postAuthor, { color: palette.text }]}>{post.author.name}</Text>
+                {post.author.verificationStatus === 'top-rated' ? (
+                  <Ionicons name="checkmark-circle" size={14} color={palette.tint} />
+                ) : null}
+                <Text style={[styles.postMeta, { color: palette.muted }]}>{formatRelativeTime(post.createdAt)}</Text>
               </View>
-              <Text numberOfLines={1} style={[styles.storyName, { color: palette.text }]}>
-                {storyUser.name.split(' ')[0]}
+              <Text style={[styles.postMeta, { color: palette.muted }]}>
+                {post.author.role} · {post.location}
               </Text>
             </View>
-          ))}
-        </ScrollView>
+          </Pressable>
 
-        <View style={styles.topicRow}>
-          {interestChips.map((chip, index) => (
-            <Pressable
-              onPress={() => setActiveFilter(chip)}
-              key={chip}
-              style={[
-                styles.topicChip,
-                {
-                  backgroundColor: activeFilter === chip ? `${palette.tint}12` : palette.surface,
-                },
-              ]}>
-              <Text style={[styles.topicChipText, { color: activeFilter === chip ? palette.tint : palette.text }]}>{chip}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={styles.heroActions}>
-          <Link href="/modal" asChild>
-            <Pressable style={[styles.quickLink, { backgroundColor: palette.surfaceRaised }]}>
-              <Feather name="plus-square" size={14} color={palette.text} />
-              <Text style={[styles.quickLinkText, { color: palette.text }]}>Create</Text>
-            </Pressable>
-          </Link>
-          <Link href="/(tabs)/community" asChild>
-            <Pressable style={[styles.quickLink, styles.primaryQuickLink, { backgroundColor: palette.tint }]}>
-              <Text style={styles.primaryQuickLinkText}>Community</Text>
-            </Pressable>
-          </Link>
-          <Link href="/(tabs)/marketplace" asChild>
-            <Pressable style={[styles.quickLink, { backgroundColor: palette.surfaceRaised }]}>
-              <Text style={[styles.quickLinkText, { color: palette.text }]}>Marketplace</Text>
-            </Pressable>
-          </Link>
-        </View>
-      </Animated.View>
-
-      {user ? (
-        <Animated.View
-          entering={FadeIn.duration(350)}
-          style={[styles.accountStrip, { backgroundColor: palette.surfaceRaised }]}>
-          <SocialAvatar name={user.name} imageUrl={user.avatarUrl} size={36} />
-          <View style={styles.accountText}>
-            <Text style={[styles.accountTitle, { color: palette.text }]}>
-              {user.name} <Text style={[styles.accountMeta, { color: palette.muted }]}>- {user.role}</Text>
-            </Text>
-            <Text style={[styles.accountHint, { color: palette.muted }]}>Your comments and saves are live.</Text>
-          </View>
-        </Animated.View>
-      ) : mode === 'guest' ? (
-        <Animated.View
-          entering={FadeIn.duration(350)}
-          style={[styles.accountStrip, { backgroundColor: palette.surfaceRaised }]}>
-          <Text style={[styles.accountTitle, { color: palette.text }]}>Guest mode</Text>
-          <Text style={[styles.accountHint, { color: palette.muted }]}>
-            Browse freely now. Sign in for comments, saves, orders, and your profile.
-          </Text>
-        </Animated.View>
-      ) : null}
-
-      {isLoading ? (
-        <View style={styles.loadingShell}>
-          <ActivityIndicator color={palette.tint} />
-          <Text style={[styles.loadingText, { color: palette.muted }]}>Loading your feed...</Text>
-        </View>
-      ) : null}
-
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: palette.text }]}>Latest</Text>
-      </View>
-
-      {posts.map((post, index) => (
-        <Animated.View
-          key={post._id}
-          entering={FadeInDown.delay(index * 45).duration(420)}
-          style={[styles.postCard, { backgroundColor: palette.surfaceRaised }]}>
-          <View style={styles.postTopRow}>
-            <View style={styles.postIdentity}>
-              <SocialAvatar name={post.author.name} imageUrl={post.author.avatarUrl} size={38} />
-              <View style={styles.postIdentityText}>
-                <Text style={[styles.postAuthor, { color: palette.text }]}>{post.author.name}</Text>
-                <Text style={[styles.postMeta, { color: palette.muted }]}>
-                  {post.author.role} - {post.location}
-                </Text>
-              </View>
-            </View>
+          <View style={styles.postRightMeta}>
             <View
               style={[
                 styles.postTag,
@@ -284,175 +411,241 @@ export default function HomeScreen() {
                   backgroundColor: post.isSponsored ? `${palette.accent}12` : `${palette.accentSecondary}16`,
                 },
               ]}>
-              <Text
-                style={[
-                  styles.postTagText,
-                  { color: post.isSponsored ? palette.accent : palette.accentSecondary },
-                ]}>
+              <Text style={[styles.postTagText, { color: post.isSponsored ? palette.accent : palette.accentSecondary }]}>
                 {post.tag}
               </Text>
             </View>
           </View>
+        </View>
 
-          <View style={styles.postCopy}>
-            <Text style={[styles.postHeadline, { color: palette.text }]}>{post.headline}</Text>
-            <Text style={[styles.postBody, { color: palette.muted }]}>{post.body}</Text>
-          </View>
+        <Pressable onPress={() => openPost(post._id)} style={styles.postCopy}>
+          <Text style={[styles.postHeadline, { color: palette.text }]}>{post.headline}</Text>
+          <Text style={[styles.postBody, { color: palette.text }]}>
+            {post.body.length > 220 ? `${post.body.slice(0, 220)}...` : post.body}
+          </Text>
+        </Pressable>
 
-          {post.media?.length ? <FeedMedia media={post.media} /> : null}
+        {post.media?.length ? (
+          <FeedMedia
+            media={post.media}
+            onToggleLike={() => void handleToggleLike(post._id)}
+            onOpenPost={() => openPost(post._id)}
+            allowPlayback={isFocused && visiblePostIdsSet.has(post._id)}
+            playbackPositions={playbackPositions}
+            onPlaybackTimeChange={handlePlaybackTimeChange}
+          />
+        ) : null}
 
-          <View style={styles.postFooter}>
-            <View style={styles.postActionsLeft}>
-              <Pressable onPress={() => handleToggleLike(post._id)} hitSlop={8} style={styles.iconMetric}>
-                <Ionicons
-                  name={post.hasLiked ? 'heart' : 'heart-outline'}
-                  size={20}
-                  color={post.hasLiked ? palette.accent : palette.text}
-                />
-                <Text style={[styles.iconMetricText, { color: post.hasLiked ? palette.accent : palette.text }]}>
-                  {post.likesCount}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setActivePostId(activePostId === post._id ? null : post._id)}
-                hitSlop={8}
-                style={styles.iconMetric}>
-                <Ionicons
-                  name={activePostId === post._id ? 'chatbubble' : 'chatbubble-outline'}
-                  size={19}
-                  color={activePostId === post._id ? palette.tint : palette.text}
-                />
-                <Text
-                  style={[
-                    styles.iconMetricText,
-                    { color: activePostId === post._id ? palette.tint : palette.text },
-                  ]}>
-                  {post.commentsCount}
-                </Text>
-              </Pressable>
-              <View style={styles.iconMetric}>
-                <Ionicons name="paper-plane-outline" size={18} color={palette.text} />
-              </View>
-            </View>
-
-            <Pressable onPress={() => handleToggleSave(post._id)} hitSlop={8} style={styles.iconMetric}>
+        <View style={styles.postFooter}>
+          <View style={styles.postActionsLeft}>
+            <Pressable onPress={() => handleToggleLike(post._id)} hitSlop={8} style={styles.iconMetric}>
               <Ionicons
-                name={post.hasSaved ? 'bookmark' : 'bookmark-outline'}
-                size={19}
-                color={post.hasSaved ? palette.accent : palette.text}
+                name={post.hasLiked ? 'heart' : 'heart-outline'}
+                size={22}
+                color={post.hasLiked ? palette.accent : palette.text}
               />
-              {token ? (
-                <Text style={[styles.iconMetricText, { color: post.hasSaved ? palette.accent : palette.text }]}>
-                  {post.savesCount}
-                </Text>
-              ) : null}
+              <Text style={[styles.iconMetricText, { color: post.hasLiked ? palette.accent : palette.text }]}>
+                {post.likesCount}
+              </Text>
+            </Pressable>
+
+            <Pressable onPress={() => void openComments(post)} hitSlop={8} style={styles.iconMetric}>
+              <Ionicons name="chatbubble-outline" size={20} color={palette.text} />
+              <Text style={[styles.iconMetricText, { color: palette.text }]}>{post.commentsCount}</Text>
             </Pressable>
           </View>
 
-          {!token ? (
-            <Text style={[styles.guestActionHint, { color: palette.muted }]}>
-              Sign in to comment, save, and personalize your feed.
-            </Text>
-          ) : null}
+          <Pressable onPress={() => handleToggleSave(post._id)} hitSlop={8} style={styles.iconMetric}>
+            <Ionicons
+              name={post.hasSaved ? 'bookmark' : 'bookmark-outline'}
+              size={20}
+              color={post.hasSaved ? palette.accent : palette.text}
+            />
+          </Pressable>
+        </View>
 
-          <View style={styles.postMetaStrip}>
-            <Text style={[styles.postMetaLine, { color: palette.muted }]}>
-              {post.likesCount} likes
+        {!post.isOwner && post.canFollowAuthor ? (
+          <Pressable
+            onPress={() => void handleToggleFollow(post)}
+            style={[
+              styles.followButton,
+              { backgroundColor: post.isFollowingAuthor ? palette.surface : `${palette.tint}12` },
+            ]}>
+            <Text style={[styles.followButtonText, { color: post.isFollowingAuthor ? palette.text : palette.tint }]}>
+              {processingPostId === post._id ? 'Updating...' : post.isFollowingAuthor ? 'Following' : 'Follow for insights'}
             </Text>
-            <Text style={[styles.postMetaLine, { color: palette.muted }]}>
-              {post.commentsCount} comments
-            </Text>
-            <Text style={[styles.postMetaLine, { color: palette.muted }]}>
-              {post.savesCount} saves
-            </Text>
-          </View>
+          </Pressable>
+        ) : null}
 
-          {post.recentComments.length > 0 ? (
-            <View style={styles.commentsPreview}>
-              {post.recentComments.map((comment: Comment) => (
-                <View key={comment._id} style={styles.commentRow}>
-                  <SocialAvatar name={comment.author.name} imageUrl={comment.author.avatarUrl} size={22} />
-                  <Text numberOfLines={2} style={[styles.commentText, { color: palette.muted }]}>
-                    <Text style={[styles.commentAuthor, { color: palette.text }]}>{comment.author.name}: </Text>
-                    {comment.body}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
+        {post.recentComments.length > 0 ? (
+          <Pressable onPress={() => void openComments(post)} style={styles.commentsPreview}>
+            <Text style={[styles.viewCommentsText, { color: palette.muted }]}>
+              View {post.commentsCount > 1 ? `all ${post.commentsCount} comments` : 'comment'}
+            </Text>
+            {post.recentComments.slice(0, 1).map((comment: Comment) => (
+              <View key={comment._id} style={styles.commentRow}>
+                <Text numberOfLines={2} style={[styles.commentText, { color: palette.muted }]}>
+                  <Text style={[styles.commentAuthor, { color: palette.text }]}>{comment.author.name} </Text>
+                  {comment.body}
+                </Text>
+              </View>
+            ))}
+          </Pressable>
+        ) : token ? (
+          <Pressable onPress={() => void openComments(post)}>
+            <Text style={[styles.viewCommentsText, { color: palette.muted }]}>Be the first to comment</Text>
+          </Pressable>
+        ) : (
+          <Text style={[styles.guestActionHint, { color: palette.muted }]}>
+            Sign in to comment, save, follow people, and personalize your feed.
+          </Text>
+        )}
+      </Animated.View>
+    );
+  }
 
-          {activePostId === post._id ? (
-            <View style={[styles.commentComposer, { backgroundColor: palette.surface }]}>
-              <TextInput
-                value={commentDrafts[post._id] ?? ''}
-                onChangeText={(value) => setCommentDrafts((current) => ({ ...current, [post._id]: value }))}
-                placeholder="Add a comment..."
-                placeholderTextColor={palette.muted}
-                style={[styles.commentInput, { color: palette.text }]}
-              />
-              <Pressable onPress={() => handleCreateComment(post._id)} style={[styles.sendButton, { backgroundColor: palette.tint }]}>
-                <Text style={styles.sendButtonText}>Post</Text>
+  function renderFeedFooter() {
+    return (
+      <>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: palette.text }]}>Marketplace picks</Text>
+        </View>
+
+        {previewProducts.map((product) => (
+          <ProductCard key={product._id} product={product} />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <FlatList
+        data={posts}
+        keyExtractor={(item) => item._id}
+        renderItem={renderFeedItem}
+        style={[styles.screen, { backgroundColor: palette.background }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={renderFeedHeader}
+        ListFooterComponent={renderFeedFooter}
+        onViewableItemsChanged={onViewableItemsChanged.current}
+        viewabilityConfig={viewabilityConfigRef.current}
+      />
+
+      <Modal visible={Boolean(activePost)} animationType="slide" transparent onRequestClose={closeComments}>
+        <SafeAreaView style={styles.commentModalRoot}>
+          <Pressable style={[styles.commentModalOverlay, { backgroundColor: 'rgba(0,0,0,0.28)' }]} onPress={closeComments} />
+          <View style={[styles.commentSheet, { backgroundColor: palette.surfaceRaised }]}>
+            <View style={[styles.sheetHandle, { backgroundColor: palette.border }]} />
+            <View style={styles.sheetHeader}>
+              <Text style={[styles.sheetTitle, { color: palette.text }]}>Comments</Text>
+              <Pressable onPress={closeComments} hitSlop={8}>
+                <Feather name="x" size={20} color={palette.text} />
               </Pressable>
             </View>
-          ) : null}
-        </Animated.View>
-      ))}
 
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: palette.text }]}>Marketplace picks</Text>
-      </View>
+            {activePost ? (
+              <View style={[styles.sheetPostPreview, { backgroundColor: palette.surface }]}>
+                <Pressable onPress={() => openPost(activePost._id)} style={styles.sheetPostHeader}>
+                  <SocialAvatar name={activePost.author.name} imageUrl={activePost.author.avatarUrl} size={30} />
+                  <View style={styles.sheetPostCopy}>
+                    <Text numberOfLines={1} style={[styles.sheetPostAuthor, { color: palette.text }]}>
+                      {activePost.author.name}
+                    </Text>
+                    <Text numberOfLines={2} style={[styles.sheetPostHeadline, { color: palette.text }]}>
+                      {activePost.headline}
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+            ) : null}
 
-      {previewProducts.map((product) => (
-        <ProductCard key={product._id} product={product} />
-      ))}
-    </ScrollView>
+            <ScrollView
+              style={styles.sheetCommentsList}
+              contentContainerStyle={styles.sheetCommentsContent}
+              showsVerticalScrollIndicator={false}>
+              {isCommentsLoading ? (
+                <View style={styles.loadingShell}>
+                  <ActivityIndicator color={palette.tint} />
+                </View>
+              ) : sheetComments.length ? (
+                sheetComments.map((comment) => (
+                  <View key={comment._id} style={styles.sheetCommentRow}>
+                    <SocialAvatar name={comment.author.name} imageUrl={comment.author.avatarUrl} size={32} />
+                    <View style={styles.sheetCommentBodyWrap}>
+                      <View style={[styles.sheetCommentBubble, { backgroundColor: palette.surface }]}>
+                        <View style={styles.sheetCommentTop}>
+                          <Text style={[styles.sheetCommentAuthor, { color: palette.text }]}>{comment.author.name}</Text>
+                          <Text style={[styles.sheetCommentMeta, { color: palette.muted }]}>
+                            {formatRelativeTime(comment.createdAt)}
+                          </Text>
+                        </View>
+                        <Text style={[styles.sheetCommentText, { color: palette.text }]}>{comment.body}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.sheetEmptyState}>
+                  <Text style={[styles.sheetEmptyTitle, { color: palette.text }]}>No comments yet</Text>
+                  <Text style={[styles.sheetEmptyBody, { color: palette.muted }]}>
+                    Start the conversation with a short, useful comment.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={[styles.sheetComposer, { backgroundColor: palette.surface }]}>
+              <TextInput
+                value={commentDraft}
+                onChangeText={setCommentDraft}
+                editable={Boolean(token) && !isSubmittingComment}
+                placeholder={token ? 'What do you think of this?' : 'Sign in to comment'}
+                placeholderTextColor={palette.muted}
+                style={[styles.sheetInput, { color: palette.text }]}
+              />
+              <Pressable
+                onPress={() => void handleCreateComment()}
+                disabled={!token || isSubmittingComment || !commentDraft.trim()}
+                style={[
+                  styles.sheetSendButton,
+                  {
+                    backgroundColor:
+                      !token || isSubmittingComment || !commentDraft.trim() ? palette.backgroundSecondary : palette.tint,
+                  },
+                ]}>
+                <Ionicons
+                  name="arrow-up"
+                  size={16}
+                  color={!token || isSubmittingComment || !commentDraft.trim() ? palette.muted : '#ffffff'}
+                />
+              </Pressable>
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: 14, paddingTop: 14, gap: 14, paddingBottom: 28 },
-  heroShell: {
-    borderRadius: 28,
-    padding: 16,
-    gap: 12,
-    overflow: 'hidden',
-  },
+  heroShell: { borderRadius: 28, padding: 16, gap: 12, overflow: 'hidden' },
   heroGlowLarge: { position: 'absolute', width: 180, height: 180, borderRadius: 999, right: -52, top: -56 },
   heroGlowSmall: { position: 'absolute', width: 120, height: 120, borderRadius: 999, left: -20, bottom: -30 },
   heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' },
   heroTitleWrap: { flex: 1, gap: 6 },
-  eyebrow: {
-    fontFamily: Fonts.rounded,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1.3,
-  },
+  eyebrow: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.3 },
   title: { fontFamily: Fonts.rounded, fontSize: 27, fontWeight: '700', lineHeight: 32, maxWidth: 300 },
-  signalChip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  signalChipText: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700' },
+  heroIconRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  heroIconButton: { width: 38, height: 38, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   subtitle: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20, maxWidth: 320 },
-  storiesRow: { gap: 12, paddingVertical: 2 },
-  storyItem: { width: 62, gap: 7, alignItems: 'center' },
-  storyRing: { padding: 3, borderRadius: 999 },
-  storyName: { fontFamily: Fonts.sans, fontSize: 11, fontWeight: '700' },
-  topicRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  topicRow: { gap: 8, paddingRight: 10 },
   topicChip: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7 },
   topicChipText: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700' },
-  heroActions: { flexDirection: 'row', gap: 8, marginTop: 2 },
-  quickLink: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  primaryQuickLink: { minWidth: 106, alignItems: 'center' },
-  primaryQuickLinkText: { color: '#ffffff', fontFamily: Fonts.rounded, fontWeight: '700', fontSize: 13 },
-  quickLinkText: { fontFamily: Fonts.rounded, fontWeight: '700', fontSize: 13 },
-  accountStrip: {
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
-  },
+  accountStrip: { paddingHorizontal: 4, paddingVertical: 4, flexDirection: 'row', gap: 10, alignItems: 'center' },
   accountText: { flex: 1, gap: 2 },
   accountTitle: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
   accountMeta: { fontFamily: Fonts.sans, fontSize: 12, fontWeight: '500' },
@@ -461,44 +654,58 @@ const styles = StyleSheet.create({
   loadingText: { fontFamily: Fonts.sans, fontSize: 13 },
   sectionHeader: { paddingHorizontal: 2 },
   sectionTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '700' },
-  postCard: {
-    borderRadius: 24,
-    padding: 14,
-    gap: 12,
-  },
-  postTopRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'center' },
+  postShell: { gap: 10, paddingBottom: 18, borderBottomWidth: StyleSheet.hairlineWidth },
+  postTopRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' },
   postIdentity: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   postIdentityText: { flex: 1, gap: 2 },
+  postNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
   postAuthor: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
   postMeta: { fontFamily: Fonts.sans, fontSize: 12 },
+  postRightMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   postTag: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   postTagText: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700' },
   postCopy: { gap: 6 },
-  postHeadline: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '700', lineHeight: 24 },
-  postBody: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
+  postHeadline: { fontFamily: Fonts.rounded, fontSize: 19, fontWeight: '700', lineHeight: 25 },
+  postBody: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
   postFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, paddingTop: 2 },
   postActionsLeft: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   iconMetric: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 24 },
   iconMetricText: { fontFamily: Fonts.sans, fontSize: 12, fontWeight: '700' },
-  guestActionHint: { fontFamily: Fonts.sans, fontSize: 11, lineHeight: 16, marginTop: -2 },
-  postMetaStrip: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginTop: -2 },
-  postMetaLine: { fontFamily: Fonts.sans, fontSize: 11, lineHeight: 16 },
-  commentsPreview: { gap: 7 },
+  followButton: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  followButtonText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
+  commentsPreview: { gap: 6 },
+  viewCommentsText: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
   commentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   commentText: { flex: 1, fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
   commentAuthor: { fontFamily: Fonts.rounded, fontWeight: '700' },
-  commentComposer: {
-    borderRadius: 18,
-    padding: 10,
-    gap: 8,
-  },
-  commentInput: {
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    fontFamily: Fonts.sans,
-    fontSize: 14,
-  },
-  sendButton: { alignSelf: 'flex-end', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
-  sendButtonText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
+  guestActionHint: { fontFamily: Fonts.sans, fontSize: 11, lineHeight: 16, marginTop: -2 },
+  emptyFeedState: { paddingVertical: 18, gap: 6 },
+  emptyFeedTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '700' },
+  emptyFeedBody: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 20, maxWidth: 300 },
+  commentModalRoot: { flex: 1, justifyContent: 'flex-end' },
+  commentModalOverlay: { ...StyleSheet.absoluteFillObject },
+  commentSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, minHeight: '62%', maxHeight: '84%', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, gap: 12 },
+  sheetHandle: { alignSelf: 'center', width: 48, height: 5, borderRadius: 999 },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sheetTitle: { fontFamily: Fonts.rounded, fontSize: 20, fontWeight: '700' },
+  sheetPostPreview: { borderRadius: 18, padding: 12 },
+  sheetPostHeader: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  sheetPostCopy: { flex: 1, gap: 2 },
+  sheetPostAuthor: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
+  sheetPostHeadline: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 18 },
+  sheetCommentsList: { flex: 1 },
+  sheetCommentsContent: { gap: 12, paddingBottom: 8 },
+  sheetCommentRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  sheetCommentBodyWrap: { flex: 1 },
+  sheetCommentBubble: { borderRadius: 18, paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
+  sheetCommentTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'center' },
+  sheetCommentAuthor: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
+  sheetCommentMeta: { fontFamily: Fonts.sans, fontSize: 11 },
+  sheetCommentText: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
+  sheetEmptyState: { alignItems: 'center', gap: 6, paddingVertical: 28 },
+  sheetEmptyTitle: { fontFamily: Fonts.rounded, fontSize: 17, fontWeight: '700' },
+  sheetEmptyBody: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19, textAlign: 'center', maxWidth: 250 },
+  sheetComposer: { borderRadius: 18, padding: 8, flexDirection: 'row', gap: 8, alignItems: 'center' },
+  sheetInput: { flex: 1, paddingHorizontal: 10, paddingVertical: 10, fontFamily: Fonts.sans, fontSize: 14 },
+  sheetSendButton: { width: 38, height: 38, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 });

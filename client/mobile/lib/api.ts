@@ -16,7 +16,7 @@ import type {
 } from '@/lib/types';
 
 type RequestOptions = {
-  method?: 'GET' | 'POST' | 'PATCH';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   token?: string | null;
   body?: unknown;
 };
@@ -162,6 +162,9 @@ export const api = {
   getComments(postId: string) {
     return request<{ items: Comment[] }>(`/feed/${postId}/comments`);
   },
+  getFeedPostById(postId: string, token?: string | null) {
+    return request<{ item: FeedPost }>(`/feed/${postId}`, { token });
+  },
   createComment(token: string, postId: string, body: string) {
     return request<{ item: Comment; commentsCount: number }>(`/feed/${postId}/comments`, {
       method: 'POST',
@@ -177,6 +180,18 @@ export const api = {
   },
   toggleLike(token: string, postId: string) {
     return request<{ liked: boolean; likesCount: number }>(`/feed/${postId}/like`, {
+      method: 'POST',
+      token,
+    });
+  },
+  deleteFeedPost(token: string, postId: string) {
+    return request<{ postId: string; message: string }>(`/feed/${postId}`, {
+      method: 'DELETE',
+      token,
+    });
+  },
+  toggleFollow(token: string, userId: string) {
+    return request<{ following: boolean; followersCount: number; followingCount: number }>(`/profile/${userId}/follow`, {
       method: 'POST',
       token,
     });
@@ -294,6 +309,9 @@ export const api = {
   },
   getProfile(token: string) {
     return request<ProfileResponse>('/profile/me', { token });
+  },
+  getPublicProfile(userId: string, token?: string | null) {
+    return request<ProfileResponse>(`/profile/${userId}`, { token });
   },
   markNotificationRead(token: string, notificationId: string) {
     return request<{ item: NotificationItem; unreadCount: number; message: string }>(

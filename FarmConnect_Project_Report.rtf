@@ -18,13 +18,15 @@ The repository is structured as a monorepo with:\par
 - Feed-first home screen inspired by modern social apps\par
 - Marketplace listings with seller details and product detail pages\par
 - Community discussions with thread detail and replies\par
-- Profile pages with avatar editing and notifications\par
+- Profile pages with avatar editing, follower graphs, public profile views, and notifications\par
 - Auth flow with sign up, login, demo login, and guest mode\par
 - Logout flow with a choice to fully log out or continue browsing as guest\par
 - Media upload support for images and videos using Cloudinary\par
-- Comment, like, save, reply, and notification systems\par
+- Comment, like, save, follow, reply, and notification systems\par
 - Dynamic trust score and verification status logic\par
 - Initial order flow from product details into the Orders tab\par
+- Feed and post-detail media playback with resume state, off-screen pause behavior, and full-post viewing\par
+- Settings screen for privacy, account actions, activity review, and logout flow\par
 \par
 \b 3. Repository Structure\b0\par
 \b Root\b0\par
@@ -53,6 +55,9 @@ The repository is structured as a monorepo with:\par
 - app/(tabs)/community.tsx: community overview\par
 - app/(tabs)/orders.tsx: orders and sales screen\par
 - app/(tabs)/profile.tsx: profile and notifications\par
+- app/post/[id].tsx: full post detail screen with comments and expanded media\par
+- app/profile/[id].tsx: public profile screen for other users\par
+- app/settings.tsx: settings, privacy, activity, and logout screen\par
 - app/community/new.tsx: create discussion thread\par
 - app/community/[id].tsx: thread detail and replies\par
 - app/product/[id].tsx: product details and checkout flow\par
@@ -71,17 +76,20 @@ The repository is structured as a monorepo with:\par
 \par
 \b Feed\b0\par
 - Displays posts with author avatar, engagement data, media, and recent comments.\par
-- Supports filtering, comments, likes, and saves.\par
-- Supports image and video rendering in feed posts.\par
+- Supports filtering, comments, likes, saves, follow actions, and author profile navigation.\par
+- Supports image and video rendering in feed posts, including multi-media posts.\par
+- Supports full post detail viewing for long-form content and expanded media.\par
+- Feed videos pause off-screen and preserve playback position when the user scrolls away and back.\par
 \par
 \b Marketplace\b0\par
-- Lists products from sellers with featured sections and shortcuts.\par
+- Lists products from sellers with lighter browsing chrome and cleaner filter presentation.\par
 - Product detail now supports quantity selection, delivery details, and order placement.\par
 \par
 \b Community\b0\par
 - Shows discussion threads by category.\par
 - Supports opening a thread, viewing replies, and posting a reply.\par
 - Supports creating new community threads.\par
+- Uses a lighter discussion-first header rather than heavy dashboard blocks.\par
 \par
 \b Orders\b0\par
 - Shows buyer purchases and seller-side sales.\par
@@ -92,6 +100,13 @@ The repository is structured as a monorepo with:\par
 - Shows user avatar, role, bio, metrics, trust score, verification status, and notifications.\par
 - Supports editing avatar and profile fields.\par
 - Supports notification read state and mark-all-read behavior.\par
+- Supports profile tabs for posts, listings, followers, and following.\par
+- Supports public profile browsing and follow/unfollow behavior across the app.\par
+\par
+\b Settings\b0\par
+- Provides an account-management entry point from profile.\par
+- Includes account, privacy, activity, and logout actions.\par
+- Supports logout with a guest-browsing fallback path.\par
 \par
 \b Composer\b0\par
 - The modal composer supports both feed posts and marketplace listings.\par
@@ -122,12 +137,12 @@ The repository is structured as a monorepo with:\par
 \par
 \b Controllers\b0\par
 - auth.controller.js: registration, login, session retrieval\par
-- feed.controller.js: feed retrieval and post creation\par
+- feed.controller.js: feed retrieval, filtering, post creation, follow-state shaping, and post deletion\par
 - comments.controller.js: feed comments, save toggles, like toggles\par
 - marketplace.controller.js: marketplace overview, product list, product detail, product creation\par
 - community.controller.js: thread list, thread detail, thread creation, reply creation, reply retrieval\par
 - orders.controller.js: order creation and order retrieval\par
-- profile.controller.js: profile retrieval, update, and notification read actions\par
+- profile.controller.js: own profile retrieval, public profile retrieval, update, and notification read actions\par
 \par
 \b Utilities\b0\par
 - trust-score.js: dynamic trust score and verification recalculation\par
@@ -178,7 +193,9 @@ The repository is structured as a monorepo with:\par
 \b Feed flow\b0\par
 1. User opens feed.\par
 2. Feed displays posts, social content, sponsored content, and media.\par
-3. User can like, comment, save, and browse content if authenticated.\par
+3. User can like, comment, save, follow authors, and open author profiles if authenticated.\par
+4. User can open long-form posts into a dedicated detail screen.\par
+5. Videos pause when off-screen or when the app backgrounds, and resume from their saved playback position.\par
 \par
 \b Marketplace to order flow\b0\par
 1. User opens a product in the marketplace.\par
@@ -193,6 +210,12 @@ The repository is structured as a monorepo with:\par
 1. User taps Log out from profile.\par
 2. App asks whether to continue browsing as guest or fully log out.\par
 3. User can switch quickly to another account afterward.\par
+\par
+\b Profile and social graph flow\b0\par
+1. User taps an author from the feed or comments.\par
+2. App opens a public profile page showing posts, listings, followers, and following.\par
+3. User can follow or unfollow that account from the public profile or feed context.\par
+4. Owners manage their own profile and settings from the profile tab.\par
 \par
 \b 7. Trust Score Feature Summary\b0\par
 The trust score is now dynamic instead of being purely decorative.\par
@@ -262,6 +285,7 @@ The trust score is now dynamic instead of being purely decorative.\par
 - demo buyer login\par
 - logout to sign-in screen\par
 - logout to guest mode\par
+- session restore and route-based jump into the main app experience\par
 \par
 \b Planned but not yet fully implemented\b0\par
 - Google login\par
@@ -350,8 +374,10 @@ npm run server:trust\par
 \par
 \b 14. What Is Working Well Right Now\b0\par
 - Mobile navigation and session flow are stable\par
-- Feed, community, marketplace, notifications, and profile feel connected\par
+- Feed, community, marketplace, notifications, profile, and settings feel connected\par
 - Media uploads are supported\par
+- Public profile browsing, following, and richer social context are now in place\par
+- Feed media behavior is more controlled, with off-screen pausing and expanded post viewing\par
 - Trust score now reflects user activity more realistically\par
 - Order flow has started moving from browsing into actual transaction state\par
 - Guest mode and account switching are now easier to use\par
@@ -361,12 +387,13 @@ npm run server:trust\par
 - Add phone OTP login\par
 - Add order status update actions for sellers and buyers\par
 - Add tap-through notification navigation to related post/thread/order\par
-- Improve marketplace filters and search interactivity\par
+- Wire compact search and filter actions into real search/filter sheets and backend filtering\par
+- Add richer video controls and composition options such as crop/trim before upload\par
 - Add stronger admin or moderation tools for verification and disputes\par
 - Add push notifications later once core auth providers are in place\par
 \par
 \b 16. Final Summary\b0\par
-FarmConnect already has the foundations of a strong social-commerce agriculture app. The client side now covers onboarding, authentication, guest mode, social feed, marketplace, community threads, replies, profile editing, notifications, and early checkout. The server side already supports real authentication, media upload, MongoDB persistence, Cloudinary integration, social engagement, notifications, trust scoring, and early order processing.\par
+FarmConnect already has the foundations of a strong social-commerce agriculture app. The client side now covers onboarding, authentication, guest mode, social feed, marketplace, community threads, replies, public and private profiles, follow relationships, settings, notifications, and early checkout. The server side already supports real authentication, media upload, MongoDB persistence, Cloudinary integration, social engagement, notifications, trust scoring, and early order processing.\par
 \par
 The codebase is no longer just a visual prototype. It is now an early working product foundation with clear next steps toward production-grade auth, ordering, and marketplace trust.\par
 }

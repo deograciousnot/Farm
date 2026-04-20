@@ -11,6 +11,8 @@ export type ApiUser = {
   trustScore?: number;
   verificationStatus?: string;
   interests?: string[];
+  followersCount?: number;
+  followingCount?: number;
 };
 
 export type Comment = {
@@ -37,6 +39,10 @@ export type FeedPost = {
   isSponsored: boolean;
   hasSaved: boolean;
   hasLiked?: boolean;
+  isOwner?: boolean;
+  isFollowingAuthor?: boolean;
+  canFollowAuthor?: boolean;
+  createdAt?: string;
   author: ApiUser;
   recentComments: Comment[];
   media?: Array<{
@@ -118,6 +124,14 @@ export type ProfileResponse = {
     listings: number;
     orders: number;
   };
+  socialGraph: {
+    isOwner: boolean;
+    isFollowing: boolean;
+    followers: ApiUser[];
+    following: ApiUser[];
+  };
+  posts: FeedPost[];
+  listings: Product[];
   notificationMeta: {
     unreadCount: number;
   };

@@ -18,6 +18,8 @@ export function sanitizeUser(user) {
     phone: user.phone,
     verificationStatus: user.verificationStatus,
     trustScore: user.trustScore,
+    followingCount: Array.isArray(user.following) ? user.following.length : 0,
+    followersCount: Array.isArray(user.followers) ? user.followers.length : 0,
     createdAt: user.createdAt,
   };
 }

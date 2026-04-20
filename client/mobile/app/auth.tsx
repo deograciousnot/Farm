@@ -37,10 +37,7 @@ export default function AuthScreen() {
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const selectedRoleCopy = useMemo(
-    () => roles.find((role) => role.id === selectedRole) ?? roles[1],
-    [selectedRole]
-  );
+  const selectedRoleCopy = useMemo(() => roles.find((role) => role.id === selectedRole) ?? roles[1], [selectedRole]);
 
   if (!isLoading && (token || mode === 'guest')) {
     return <Redirect href="/(tabs)" />;
@@ -130,27 +127,32 @@ export default function AuthScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.heroShell, { backgroundColor: palette.backgroundSecondary }]}>
-          <View style={[styles.glowLarge, { backgroundColor: `${palette.accent}20` }]} />
+          <View style={[styles.glowLarge, { backgroundColor: `${palette.accent}18` }]} />
           <View style={[styles.glowSmall, { backgroundColor: `${palette.tint}16` }]} />
-          <View style={[styles.heroBadge, { backgroundColor: palette.surfaceRaised }]}>
-            <Feather name={currentMode === 'signup' ? 'star' : 'log-in'} size={14} color={palette.tint} />
-            <Text style={[styles.heroBadgeText, { color: palette.text }]}>
-              {currentMode === 'signup' ? 'Set up your space' : 'Pick up where you left off'}
-            </Text>
+          <View style={styles.heroTop}>
+            <View style={[styles.heroBadge, { backgroundColor: palette.surface }]}>
+              <Feather name={currentMode === 'signup' ? 'user-plus' : 'log-in'} size={14} color={palette.tint} />
+              <Text style={[styles.heroBadgeText, { color: palette.text }]}>
+                {currentMode === 'signup' ? 'Create your identity' : 'Welcome back'}
+              </Text>
+            </View>
+            <Pressable onPress={() => router.replace('/get-started')} hitSlop={8}>
+              <Feather name="arrow-left" size={18} color={palette.text} />
+            </Pressable>
           </View>
 
           <Text style={[styles.eyebrow, { color: palette.accent }]}>
-            {currentMode === 'signup' ? 'Create your FarmConnect identity' : 'Welcome back to FarmConnect'}
+            {currentMode === 'signup' ? 'New to FarmConnect' : 'Account sign in'}
           </Text>
           <Text style={[styles.title, { color: palette.text }]}>
             {currentMode === 'signup'
-              ? 'Your feed, marketplace, and communities start with the role you choose.'
-              : 'Log in and jump straight back into the feed.'}
+              ? 'Set up your role, voice, and profile in one clean flow.'
+              : 'Jump back into your feed, marketplace, and communities.'}
           </Text>
           <Text style={[styles.subtitle, { color: palette.muted }]}>
-            Passwords are hashed on the backend before they are stored, and this mobile flow is now stable for Expo Go.
+            Passwords are hashed securely on the backend. Google and phone sign-in can plug into this flow next.
           </Text>
         </View>
 
@@ -173,48 +175,53 @@ export default function AuthScreen() {
 
         {currentMode === 'signup' ? (
           <>
-            <View style={[styles.avatarCard, { backgroundColor: palette.surfaceRaised }]}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Profile photo</Text>
-              <Text style={[styles.sectionMeta, { color: palette.muted }]}>
-                Optional for now, but it makes your account feel instantly more real in the feed.
-              </Text>
-              <View style={styles.avatarRow}>
-                <View style={[styles.avatarPreview, { backgroundColor: palette.surface }]}>
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { color: palette.muted }]}>Role</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleRow}>
+                {roles.map((role) => (
+                  <Pressable
+                    key={role.id}
+                    onPress={() => setSelectedRole(role.id)}
+                    style={[
+                      styles.roleCard,
+                      { backgroundColor: selectedRole === role.id ? `${palette.tint}12` : palette.surface },
+                    ]}>
+                    <Text style={[styles.roleLabel, { color: selectedRole === role.id ? palette.tint : palette.text }]}>
+                      {role.label}
+                    </Text>
+                    <Text style={[styles.roleBlurb, { color: palette.muted }]}>{role.blurb}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { color: palette.muted }]}>Profile photo</Text>
+              <View style={[styles.avatarRow, { backgroundColor: palette.surface }]}>
+                <View style={[styles.avatarPreview, { backgroundColor: palette.backgroundSecondary }]}>
                   {avatar ? (
                     <Image source={{ uri: avatar.uri }} contentFit="cover" style={styles.avatarImage} />
                   ) : (
-                    <Feather name="user" size={30} color={palette.muted} />
+                    <Feather name="user" size={28} color={palette.muted} />
                   )}
                 </View>
-                <Pressable onPress={pickAvatar} style={[styles.avatarButton, { backgroundColor: palette.surface }]}>
+                <View style={styles.avatarCopy}>
+                  <Text style={[styles.avatarTitle, { color: palette.text }]}>Make your profile feel real</Text>
+                  <Text style={[styles.avatarHint, { color: palette.muted }]}>
+                    Optional now, useful later for trust and recognition in the feed.
+                  </Text>
+                </View>
+                <Pressable onPress={pickAvatar} style={[styles.avatarButton, { backgroundColor: palette.backgroundSecondary }]}>
                   <Text style={[styles.avatarButtonText, { color: palette.text }]}>
-                    {avatar ? 'Change photo' : 'Choose photo'}
+                    {avatar ? 'Change' : 'Add'}
                   </Text>
                 </Pressable>
               </View>
             </View>
 
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Choose your lane</Text>
-              {roles.map((role) => (
-                <Pressable
-                  key={role.id}
-                  onPress={() => setSelectedRole(role.id)}
-                  style={[
-                    styles.roleCard,
-                    {
-                      backgroundColor: selectedRole === role.id ? `${palette.accent}12` : palette.surfaceRaised,
-                    },
-                  ]}>
-                  <Text style={[styles.roleLabel, { color: palette.text }]}>{role.label}</Text>
-                  <Text style={[styles.roleBlurb, { color: palette.muted }]}>{role.blurb}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Tune your feed</Text>
-              <Text style={[styles.sectionMeta, { color: palette.muted }]}>{selectedRoleCopy.blurb}</Text>
+              <Text style={[styles.sectionLabel, { color: palette.muted }]}>Interests</Text>
+              <Text style={[styles.sectionHint, { color: palette.muted }]}>{selectedRoleCopy.blurb}</Text>
               <View style={styles.chips}>
                 {interestOptions.map((interest) => {
                   const isSelected = selectedInterests.includes(interest);
@@ -225,11 +232,9 @@ export default function AuthScreen() {
                       onPress={() => toggleInterest(interest)}
                       style={[
                         styles.chip,
-                        {
-                          backgroundColor: isSelected ? `${palette.tint}16` : palette.surfaceRaised,
-                        },
+                        { backgroundColor: isSelected ? `${palette.accent}14` : palette.surface },
                       ]}>
-                      <Text style={[styles.chipText, { color: isSelected ? palette.tint : palette.text }]}>
+                      <Text style={[styles.chipText, { color: isSelected ? palette.accent : palette.text }]}>
                         {interest}
                       </Text>
                     </Pressable>
@@ -240,9 +245,9 @@ export default function AuthScreen() {
           </>
         ) : null}
 
-        <View style={[styles.formCard, { backgroundColor: palette.surfaceRaised }]}>
-          <Text style={[styles.sectionTitle, { color: palette.text }]}>
-            {currentMode === 'signup' ? 'Set up your account' : 'Log in'}
+        <View style={styles.formSection}>
+          <Text style={[styles.sectionLabel, { color: palette.muted }]}>
+            {currentMode === 'signup' ? 'Account details' : 'Login details'}
           </Text>
 
           {currentMode === 'signup' ? (
@@ -251,7 +256,7 @@ export default function AuthScreen() {
               onChangeText={setName}
               placeholder="Name or business name"
               placeholderTextColor={palette.muted}
-              style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.surface }]}
+              style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
             />
           ) : null}
 
@@ -262,7 +267,7 @@ export default function AuthScreen() {
             autoCapitalize="none"
             keyboardType="email-address"
             placeholderTextColor={palette.muted}
-            style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.surface }]}
+            style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
           />
           <TextInput
             value={password}
@@ -270,16 +275,15 @@ export default function AuthScreen() {
             placeholder="Password"
             secureTextEntry
             placeholderTextColor={palette.muted}
-            style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.surface }]}
+            style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
           />
-
           {currentMode === 'signup' ? (
             <TextInput
               value={location}
               onChangeText={setLocation}
               placeholder="Location"
               placeholderTextColor={palette.muted}
-              style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.surface }]}
+              style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
             />
           ) : null}
 
@@ -296,18 +300,13 @@ export default function AuthScreen() {
                   : 'Log in'}
             </Text>
           </Pressable>
-
           <Pressable
             disabled={isSubmitting}
             onPress={handleDemo}
-            style={[styles.secondaryButton, { borderColor: palette.border, backgroundColor: palette.surface }]}>
+            style={[styles.secondaryButton, { backgroundColor: palette.surface }]}>
             <Text style={[styles.secondaryButtonText, { color: palette.text }]}>Use demo buyer</Text>
           </Pressable>
         </View>
-
-        <Pressable onPress={() => router.replace('/get-started')} style={styles.backLink}>
-          <Text style={[styles.backLinkText, { color: palette.muted }]}>Back to get started</Text>
-        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -315,55 +314,42 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  content: { padding: 20, gap: 18, paddingBottom: 40 },
-  heroShell: { borderRadius: 32, padding: 18, overflow: 'hidden', gap: 12 },
-  heroBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
+  content: { padding: 18, gap: 16, paddingBottom: 36 },
+  heroShell: { borderRadius: 32, padding: 18, gap: 12, overflow: 'hidden' },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  heroBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', gap: 8, alignItems: 'center' },
   heroBadgeText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
   glowLarge: { position: 'absolute', width: 180, height: 180, borderRadius: 999, right: -30, top: -44 },
   glowSmall: { position: 'absolute', width: 100, height: 100, borderRadius: 999, left: -18, bottom: -18 },
   eyebrow: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2 },
-  title: { fontFamily: Fonts.rounded, fontSize: 31, fontWeight: '700', lineHeight: 37 },
+  title: { fontFamily: Fonts.rounded, fontSize: 31, fontWeight: '700', lineHeight: 38 },
   subtitle: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 22 },
-  modeSwitch: { borderRadius: 20, padding: 6, flexDirection: 'row', gap: 8 },
-  modeButton: { flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
-  modeButtonText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
-  avatarCard: { borderRadius: 26, padding: 18, gap: 12 },
-  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatarPreview: { width: 72, height: 72, borderRadius: 999, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  avatarImage: { width: '100%', height: '100%' },
-  avatarButton: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 11 },
-  avatarButtonText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
+  modeSwitch: { borderRadius: 999, padding: 4, flexDirection: 'row', gap: 6 },
+  modeButton: { flex: 1, borderRadius: 999, paddingVertical: 11, alignItems: 'center' },
+  modeButtonText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
   section: { gap: 10 },
-  sectionTitle: { fontFamily: Fonts.rounded, fontSize: 22, fontWeight: '700' },
-  sectionMeta: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
-  roleCard: { borderRadius: 22, padding: 16, gap: 6 },
+  sectionLabel: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2 },
+  sectionHint: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
+  roleRow: { gap: 10, paddingRight: 12 },
+  roleCard: { width: 210, borderRadius: 22, padding: 16, gap: 6 },
   roleLabel: { fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '700' },
-  roleBlurb: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  roleBlurb: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
+  avatarRow: { borderRadius: 24, padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center' },
+  avatarPreview: { width: 68, height: 68, borderRadius: 999, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarImage: { width: '100%', height: '100%' },
+  avatarCopy: { flex: 1, gap: 4 },
+  avatarTitle: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
+  avatarHint: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
+  avatarButton: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
+  avatarButtonText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   chipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  formCard: { borderRadius: 26, padding: 18, gap: 12 },
-  input: {
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontFamily: Fonts.sans,
-    fontSize: 14,
-  },
+  formSection: { gap: 10 },
+  input: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 14, fontFamily: Fonts.sans, fontSize: 14 },
   error: { fontFamily: Fonts.sans, fontSize: 13 },
-  primaryButton: { borderRadius: 999, paddingVertical: 15, alignItems: 'center' },
+  primaryButton: { borderRadius: 999, paddingVertical: 15, alignItems: 'center', marginTop: 4 },
   primaryButtonText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
-  secondaryButton: { borderRadius: 999, borderWidth: 1, paddingVertical: 15, alignItems: 'center' },
-  secondaryButtonText: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
-  backLink: { alignItems: 'center', paddingVertical: 4 },
-  backLinkText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
+  secondaryButton: { borderRadius: 999, paddingVertical: 15, alignItems: 'center' },
+  secondaryButtonText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
 });

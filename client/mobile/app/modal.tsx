@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -13,7 +14,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image } from 'expo-image';
 
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -51,10 +51,7 @@ export default function ComposerModal() {
 
   const isSeller = user?.role === 'farmer';
 
-  const title = useMemo(
-    () => (mode === 'post' ? 'Share to feed' : 'Create listing'),
-    [mode]
-  );
+  const title = useMemo(() => (mode === 'post' ? 'Share to feed' : 'Create listing'), [mode]);
   const hasVideo = selectedMedia.some((item) => item.type.toLowerCase().startsWith('video'));
   const mediaLimit = mode === 'post' ? 4 : 6;
   const canSubmitPost = headline.trim().length > 0 && body.trim().length > 0;
@@ -78,10 +75,10 @@ export default function ComposerModal() {
       : submissionStage === 'publishing'
         ? 'Finalizing your post and syncing it to the feed.'
         : selectedMedia.length
-          ? `${selectedMedia.length}/${mediaLimit} selected${hasVideo ? ' · includes video' : ''}`
+          ? `${selectedMedia.length}/${mediaLimit} selected${hasVideo ? ' - includes video' : ''}`
           : `Add up to ${mediaLimit} photos or videos.`;
 
-  async function pickMedia() {
+  async function pickMedia(options?: { cropSingleImage?: boolean }) {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
@@ -90,23 +87,25 @@ export default function ComposerModal() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
-      allowsMultipleSelection: true,
+      mediaTypes: options?.cropSingleImage ? ['images'] : ['images', 'videos'],
+      allowsEditing: Boolean(options?.cropSingleImage),
+      aspect: options?.cropSingleImage ? [4, 5] : undefined,
+      allowsMultipleSelection: !options?.cropSingleImage,
       quality: 0.9,
-      selectionLimit: mode === 'post' ? 4 : 6,
+      selectionLimit: options?.cropSingleImage ? 1 : mode === 'post' ? 4 : 6,
     });
 
     if (result.canceled) {
       return;
     }
 
-    setSelectedMedia(
-      result.assets.map((asset, index) => ({
-        uri: asset.uri,
-        type: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
-        name: asset.fileName || `farmconnect-media-${Date.now()}-${index}`,
-      }))
-    );
+    const nextAssets = result.assets.map((asset, index) => ({
+      uri: asset.uri,
+      type: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+      name: asset.fileName || `farmconnect-media-${Date.now()}-${index}`,
+    }));
+
+    setSelectedMedia(options?.cropSingleImage ? nextAssets : nextAssets.slice(0, mediaLimit));
   }
 
   function removeMedia(indexToRemove: number) {
@@ -199,10 +198,18 @@ export default function ComposerModal() {
         <View style={[styles.mediaCard, { backgroundColor: palette.surfaceRaised }]}>
           <View style={styles.mediaHeader}>
             <Text style={[styles.sectionTitle, { color: palette.text }]}>Media</Text>
-            <Pressable onPress={pickMedia} style={[styles.mediaButton, { backgroundColor: palette.surface }]}>
-              <Feather name="image" size={16} color={palette.text} />
-              <Text style={[styles.mediaButtonText, { color: palette.text }]}>Add photos or video</Text>
-            </Pressable>
+            <View style={styles.mediaActions}>
+              <Pressable onPress={() => void pickMedia()} style={[styles.mediaButton, { backgroundColor: palette.surface }]}>
+                <Feather name="image" size={16} color={palette.text} />
+                <Text style={[styles.mediaButtonText, { color: palette.text }]}>Add set</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void pickMedia({ cropSingleImage: true })}
+                style={[styles.mediaButton, { backgroundColor: palette.surface }]}>
+                <Feather name="crop" size={16} color={palette.text} />
+                <Text style={[styles.mediaButtonText, { color: palette.text }]}>Crop photo</Text>
+              </Pressable>
+            </View>
           </View>
 
           {selectedMedia.length ? (
@@ -223,6 +230,9 @@ export default function ComposerModal() {
           )}
 
           {selectedMedia.length ? <Text style={[styles.helperText, { color: palette.muted }]}>{stageCopy}</Text> : null}
+          <Text style={[styles.helperText, { color: palette.muted }]}>
+            Cropping is available for single-photo picks. Multi-select galleries keep the original framing.
+          </Text>
         </View>
 
         {mode === 'post' ? (
@@ -288,8 +298,7 @@ export default function ComposerModal() {
                     styles.chip,
                     { backgroundColor: productCategory === item ? `${palette.tint}14` : palette.surface },
                   ]}>
-                  <Text
-                    style={[styles.chipText, { color: productCategory === item ? palette.tint : palette.text }]}>
+                  <Text style={[styles.chipText, { color: productCategory === item ? palette.tint : palette.text }]}>
                     {item}
                   </Text>
                 </Pressable>
@@ -366,17 +375,50 @@ const styles = StyleSheet.create({
   modeTabText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
   mediaCard: { borderRadius: 24, padding: 14, gap: 12 },
   mediaHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'center' },
+  mediaActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', flex: 1 },
   sectionTitle: { fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '700' },
-  mediaButton: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', gap: 8, alignItems: 'center' },
+  mediaButton: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
   mediaButtonText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
   mediaPreviewRow: { gap: 10 },
   mediaPreviewItem: { width: 100, height: 124, borderRadius: 18, overflow: 'hidden' },
   mediaPreviewImage: { width: '100%', height: '100%' },
-  removeMediaButton: { position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  removeMediaButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   helperText: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
   formCard: { borderRadius: 24, padding: 14, gap: 12 },
-  titleInput: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 13, fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '700' },
-  bodyInput: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 14, minHeight: 120, textAlignVertical: 'top', fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
+  titleInput: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontFamily: Fonts.rounded,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  bodyInput: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    minHeight: 120,
+    textAlignVertical: 'top',
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    lineHeight: 20,
+  },
   compactInput: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 13, fontFamily: Fonts.sans, fontSize: 14 },
   chipRow: { gap: 8 },
   chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9 },

@@ -8,14 +8,13 @@ import { SocialAvatar } from '@/components/social-avatar';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { api } from '@/lib/api';
-import type { CommunityStat, CommunityThread } from '@/lib/types';
+import type { CommunityThread } from '@/lib/types';
 
 export default function CommunityScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const [isLoading, setIsLoading] = useState(true);
   const [rooms, setRooms] = useState<string[]>([]);
-  const [stats, setStats] = useState<CommunityStat[]>([]);
   const [threads, setThreads] = useState<CommunityThread[]>([]);
 
   const loadCommunity = useCallback(async () => {
@@ -24,7 +23,6 @@ export default function CommunityScreen() {
     try {
       const response = await api.getCommunity();
       setRooms(response.rooms);
-      setStats(response.stats);
       setThreads(response.threads);
     } catch (error) {
       console.warn('Failed to load community.', error);
@@ -47,21 +45,22 @@ export default function CommunityScreen() {
         <View style={[styles.heroGlowLarge, { backgroundColor: `${palette.tint}18` }]} />
         <View style={[styles.heroGlowSmall, { backgroundColor: `${palette.accentSecondary}18` }]} />
 
-        <Text style={[styles.heading, { color: palette.text }]}>Community</Text>
-        <Text style={[styles.subheading, { color: palette.muted }]}>
-          More like focused agri conversations than bulky forum blocks. Ask better questions, get faster answers.
-        </Text>
-
-        <View style={styles.heroActions}>
-          <Link href="/community/new" asChild>
-            <Pressable style={[styles.heroActionPrimary, { backgroundColor: palette.tint }]}>
-              <Text style={styles.heroActionPrimaryText}>Start a thread</Text>
+        <View style={styles.headerRow}>
+          <Text style={[styles.heading, { color: palette.text }]}>Community</Text>
+          <View style={styles.headerActions}>
+            <Pressable style={[styles.iconButton, { backgroundColor: palette.surface }]} hitSlop={8}>
+              <Feather name="search" size={16} color={palette.text} />
             </Pressable>
-          </Link>
-          <View style={[styles.heroActionSecondary, { backgroundColor: palette.surface }]}>
-            <Text style={[styles.heroActionSecondaryText, { color: palette.text }]}>Browse hot topics</Text>
+            <Link href="/community/new" asChild>
+              <Pressable style={[styles.iconButton, { backgroundColor: `${palette.tint}16` }]} hitSlop={8}>
+                <Feather name="plus" size={16} color={palette.tint} />
+              </Pressable>
+            </Link>
           </View>
         </View>
+        <Text style={[styles.subheading, { color: palette.muted }]}>
+          Focused agri questions, sharper answers, less forum clutter.
+        </Text>
 
         <View style={styles.topRooms}>
           {rooms.map((room) => (
@@ -77,22 +76,6 @@ export default function CommunityScreen() {
             </View>
           ))}
         </View>
-      </View>
-
-      <View style={styles.statsRow}>
-        {stats.map((item, index) => (
-          <View
-            key={item.category}
-            style={[
-              styles.statCard,
-              {
-                backgroundColor: index === 0 ? `${palette.tint}12` : palette.surfaceRaised,
-              },
-            ]}>
-            <Text style={[styles.statValue, { color: palette.text }]}>{item.threads}</Text>
-            <Text style={[styles.statLabel, { color: palette.muted }]}>{item.category}</Text>
-          </View>
-        ))}
       </View>
 
       {isLoading ? (
@@ -162,6 +145,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: 14, paddingTop: 14, gap: 14, paddingBottom: 28 },
   heroCard: { borderRadius: 24, padding: 16, gap: 12, overflow: 'hidden' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' },
+  headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  iconButton: { width: 38, height: 38, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   heroGlowLarge: {
     position: 'absolute',
     width: 152,
@@ -180,19 +166,10 @@ const styles = StyleSheet.create({
   },
   heading: { fontFamily: Fonts.rounded, fontSize: 27, fontWeight: '700' },
   subheading: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
-  heroActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  heroActionPrimary: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 11 },
-  heroActionPrimaryText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  heroActionSecondary: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 11 },
-  heroActionSecondaryText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
   topRooms: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   roomChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   roomChipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
   loadingShell: { alignItems: 'center', paddingVertical: 8 },
-  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statCard: { minWidth: 104, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12, gap: 2 },
-  statValue: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '700' },
-  statLabel: { fontFamily: Fonts.sans, fontSize: 12 },
   threadCard: { borderRadius: 22, padding: 14 },
   threadBody: { flexDirection: 'row', gap: 12 },
   voteRail: { width: 34, alignItems: 'center', gap: 6, paddingTop: 4 },

@@ -8,12 +8,14 @@ import {
   getThreadById,
 } from "../controllers/community.controller.js";
 import { createComment, getCommentsForPost, toggleLikedPost, toggleSavedPost } from "../controllers/comments.controller.js";
-import { createFeedPost, getFeed } from "../controllers/feed.controller.js";
+import { createFeedPost, deleteFeedPost, getFeed, getFeedPostById } from "../controllers/feed.controller.js";
 import { createOrder, getOrders } from "../controllers/orders.controller.js";
 import {
+  getPublicProfile,
   getMyProfile,
   markAllNotificationsRead,
   markNotificationRead,
+  toggleFollowUser,
   updateMyProfile,
 } from "../controllers/profile.controller.js";
 import { attachUserIfPresent, requireAuth } from "../middleware/auth.middleware.js";
@@ -34,6 +36,8 @@ apiRouter.use("/auth", authRouter);
 apiRouter.use("/marketplace", marketplaceRouter);
 apiRouter.get("/feed", attachUserIfPresent, getFeed);
 apiRouter.post("/feed", requireAuth, upload.array("media", 4), createFeedPost);
+apiRouter.get("/feed/:postId", attachUserIfPresent, getFeedPostById);
+apiRouter.delete("/feed/:postId", requireAuth, deleteFeedPost);
 apiRouter.get("/feed/:postId/comments", getCommentsForPost);
 apiRouter.post("/feed/:postId/comments", requireAuth, createComment);
 apiRouter.post("/feed/:postId/like", requireAuth, toggleLikedPost);
@@ -46,6 +50,8 @@ apiRouter.post("/community/:id/replies", requireAuth, createReply);
 apiRouter.get("/orders", requireAuth, getOrders);
 apiRouter.post("/orders", requireAuth, createOrder);
 apiRouter.get("/profile/me", requireAuth, getMyProfile);
+apiRouter.get("/profile/:userId", attachUserIfPresent, getPublicProfile);
 apiRouter.patch("/profile/me", requireAuth, upload.single("avatar"), updateMyProfile);
+apiRouter.post("/profile/:userId/follow", requireAuth, toggleFollowUser);
 apiRouter.post("/profile/notifications/read-all", requireAuth, markAllNotificationsRead);
 apiRouter.post("/profile/notifications/:notificationId/read", requireAuth, markNotificationRead);

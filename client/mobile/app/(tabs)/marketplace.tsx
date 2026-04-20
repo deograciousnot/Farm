@@ -15,8 +15,8 @@ export default function MarketplaceScreen() {
   const palette = Colors[scheme];
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<string[]>([]);
-  const [shortcuts, setShortcuts] = useState<{ label: string; value: string }[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [activeFilter, setActiveFilter] = useState('All produce');
 
   const loadMarketplace = useCallback(async () => {
     setIsLoading(true);
@@ -24,7 +24,6 @@ export default function MarketplaceScreen() {
     try {
       const [overview, listings] = await Promise.all([api.getMarketplaceOverview(), api.getProducts()]);
       setFilters(overview.filters);
-      setShortcuts(overview.shortcuts);
       setProducts(listings.items);
     } catch (error) {
       console.warn('Failed to load marketplace.', error);
@@ -42,57 +41,47 @@ export default function MarketplaceScreen() {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: palette.background }]}
-      contentContainerStyle={styles.content}>
-      <View style={[styles.heroCard, { backgroundColor: palette.surfaceRaised }]}>
-        <View style={[styles.heroGlowLarge, { backgroundColor: `${palette.accentSecondary}24` }]} />
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}>
+      <View style={[styles.heroCard, { backgroundColor: palette.backgroundSecondary }]}>
+        <View style={[styles.heroGlowLarge, { backgroundColor: `${palette.accentSecondary}20` }]} />
         <View style={[styles.heroGlowSmall, { backgroundColor: `${palette.tint}16` }]} />
 
-        <Text style={[styles.heading, { color: palette.text }]}>Marketplace</Text>
+        <View style={styles.heroTop}>
+          <View style={styles.heroTitleWrap}>
+            <Text style={[styles.eyebrow, { color: palette.tint }]}>Marketplace</Text>
+            <Text style={[styles.heading, { color: palette.text }]}>Trust-led buying with lighter, faster browsing.</Text>
+          </View>
+          <View style={styles.heroActions}>
+            <Pressable style={[styles.iconButton, { backgroundColor: palette.surfaceRaised }]} hitSlop={8}>
+              <Feather name="search" size={16} color={palette.text} />
+            </Pressable>
+            <Link href="/modal" asChild>
+              <Pressable style={[styles.iconButton, { backgroundColor: `${palette.tint}16` }]} hitSlop={8}>
+                <Feather name="plus" size={16} color={palette.tint} />
+              </Pressable>
+            </Link>
+          </View>
+        </View>
+
         <Text style={[styles.subheading, { color: palette.muted }]}>
-          Buyers should feel speed and trust here, but still stay in the same colorful FarmConnect world.
+          Browse produce and inputs with clearer trust context and less listing noise.
         </Text>
-
-        <Link href="/modal" asChild>
-          <Pressable style={[styles.createAction, { backgroundColor: `${palette.tint}12` }]}>
-            <Feather name="plus-square" size={16} color={palette.tint} />
-            <Text style={[styles.createActionText, { color: palette.tint }]}>Create listing</Text>
-          </Pressable>
-        </Link>
-
-        <View style={[styles.searchBar, { backgroundColor: palette.backgroundTertiary }]}>
-          <Text style={[styles.searchText, { color: palette.muted }]}>Search tomatoes, suppliers, counties, or inputs</Text>
-        </View>
-
-        <View style={styles.shortcuts}>
-          {shortcuts.map((shortcut, index) => (
-            <View
-              key={shortcut.label}
-              style={[
-                styles.shortcutCard,
-                {
-                  backgroundColor:
-                    index === 0 ? `${palette.tint}14` : index === 1 ? `${palette.accent}12` : `${palette.accentSecondary}16`,
-                },
-              ]}>
-              <Text style={[styles.shortcutLabel, { color: palette.text }]}>{shortcut.label}</Text>
-              <Text style={[styles.shortcutValue, { color: palette.muted }]}>{shortcut.value}</Text>
-            </View>
-          ))}
-        </View>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-        {filters.map((filter, index) => (
-          <View
+        {filters.map((filter) => (
+          <Pressable
             key={filter}
+            onPress={() => setActiveFilter(filter)}
             style={[
               styles.filterChip,
-              {
-                backgroundColor: index === 0 ? palette.tint : palette.surfaceRaised,
-              },
+              { backgroundColor: activeFilter === filter ? palette.tint : palette.surface },
             ]}>
-            <Text style={[styles.filterChipText, { color: index === 0 ? '#ffffff' : palette.text }]}>{filter}</Text>
-          </View>
+            <Text style={[styles.filterChipText, { color: activeFilter === filter ? '#ffffff' : palette.text }]}>
+              {filter}
+            </Text>
+          </Pressable>
         ))}
       </ScrollView>
 
@@ -114,34 +103,17 @@ export default function MarketplaceScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: 14, paddingTop: 14, gap: 14, paddingBottom: 28 },
-  heroCard: { borderRadius: 24, padding: 16, gap: 12, overflow: 'hidden' },
-  heroGlowLarge: {
-    position: 'absolute',
-    width: 150,
-    height: 150,
-    borderRadius: 999,
-    right: -34,
-    top: -36,
-  },
-  heroGlowSmall: {
-    position: 'absolute',
-    width: 92,
-    height: 92,
-    borderRadius: 999,
-    left: -22,
-    bottom: -24,
-  },
-  heading: { fontFamily: Fonts.rounded, fontSize: 27, fontWeight: '700' },
+  heroCard: { borderRadius: 28, padding: 16, gap: 12, overflow: 'hidden' },
+  heroGlowLarge: { position: 'absolute', width: 160, height: 160, borderRadius: 999, right: -34, top: -42 },
+  heroGlowSmall: { position: 'absolute', width: 102, height: 102, borderRadius: 999, left: -20, bottom: -20 },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' },
+  heroTitleWrap: { flex: 1, gap: 6 },
+  heroActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  eyebrow: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.3 },
+  heading: { fontFamily: Fonts.rounded, fontSize: 28, fontWeight: '700', lineHeight: 33 },
   subheading: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
-  createAction: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', gap: 8, alignItems: 'center' },
-  createActionText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  searchBar: { borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12 },
-  searchText: { fontFamily: Fonts.sans, fontSize: 14 },
-  shortcuts: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  shortcutCard: { minWidth: 96, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, gap: 2 },
-  shortcutLabel: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
-  shortcutValue: { fontFamily: Fonts.sans, fontSize: 12 },
-  filters: { gap: 10, paddingVertical: 4 },
+  iconButton: { width: 38, height: 38, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  filters: { gap: 8, paddingVertical: 4, paddingRight: 10 },
   filterChip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
   filterChipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
   loadingShell: { alignItems: 'center', paddingVertical: 8 },
