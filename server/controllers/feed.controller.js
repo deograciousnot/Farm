@@ -28,6 +28,54 @@ function shapePost(post, { savedPostIds = new Set(), likedPostIds = new Set(), c
   };
 }
 
+function buildBodyBlocks(body, media = []) {
+  const blocks = [];
+  const usedMediaIndexes = new Set();
+  const chunks = String(body)
+    .split(/\n{2,}/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+
+  for (const chunk of chunks) {
+    const mediaMatch = chunk.match(/^\[\[media:(\d+)\]\]$/i);
+
+    if (mediaMatch) {
+      const mediaIndex = Number(mediaMatch[1]) - 1;
+      const mediaItem = media[mediaIndex];
+
+      if (mediaItem) {
+        blocks.push({
+          type: mediaItem.type,
+          url: mediaItem.url,
+          thumbnailUrl: mediaItem.thumbnailUrl ?? "",
+          mediaIndex,
+        });
+        usedMediaIndexes.add(mediaIndex);
+      }
+
+      continue;
+    }
+
+    blocks.push({
+      type: "paragraph",
+      text: chunk,
+    });
+  }
+
+  media.forEach((mediaItem, mediaIndex) => {
+    if (!usedMediaIndexes.has(mediaIndex)) {
+      blocks.push({
+        type: mediaItem.type,
+        url: mediaItem.url,
+        thumbnailUrl: mediaItem.thumbnailUrl ?? "",
+        mediaIndex,
+      });
+    }
+  });
+
+  return blocks.length ? blocks : [{ type: "paragraph", text: body }];
+}
+
 export const getFeed = asyncHandler(async (_req, res) => {
   const { filter } = _req.query;
   const filters = {};
@@ -199,6 +247,7 @@ export const createFeedPost = asyncHandler(async (req, res) => {
     postType,
     linkedProduct: linkedProduct?._id ?? null,
     media,
+    bodyBlocks: buildBodyBlocks(body, media),
   });
 
   const populatedPost = await Post.findById(post._id)

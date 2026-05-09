@@ -149,6 +149,13 @@ export const api = {
       formData,
     });
   },
+  changePassword(token: string, input: { currentPassword: string; newPassword: string }) {
+    return request<{ message: string }>('/auth/password', {
+      method: 'PATCH',
+      token,
+      body: input,
+    });
+  },
   getFeed(token?: string | null, filter?: string) {
     const query = filter ? `?filter=${encodeURIComponent(filter)}` : '';
     return request<{

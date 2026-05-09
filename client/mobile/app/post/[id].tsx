@@ -243,6 +243,16 @@ export default function PostDetailScreen() {
 
   const commentCountLabel = comments.length === 1 ? '1 comment' : `${comments.length} comments`;
   const longRead = post ? post.body.trim().length > 240 : false;
+  const bodyBlocks = post?.bodyBlocks?.length
+    ? post.bodyBlocks
+    : post
+      ? post.body
+          .split(/\n{2,}/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((text) => ({ type: 'paragraph' as const, text }))
+      : [];
+  const hasInlineMedia = bodyBlocks.some((block) => block.type === 'image' || block.type === 'video');
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
@@ -319,7 +329,21 @@ export default function PostDetailScreen() {
 
             <View style={styles.copyBlock}>
               <Text style={[styles.headline, { color: palette.text }]}>{post.headline}</Text>
-              <Text style={[styles.body, { color: palette.text }]}>{post.body}</Text>
+              {bodyBlocks.map((block, index) => {
+                if (block.type === 'paragraph') {
+                  return (
+                    <Text key={`${post._id}-body-${index}`} style={[styles.body, { color: palette.text }]}>
+                      {block.text}
+                    </Text>
+                  );
+                }
+
+                return (
+                  <View key={`${post._id}-media-${index}`} style={styles.inlineMediaBlock}>
+                    <FeedMedia media={[block]} onToggleLike={() => void handleToggleLike()} mode="detail" />
+                  </View>
+                );
+              })}
             </View>
 
             {post.linkedProduct ? (
@@ -337,7 +361,7 @@ export default function PostDetailScreen() {
               </Pressable>
             ) : null}
 
-            {post.media?.length ? (
+            {post.media?.length && !hasInlineMedia ? (
               <FeedMedia media={post.media} onToggleLike={() => void handleToggleLike()} mode="detail" />
             ) : null}
 
@@ -468,7 +492,8 @@ const styles = StyleSheet.create({
   storyMetaRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   storyMetaPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   storyMetaText: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
-  copyBlock: { gap: 10 },
+  copyBlock: { gap: 14 },
+  inlineMediaBlock: { marginVertical: 4 },
   linkedListingCard: {
     borderRadius: 20,
     paddingHorizontal: 14,
@@ -483,7 +508,7 @@ const styles = StyleSheet.create({
   linkedListingName: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
   linkedListingMeta: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
   headline: { fontFamily: Fonts.rounded, fontSize: 28, fontWeight: '700', lineHeight: 34 },
-  body: { fontFamily: Fonts.sans, fontSize: 16, lineHeight: 25 },
+  body: { fontFamily: Fonts.sans, fontSize: 17, lineHeight: 28 },
   actionRow: { flexDirection: 'row', gap: 18, alignItems: 'center', paddingTop: 4 },
   actionItem: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   actionText: { fontFamily: Fonts.sans, fontSize: 13, fontWeight: '700' },

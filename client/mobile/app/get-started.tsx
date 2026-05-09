@@ -1,156 +1,185 @@
 import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSession } from '@/providers/session-provider';
 
-const featureNotes = [
-  'A social feed for farm signals, short videos, market tea, and useful posts.',
-  'A marketplace where trust, seller identity, and speed matter.',
-  'Focused communities for questions, answers, and practical agriculture discussion.',
-];
-
-const secondaryActions = [
-  { label: 'Continue with Google', note: 'Best next auth path once provider setup is wired.' },
-  { label: 'Continue with phone', note: 'Great for OTP-based sign-in and quick account switching.' },
-];
+const features = [
+  {
+    icon: 'home',
+    title: 'Farm feed',
+    body: 'Share field updates, market signals, photos, and short videos.',
+    accent: 'tint',
+  },
+  {
+    icon: 'shopping-bag',
+    title: 'Marketplace',
+    body: 'Find produce, compare sellers, and trade with more context.',
+    accent: 'accent',
+  },
+  {
+    icon: 'message-circle',
+    title: 'Community',
+    body: 'Ask questions, join discussions, and learn from real experience.',
+    accent: 'accentSecondary',
+  },
+  {
+    icon: 'shield',
+    title: 'Trust profiles',
+    body: 'Build reputation through activity, listings, followers, and reviews.',
+    accent: 'success',
+  },
+] as const;
 
 export default function GetStartedScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
-  const { continueAsGuest, markIntroSeen } = useSession();
+  const { width } = useWindowDimensions();
+  const { markIntroSeen } = useSession();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const cardWidth = Math.min(width - 70, 330);
+  const sideInset = Math.max(22, (width - cardWidth) / 2);
 
-  function goToAuth(mode: 'signup' | 'login') {
+  function handleGetStarted() {
     markIntroSeen();
-    router.push(`/auth?mode=${mode}`);
-  }
-
-  function handleGuest() {
-    continueAsGuest();
-    router.replace('/(tabs)');
+    router.replace('/auth?mode=login');
   }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.heroMediaWrap}>
-          <View style={[styles.heroImage, { backgroundColor: palette.backgroundSecondary }]}>
-            <View style={[styles.heroGlowLarge, { backgroundColor: `${palette.accent}20` }]} />
-            <View style={[styles.heroGlowSmall, { backgroundColor: `${palette.tint}16` }]} />
-            <View style={[styles.photoCircle, { backgroundColor: palette.surfaceRaised }]}>
-              <View style={[styles.photoInner, { backgroundColor: palette.backgroundTertiary }]} />
-              <View style={[styles.photoBody, { backgroundColor: palette.tint }]} />
-              <View style={[styles.photoBasket, { backgroundColor: palette.accentSecondary }]} />
-            </View>
+      <View style={styles.screen}>
+        <View style={styles.brandBlock}>
+          <View style={[styles.brandMark, { backgroundColor: palette.backgroundSecondary }]}>
+            <Feather name="sunrise" size={22} color={palette.tint} />
           </View>
+          <Text style={[styles.brand, { color: palette.tint }]}>FarmConnect</Text>
+          <Text style={[styles.title, { color: palette.text }]}>Fresh. Local. Connected.</Text>
         </View>
 
-        <View style={styles.heroCopy}>
-          <View style={[styles.brandBadge, { backgroundColor: palette.surface }]}>
-            <Feather name="sunrise" size={14} color={palette.tint} />
-            <Text style={[styles.brandBadgeText, { color: palette.text }]}>FarmConnect</Text>
-          </View>
-          <Text style={[styles.eyebrow, { color: palette.tint }]}>Fresh local connected</Text>
-          <Text style={[styles.heading, { color: palette.text }]}>
-            Agriculture with social energy, marketplace trust, and real community.
-          </Text>
-          <Text style={[styles.subheading, { color: palette.muted }]}>
-            FarmConnect blends discovery, buying, discussion, and identity into one more modern mobile experience.
-          </Text>
-        </View>
+        <View style={styles.carouselWrap}>
+          <Animated.ScrollView
+            horizontal
+            pagingEnabled={false}
+            decelerationRate="fast"
+            snapToInterval={cardWidth + 14}
+            snapToAlignment="start"
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: sideInset, gap: 14 }}
+            onMomentumScrollEnd={(event) => {
+              const nextIndex = Math.round(event.nativeEvent.contentOffset.x / (cardWidth + 14));
+              setActiveIndex(Math.max(0, Math.min(features.length - 1, nextIndex)));
+            }}
+            onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+              useNativeDriver: true,
+            })}
+            scrollEventThrottle={16}>
+            {features.map((feature, index) => {
+              const inputRange = [
+                (index - 1) * (cardWidth + 14),
+                index * (cardWidth + 14),
+                (index + 1) * (cardWidth + 14),
+              ];
+              const scale = scrollX.interpolate({
+                inputRange,
+                outputRange: [0.92, 1, 0.92],
+                extrapolate: 'clamp',
+              });
+              const opacity = scrollX.interpolate({
+                inputRange,
+                outputRange: [0.68, 1, 0.68],
+                extrapolate: 'clamp',
+              });
+              const accentColor = palette[feature.accent];
 
-        <View style={styles.featureList}>
-          {featureNotes.map((note, index) => (
-            <View key={note} style={styles.featureRow}>
+              return (
+                <Animated.View
+                  key={feature.title}
+                  style={[
+                    styles.featureCard,
+                    {
+                      width: cardWidth,
+                      backgroundColor: scheme === 'dark' ? `${palette.surfaceRaised}EE` : `${palette.surfaceRaised}F2`,
+                      opacity,
+                      transform: [{ scale }],
+                    },
+                  ]}>
+                  <View style={[styles.cardGlow, { backgroundColor: `${accentColor}22` }]} />
+                  <View style={[styles.featureIcon, { backgroundColor: `${accentColor}18` }]}>
+                    <Feather name={feature.icon} size={24} color={accentColor} />
+                  </View>
+                  <Text style={[styles.featureTitle, { color: palette.text }]}>{feature.title}</Text>
+                  <Text style={[styles.featureBody, { color: palette.muted }]}>{feature.body}</Text>
+                </Animated.View>
+              );
+            })}
+          </Animated.ScrollView>
+
+          <View style={styles.dots}>
+            {features.map((feature, index) => (
               <View
+                key={feature.title}
                 style={[
-                  styles.featureDot,
+                  styles.dot,
                   {
-                    backgroundColor:
-                      index === 0 ? palette.tint : index === 1 ? palette.accent : palette.accentSecondary,
+                    width: activeIndex === index ? 24 : 7,
+                    backgroundColor: activeIndex === index ? palette.tint : palette.border,
                   },
                 ]}
               />
-              <Text style={[styles.featureText, { color: palette.text }]}>{note}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.primaryActions}>
-          <Pressable onPress={() => goToAuth('signup')} style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
-            <Text style={styles.primaryButtonText}>Create account</Text>
-          </Pressable>
-          <Pressable onPress={() => goToAuth('login')} style={[styles.secondaryButton, { backgroundColor: palette.surface }]}>
-            <Text style={[styles.secondaryButtonText, { color: palette.text }]}>I already have an account</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.moreWays}>
-          {secondaryActions.map((action) => (
-            <Pressable key={action.label} onPress={() => goToAuth('login')} style={[styles.altAction, { backgroundColor: palette.surface }]}>
-              <View style={styles.altActionRow}>
-                <Feather name={action.label.includes('Google') ? 'chrome' : 'smartphone'} size={16} color={palette.text} />
-                <Text style={[styles.altActionLabel, { color: palette.text }]}>{action.label}</Text>
-              </View>
-              <Text style={[styles.altActionNote, { color: palette.muted }]}>{action.note}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={[styles.guestStrip, { borderTopColor: palette.border }]}>
-          <View style={styles.guestCopyWrap}>
-            <Text style={[styles.guestTitle, { color: palette.text }]}>Continue as guest</Text>
-            <Text style={[styles.guestCopy, { color: palette.muted }]}>
-              Browse the feed, marketplace, and communities now, then sign in later for comments, saves, and orders.
-            </Text>
+            ))}
           </View>
-          <Pressable onPress={handleGuest} style={[styles.guestButton, { backgroundColor: palette.backgroundSecondary }]}>
-            <Text style={[styles.guestButtonText, { color: palette.text }]}>Browse</Text>
-          </Pressable>
         </View>
-      </ScrollView>
+
+        <Pressable onPress={handleGetStarted} style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
+          <Text style={styles.primaryButtonText}>Get started</Text>
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  content: { padding: 18, gap: 18, paddingBottom: 36 },
-  heroMediaWrap: { alignItems: 'center' },
-  heroImage: { width: '100%', height: 280, borderRadius: 34, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  heroGlowLarge: { position: 'absolute', width: 220, height: 220, borderRadius: 999, right: -50, top: -70 },
-  heroGlowSmall: { position: 'absolute', width: 140, height: 140, borderRadius: 999, left: -28, bottom: -22 },
-  photoCircle: { width: 170, height: 170, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  photoInner: { position: 'absolute', width: 136, height: 136, borderRadius: 999 },
-  photoBody: { position: 'absolute', width: 72, height: 92, borderRadius: 28, bottom: 26 },
-  photoBasket: { position: 'absolute', width: 54, height: 28, borderRadius: 14, right: 34, bottom: 44 },
-  heroCopy: { gap: 10 },
-  brandBadge: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', gap: 8, alignItems: 'center' },
-  brandBadgeText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  eyebrow: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.4 },
-  heading: { fontFamily: Fonts.rounded, fontSize: 34, fontWeight: '700', lineHeight: 40 },
-  subheading: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 22 },
-  featureList: { gap: 10 },
-  featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  featureDot: { width: 10, height: 10, borderRadius: 999, marginTop: 7 },
-  featureText: { flex: 1, fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
-  primaryActions: { gap: 10 },
-  primaryButton: { borderRadius: 999, paddingVertical: 16, alignItems: 'center' },
-  primaryButtonText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
-  secondaryButton: { borderRadius: 999, paddingVertical: 16, alignItems: 'center' },
-  secondaryButtonText: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
-  moreWays: { gap: 10 },
-  altAction: { borderRadius: 24, padding: 16, gap: 5 },
-  altActionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  altActionLabel: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
-  altActionNote: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  guestStrip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16 },
-  guestCopyWrap: { flex: 1, gap: 4 },
-  guestTitle: { fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '700' },
-  guestCopy: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  guestButton: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 12 },
-  guestButtonText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
+  screen: { flex: 1, paddingVertical: 22, justifyContent: 'center', gap: 28 },
+  brandBlock: { alignItems: 'center', gap: 8, paddingHorizontal: 24 },
+  brandMark: { width: 54, height: 54, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  brand: {
+    fontFamily: Fonts.rounded,
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  title: { fontFamily: Fonts.rounded, fontSize: 31, fontWeight: '800', lineHeight: 37, textAlign: 'center' },
+  carouselWrap: { gap: 14 },
+  featureCard: {
+    minHeight: 280,
+    borderRadius: 30,
+    padding: 22,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.42)',
+  },
+  cardGlow: { position: 'absolute', width: 190, height: 190, borderRadius: 999, right: -46, top: -58 },
+  featureIcon: { width: 58, height: 58, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
+  featureTitle: { fontFamily: Fonts.rounded, fontSize: 26, fontWeight: '800', lineHeight: 31 },
+  featureBody: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 22, marginTop: 8 },
+  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 7 },
+  dot: { height: 7, borderRadius: 999 },
+  primaryButton: {
+    width: '100%',
+    maxWidth: 360,
+    alignSelf: 'center',
+    minHeight: 52,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonText: { color: '#FFFFFF', fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '800' },
 });

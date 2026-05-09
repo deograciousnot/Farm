@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -11,6 +11,8 @@ import {
   Switch,
   Text,
   TextInput,
+  type NativeSyntheticEvent,
+  type TextInputSelectionChangeEventData,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,6 +41,7 @@ export default function ComposerModal() {
 
   const [headline, setHeadline] = useState('');
   const [body, setBody] = useState('');
+  const [bodySelection, setBodySelection] = useState({ start: 0, end: 0 });
   const [tag, setTag] = useState(postTags[0]);
   const [location, setLocation] = useState(user?.location ?? 'Nairobi');
 
@@ -80,16 +83,7 @@ export default function ComposerModal() {
           ? `${selectedMedia.length}/${mediaLimit} selected${hasVideo ? ' - includes video' : ''}`
           : `Add up to ${mediaLimit} photos or videos.`;
 
-  useEffect(() => {
-    if (mode === 'post') {
-      void loadMyListings();
-      return;
-    }
-
-    setLinkedProductId('');
-  }, [mode, token, isSeller]);
-
-  async function loadMyListings() {
+  const loadMyListings = useCallback(async () => {
     if (!token || !isSeller) {
       setAvailableListings([]);
       return;
@@ -101,7 +95,16 @@ export default function ComposerModal() {
     } catch (error) {
       console.warn('Failed to load listings for post tagging.', error);
     }
-  }
+  }, [isSeller, token]);
+
+  useEffect(() => {
+    if (mode === 'post') {
+      void loadMyListings();
+      return;
+    }
+
+    setLinkedProductId('');
+  }, [loadMyListings, mode]);
 
   async function pickMedia(options?: { cropSingleImage?: boolean }) {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -137,12 +140,21 @@ export default function ComposerModal() {
     setSelectedMedia((current) => current.filter((_, index) => index !== indexToRemove));
   }
 
-  async function handleModeChange(nextMode: ComposerMode) {
-    setMode(nextMode);
+  function handleBodySelectionChange(event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) {
+    setBodySelection(event.nativeEvent.selection);
+  }
 
-    if (nextMode === 'post') {
-      await loadMyListings();
-    }
+  function insertMediaMarker(mediaIndex: number) {
+    const marker = `\n\n[[media:${mediaIndex + 1}]]\n\n`;
+    const nextBody = `${body.slice(0, bodySelection.start)}${marker}${body.slice(bodySelection.end)}`;
+    const nextCursor = bodySelection.start + marker.length;
+
+    setBody(nextBody);
+    setBodySelection({ start: nextCursor, end: nextCursor });
+  }
+
+  function handleModeChange(nextMode: ComposerMode) {
+    setMode(nextMode);
   }
 
   async function handleSubmit() {
@@ -251,6 +263,13 @@ export default function ComposerModal() {
               {selectedMedia.map((item, index) => (
                 <View key={`${item.uri}-${index}`} style={styles.mediaPreviewItem}>
                   <Image source={{ uri: item.uri }} contentFit="cover" style={styles.mediaPreviewImage} />
+                  {mode === 'post' ? (
+                    <Pressable
+                      onPress={() => insertMediaMarker(index)}
+                      style={[styles.insertMediaButton, { backgroundColor: 'rgba(0,0,0,0.62)' }]}>
+                      <Text style={styles.insertMediaText}>Place {index + 1}</Text>
+                    </Pressable>
+                  ) : null}
                   <Pressable
                     onPress={() => removeMedia(index)}
                     style={[styles.removeMediaButton, { backgroundColor: 'rgba(0,0,0,0.55)' }]}>
@@ -281,11 +300,18 @@ export default function ComposerModal() {
             <TextInput
               value={body}
               onChangeText={setBody}
+              onSelectionChange={handleBodySelectionChange}
+              selection={bodySelection}
               placeholder="Share what is happening on the farm, in the market, or in your community..."
               placeholderTextColor={palette.muted}
               multiline
               style={[styles.bodyInput, { color: palette.text, backgroundColor: palette.surface }]}
             />
+            {selectedMedia.length ? (
+              <Text style={[styles.helperText, { color: palette.muted }]}>
+                Tap Place 1, Place 2, and so on to insert selected media between paragraphs. The marker can be moved like normal text.
+              </Text>
+            ) : null}
             <TextInput
               value={location}
               onChangeText={setLocation}
@@ -451,6 +477,15 @@ const styles = StyleSheet.create({
   mediaPreviewRow: { gap: 10 },
   mediaPreviewItem: { width: 100, height: 124, borderRadius: 18, overflow: 'hidden' },
   mediaPreviewImage: { width: '100%', height: '100%' },
+  insertMediaButton: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  insertMediaText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 10, fontWeight: '700' },
   removeMediaButton: {
     position: 'absolute',
     top: 8,

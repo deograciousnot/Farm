@@ -72,6 +72,34 @@ const postSchema = new mongoose.Schema(
         },
       },
     ],
+    bodyBlocks: [
+      {
+        type: {
+          type: String,
+          enum: ["paragraph", "image", "video"],
+          required: true,
+        },
+        text: {
+          type: String,
+          default: "",
+          trim: true,
+        },
+        url: {
+          type: String,
+          default: "",
+          trim: true,
+        },
+        thumbnailUrl: {
+          type: String,
+          default: "",
+          trim: true,
+        },
+        mediaIndex: {
+          type: Number,
+          default: null,
+        },
+      },
+    ],
   },
   {
     timestamps: true,

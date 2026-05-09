@@ -161,6 +161,180 @@ async function seed() {
       savesCount: 5,
       isSponsored: true,
     },
+    {
+      author: buyer._id,
+      postType: "market",
+      headline: "Tomato buyers are changing how they order after the long-rains squeeze",
+      body:
+        "Tomato supply has been tight across several urban routes this week, especially where heavy rains have slowed harvests and damaged fruit before it reaches the crate.\n\nFor small hotels and estate vendors, the issue is no longer just price. They are asking sellers to separate firm tomatoes from soft ones, confirm dispatch time before payment, and avoid mixing rain-damaged fruit into the same crate.\n\nMy takeaway for farmers: if you have clean tomatoes, do not only post the price. Post the grade, crate weight, pickup window, and whether the fruit can survive same-day transport. Buyers are responding faster to clarity than to vague cheap offers.",
+      tag: "Market signal",
+      location: "Nairobi",
+      likesCount: 142,
+      commentsCount: 31,
+      savesCount: 47,
+      media: [
+        {
+          type: "image",
+          url: "https://images.unsplash.com/photo-1592841200221-a6898f307baa?auto=format&fit=crop&w=1200&q=80",
+        },
+      ],
+      bodyBlocks: [
+        {
+          type: "paragraph",
+          text: "Tomato supply has been tight across several urban routes this week, especially where heavy rains have slowed harvests and damaged fruit before it reaches the crate. The price conversation is getting loud, but the real issue I am seeing is trust at handover: buyers want to know whether the crate can survive the road, not just whether the number sounds fair.",
+        },
+        {
+          type: "image",
+          url: "https://images.unsplash.com/photo-1592841200221-a6898f307baa?auto=format&fit=crop&w=1200&q=80",
+          mediaIndex: 0,
+        },
+        {
+          type: "paragraph",
+          text: "For small hotels and estate vendors, the issue is no longer just price. They are asking sellers to separate firm tomatoes from soft ones, confirm dispatch time before payment, and avoid mixing rain-damaged fruit into the same crate. A buyer who receives one bad crate today may not come back next week, even if the shortage continues.",
+        },
+        {
+          type: "paragraph",
+          text: "My takeaway for farmers: if you have clean tomatoes, do not only post the price. Post the grade, crate weight, pickup window, and whether the fruit can survive same-day transport. Buyers are responding faster to clarity than to vague cheap offers.",
+        },
+      ],
+    },
+    {
+      author: farmer._id,
+      postType: "market",
+      headline: "Dry maize is available, but the spread between markets is doing the real talking",
+      body:
+        "The dry maize conversation is not one national price. Some towns are showing steady stock, while other markets are rewarding sellers who can move clean grain to stronger demand points.\n\nBefore sending a 90kg bag anywhere, I now check three things: the local buyer price, the transport cost per bag, and whether payment is immediate. A higher headline price can disappear quickly if the buyer delays payment or rejects moisture levels at the store.\n\nFarmConnect could be very useful here if farmers keep posting actual market reads: where they sold, what grade was accepted, and what deductions were made after weighing.",
+      tag: "Maize watch",
+      location: "Eldoret",
+      likesCount: 98,
+      commentsCount: 22,
+      savesCount: 39,
+      media: [
+        {
+          type: "image",
+          url: "https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=1200&q=80",
+        },
+      ],
+      bodyBlocks: [
+        {
+          type: "paragraph",
+          text: "The dry maize conversation is not one national price. Some towns are showing steady stock, while other markets are rewarding sellers who can move clean grain to stronger demand points. That spread matters because the best decision may not be selling immediately at the nearest store.",
+        },
+        {
+          type: "paragraph",
+          text: "Before sending a 90kg bag anywhere, I now check three things: the local buyer price, the transport cost per bag, and whether payment is immediate. A higher headline price can disappear quickly if the buyer delays payment, rejects moisture levels at the store, or applies deductions that were not discussed before loading.",
+        },
+        {
+          type: "image",
+          url: "https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=1200&q=80",
+          mediaIndex: 0,
+        },
+        {
+          type: "paragraph",
+          text: "FarmConnect could be very useful here if farmers keep posting actual market reads: where they sold, what grade was accepted, and what deductions were made after weighing. That is more useful than a single price screenshot because it tells the next farmer how the trade actually behaved.",
+        },
+      ],
+    },
+    {
+      author: farmer._id,
+      postType: "knowledge",
+      headline: "Rainy-week tomato handling: the small sorting step that saves the buyer relationship",
+      body:
+        "When tomatoes are harvested after wet days, the temptation is to push everything into the crate and move quickly. That works once, then the buyer remembers your name for the wrong reason.\n\nWe started doing a three-way sort: firm table tomatoes, slightly soft tomatoes for immediate kitchen use, and damaged fruit that never enters the buyer crate. It slows packing by a few minutes, but complaints have gone down.\n\nIf you are selling during this shortage, protect your next order. The buyer may accept higher prices this week, but they will still remember whether your crate arrived honestly packed.",
+      tag: "Field note",
+      location: "Nyeri",
+      likesCount: 121,
+      commentsCount: 28,
+      savesCount: 55,
+      media: [
+        {
+          type: "video",
+          url: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+        },
+      ],
+      bodyBlocks: [
+        {
+          type: "paragraph",
+          text: "When tomatoes are harvested after wet days, the temptation is to push everything into the crate and move quickly. That works once, then the buyer remembers your name for the wrong reason. Rain makes small bruises harder to notice, and those bruises become the first complaint when the crate reaches town.",
+        },
+        {
+          type: "video",
+          url: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+          mediaIndex: 0,
+        },
+        {
+          type: "paragraph",
+          text: "We started doing a three-way sort: firm table tomatoes, slightly soft tomatoes for immediate kitchen use, and damaged fruit that never enters the buyer crate. It slows packing by a few minutes, but complaints have gone down because every buyer knows exactly what grade they are paying for.",
+        },
+        {
+          type: "paragraph",
+          text: "If you are selling during this shortage, protect your next order. The buyer may accept higher prices this week, but they will still remember whether your crate arrived honestly packed. In a market like this, reputation is also part of the price.",
+        },
+      ],
+    },
+    {
+      author: buyer._id,
+      postType: "market",
+      headline: "What Nairobi buyers want in onions and potatoes before committing to bulk orders",
+      body:
+        "Bulk buyers are asking fewer emotional questions and more practical ones: how dry are the onions, how uniform are the potatoes, and can the seller deliver the same quality twice?\n\nFor onions, buyers are watching curing and storage. Wet bags create losses fast, especially when transport is delayed. For potatoes, size consistency matters because restaurants and chips vendors hate paying premium rates for mixed grades.\n\nIf you are posting listings, add one close photo of the bag or crate, one photo of the sorted produce, and a short note on when it was harvested. That is enough to reduce back-and-forth and move the conversation toward price.",
+      tag: "Buyer demand",
+      location: "Nairobi",
+      likesCount: 87,
+      commentsCount: 17,
+      savesCount: 33,
+      media: [
+        {
+          type: "image",
+          url: "https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=1200&q=80",
+        },
+      ],
+      bodyBlocks: [
+        {
+          type: "paragraph",
+          text: "Bulk buyers are asking fewer emotional questions and more practical ones: how dry are the onions, how uniform are the potatoes, and can the seller deliver the same quality twice? The buyer may sound difficult, but most of these questions come from previous losses after receiving mixed grades.",
+        },
+        {
+          type: "image",
+          url: "https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=1200&q=80",
+          mediaIndex: 0,
+        },
+        {
+          type: "paragraph",
+          text: "For onions, buyers are watching curing and storage. Wet bags create losses fast, especially when transport is delayed. For potatoes, size consistency matters because restaurants and chips vendors hate paying premium rates for mixed grades that force them to spend more time sorting.",
+        },
+        {
+          type: "paragraph",
+          text: "If you are posting listings, add one close photo of the bag or crate, one photo of the sorted produce, and a short note on when it was harvested. That is enough to reduce back-and-forth and move the conversation toward price.",
+        },
+      ],
+    },
+    {
+      author: hobbyist._id,
+      postType: "knowledge",
+      headline: "Why market posts should read like field journals, not just price alerts",
+      body:
+        "A price alone is useful for a few minutes. A field note stays useful longer because it explains what caused the price, what quality was accepted, and what the seller learned.\n\nFor example, saying tomatoes are expensive is helpful. Saying rains reduced supply, buyers are rejecting soft fruit, and clean crates are moving faster gives farmers something they can act on.\n\nThat is the kind of content I want to save on FarmConnect: not perfect articles, just honest market notes that help the next person make a better decision.",
+      tag: "Community insight",
+      location: "Kiambu",
+      likesCount: 64,
+      commentsCount: 14,
+      savesCount: 26,
+      bodyBlocks: [
+        {
+          type: "paragraph",
+          text: "A price alone is useful for a few minutes. A field note stays useful longer because it explains what caused the price, what quality was accepted, and what the seller learned. That is the difference between noise and knowledge in an agriculture feed.",
+        },
+        {
+          type: "paragraph",
+          text: "For example, saying tomatoes are expensive is helpful. Saying rains reduced supply, buyers are rejecting soft fruit, and clean crates are moving faster gives farmers something they can act on. It also helps buyers understand why a seller is asking for a better price instead of assuming everyone is guessing.",
+        },
+        {
+          type: "paragraph",
+          text: "That is the kind of content I want to save on FarmConnect: not perfect articles, just honest market notes that help the next person make a better decision. If the feed keeps rewarding practical detail, it will feel very different from a normal social app.",
+        },
+      ],
+    },
   ]);
 
   await Comment.create([

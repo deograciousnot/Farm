@@ -19,6 +19,10 @@ type FeedMediaProps = {
   onPlaybackTimeChange?: (mediaUrl: string, currentTime: number) => void;
 };
 
+function isPlayableVideo(mode: FeedMediaProps['mode']) {
+  return mode === 'detail';
+}
+
 export const FeedMedia = memo(function FeedMedia({
   media,
   onToggleLike,
@@ -59,8 +63,9 @@ export const FeedMedia = memo(function FeedMedia({
           onMomentumScrollEnd={handleScroll}>
           {media.map((item, index) => (
             <View key={`${item.url}-${index}`} style={{ width: cardWidth, flex: 1 }}>
-              {item.type === 'video' ? (
+              {item.type === 'video' && isPlayableVideo(mode) ? (
                 <VideoMedia
+                  key={item.url}
                   url={item.url}
                   onToggleLike={onToggleLike}
                   mode={mode}
@@ -68,6 +73,8 @@ export const FeedMedia = memo(function FeedMedia({
                   initialPlaybackTime={playbackPositions?.[item.url] ?? 0}
                   onPlaybackTimeChange={onPlaybackTimeChange}
                 />
+              ) : item.type === 'video' ? (
+                <VideoPoster item={item} onOpenPost={onOpenPost} />
               ) : (
                 <Pressable onPress={onOpenPost} disabled={!onOpenPost} style={styles.mediaTapTarget}>
                   <Image source={{ uri: item.url }} contentFit="cover" style={styles.media} />
@@ -76,8 +83,9 @@ export const FeedMedia = memo(function FeedMedia({
             </View>
           ))}
         </ScrollView>
-      ) : activeItem.type === 'video' ? (
+      ) : activeItem.type === 'video' && isPlayableVideo(mode) ? (
         <VideoMedia
+          key={activeItem.url}
           url={activeItem.url}
           onToggleLike={onToggleLike}
           mode={mode}
@@ -85,6 +93,8 @@ export const FeedMedia = memo(function FeedMedia({
           initialPlaybackTime={playbackPositions?.[activeItem.url] ?? 0}
           onPlaybackTimeChange={onPlaybackTimeChange}
         />
+      ) : activeItem.type === 'video' ? (
+        <VideoPoster item={activeItem} onOpenPost={onOpenPost} />
       ) : (
         <Pressable onPress={onOpenPost} disabled={!onOpenPost} style={styles.mediaTapTarget}>
           <Image source={{ uri: activeItem.url }} contentFit="cover" style={styles.media} />
@@ -121,6 +131,28 @@ export const FeedMedia = memo(function FeedMedia({
     </View>
   );
 });
+
+function VideoPoster({
+  item,
+  onOpenPost,
+}: {
+  item: NonNullable<FeedPost['media']>[number];
+  onOpenPost?: () => void;
+}) {
+  return (
+    <Pressable onPress={onOpenPost} disabled={!onOpenPost} style={[styles.mediaTapTarget, styles.videoPoster]}>
+      {item.thumbnailUrl ? <Image source={{ uri: item.thumbnailUrl }} contentFit="cover" style={styles.media} /> : null}
+      <View style={styles.videoPosterShade} />
+      <View style={styles.playBadge}>
+        <Ionicons name="play" size={22} color="#ffffff" />
+      </View>
+      <View style={styles.videoLabel}>
+        <Ionicons name="videocam" size={14} color="#ffffff" />
+        <Text style={styles.videoLabelText}>Video</Text>
+      </View>
+    </Pressable>
+  );
+}
 
 function VideoMedia({
   url,
@@ -209,7 +241,11 @@ function VideoMedia({
 
   useEffect(() => {
     return () => {
-      onPlaybackTimeChange?.(url, player.currentTime);
+      try {
+        onPlaybackTimeChange?.(url, player.currentTime);
+      } catch {
+        // The native shared player can be released before React runs cleanup in Expo Go.
+      }
     };
   }, [onPlaybackTimeChange, player, url]);
 
@@ -277,7 +313,13 @@ function VideoMedia({
       ) : null}
 
       {mode === 'feed' ? (
-        <Pressable onPress={handleToggleMute} style={styles.feedMuteButton} hitSlop={8}>
+        <Pressable
+          onPress={(event) => {
+            event.stopPropagation();
+            handleToggleMute();
+          }}
+          style={styles.feedMuteButton}
+          hitSlop={8}>
           <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={15} color="#ffffff" />
         </Pressable>
       ) : null}
@@ -297,6 +339,43 @@ const styles = StyleSheet.create({
   media: {
     width: '100%',
     height: '100%',
+  },
+  videoPoster: {
+    backgroundColor: '#1f261f',
+  },
+  videoPosterShade: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.22)',
+  },
+  playBadge: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '43%',
+    width: 58,
+    height: 58,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  videoLabel: {
+    position: 'absolute',
+    left: 12,
+    bottom: 12,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  videoLabelText: {
+    color: '#ffffff',
+    fontFamily: Fonts.rounded,
+    fontSize: 12,
+    fontWeight: '700',
   },
   countBadge: {
     position: 'absolute',

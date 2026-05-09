@@ -57,6 +57,18 @@ export type FeedPost = {
     url: string;
     thumbnailUrl?: string;
   }>;
+  bodyBlocks?: Array<
+    | {
+        type: 'paragraph';
+        text: string;
+      }
+    | {
+        type: 'image' | 'video';
+        url: string;
+        thumbnailUrl?: string;
+        mediaIndex?: number;
+      }
+  >;
 };
 
 export type Product = {

@@ -1,54 +1,270 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Feather from '@expo/vector-icons/Feather';
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { api } from '@/lib/api';
 import { useSession } from '@/providers/session-provider';
+
+const SETTINGS_STORAGE_KEY = 'farmconnect.settings.preferences';
+
+type PreferenceKey =
+  | 'likesAndComments'
+  | 'orderUpdates'
+  | 'communityReplies'
+  | 'marketplaceAlerts'
+  | 'showPhoneOnProfile'
+  | 'publicActivity'
+  | 'autoplayMedia'
+  | 'dataSaver';
+
+type Preferences = Record<PreferenceKey, boolean>;
+
+type SettingsRow = {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  hint: string;
+  action: () => void;
+  tone?: 'default' | 'danger';
+};
+
+const defaultPreferences: Preferences = {
+  likesAndComments: true,
+  orderUpdates: true,
+  communityReplies: true,
+  marketplaceAlerts: false,
+  showPhoneOnProfile: false,
+  publicActivity: true,
+  autoplayMedia: true,
+  dataSaver: false,
+};
 
 export default function SettingsScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
-  const { logout, logoutToGuest, user } = useSession();
+  const { logout, logoutToGuest, token, user, mode } = useSession();
+  const [preferences, setPreferences] = useState<Preferences>(defaultPreferences);
+  const [isPreferencesReady, setIsPreferencesReady] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  const sections = [
+  const isAuthenticated = Boolean(token && user);
+  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPreferences() {
+      try {
+        const storedPreferences = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (storedPreferences) {
+          setPreferences({ ...defaultPreferences, ...(JSON.parse(storedPreferences) as Partial<Preferences>) });
+        }
+      } catch (error) {
+        console.warn('Failed to load FarmConnect settings.', error);
+      } finally {
+        if (isMounted) {
+          setIsPreferencesReady(true);
+        }
+      }
+    }
+
+    void loadPreferences();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const profileRows: SettingsRow[] = [
     {
-      title: 'Profile',
-      items: [
-        { label: 'Edit profile', hint: 'Update your name, bio, avatar, and interests.', action: () => router.push('/(tabs)/profile?edit=1') },
-        { label: 'My posts', hint: 'Manage the knowledge and market stories you have shared.', action: () => router.push('/(tabs)/profile?tab=posts') },
-        { label: 'My listings', hint: 'Jump straight into your marketplace items.', action: () => router.push('/(tabs)/profile?tab=listings') },
-      ],
+      icon: 'edit-3',
+      label: 'Edit profile',
+      hint: 'Update your name, bio, avatar, location, phone, and interests.',
+      action: () => router.push('/(tabs)/profile?edit=1'),
     },
     {
-      title: 'Social',
-      items: [
-        { label: 'Followers', hint: 'See who is following your farm or seller account.', action: () => router.push('/(tabs)/profile?tab=followers') },
-        { label: 'Following', hint: 'Review the people and sellers you follow.', action: () => router.push('/(tabs)/profile?tab=following') },
-        { label: 'Notifications', hint: 'Catch up on likes, comments, replies, and orders.', action: () => router.push('/(tabs)/profile') },
-      ],
+      icon: 'grid',
+      label: 'My posts',
+      hint: 'Review or remove the knowledge and market stories you have shared.',
+      action: () => router.push('/(tabs)/profile?tab=posts'),
     },
     {
-      title: 'Account',
-      items: [
-        { label: 'Continue as guest', hint: 'Quickly step out of your account without leaving the app.', action: () => void logoutToGuest() },
-        { label: 'Login and security', hint: 'Password changes, trusted devices, and sessions.', action: () => handlePlaceholder('Login and security') },
-        { label: 'Help and support', hint: 'Get assistance or report an issue.', action: () => handlePlaceholder('Help and support') },
-      ],
+      icon: 'shopping-bag',
+      label: 'My listings',
+      hint: 'Jump straight into the marketplace items tied to your account.',
+      action: () => router.push('/(tabs)/profile?tab=listings'),
+    },
+    {
+      icon: 'share-2',
+      label: 'Share profile',
+      hint: 'Send your FarmConnect identity to a buyer, farmer, or community member.',
+      action: handleShareProfile,
     },
   ];
 
-  function handlePlaceholder(label: string) {
-    Alert.alert(label, 'This screen is the right home for it. I can wire the full behavior next.');
+  const socialRows: SettingsRow[] = [
+    {
+      icon: 'users',
+      label: 'Followers',
+      hint: 'See who follows your farm, buyer, or community profile.',
+      action: () => router.push('/(tabs)/profile?tab=followers'),
+    },
+    {
+      icon: 'user-check',
+      label: 'Following',
+      hint: 'Review the people and sellers you follow.',
+      action: () => router.push('/(tabs)/profile?tab=following'),
+    },
+    {
+      icon: 'bell',
+      label: 'Notifications',
+      hint: 'Catch up on likes, comments, replies, and order activity.',
+      action: () => router.push('/(tabs)/profile'),
+    },
+  ];
+
+  async function persistPreferences(nextPreferences: Preferences) {
+    setPreferences(nextPreferences);
+    await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(nextPreferences));
+  }
+
+  function togglePreference(key: PreferenceKey) {
+    const nextPreferences = { ...preferences, [key]: !preferences[key] };
+    void persistPreferences(nextPreferences);
+  }
+
+  async function handleShareProfile() {
+    const displayName = user?.name ?? 'FarmConnect';
+    const location = user?.location ? ` in ${user.location}` : '';
+    const role = user?.role ? `${user.role} profile` : 'profile';
+
+    await Share.share({
+      message: `${displayName}'s FarmConnect ${role}${location}.`,
+    });
+  }
+
+  async function handleContactSupport() {
+    const subject = encodeURIComponent('FarmConnect support request');
+    const body = encodeURIComponent(`Account: ${user?.email ?? 'Guest'}\nApp version: ${appVersion}\n\nTell us what happened:\n`);
+    const mailUrl = `mailto:support@farmconnect.app?subject=${subject}&body=${body}`;
+    const canOpenMail = await Linking.canOpenURL(mailUrl);
+
+    if (canOpenMail) {
+      await Linking.openURL(mailUrl);
+      return;
+    }
+
+    Alert.alert('Support', 'Email support@farmconnect.app and include what happened plus your account email.');
+  }
+
+  function handleGuestSignIn() {
+    router.push('/auth?mode=login');
   }
 
   function handleLogoutPress() {
-    Alert.alert('Switch account', 'Do you want to keep browsing as guest or log out fully to the sign-in screen?', [
+    Alert.alert('Switch account', 'Choose how you want to leave this account.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Browse as guest', onPress: () => void logoutToGuest() },
       { text: 'Log out', style: 'destructive', onPress: () => void logout() },
     ]);
+  }
+
+  async function handleChangePassword() {
+    if (!token) {
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      Alert.alert('Password too short', 'Use at least 6 characters for your new password.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Passwords do not match', 'Confirm the same new password before saving.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      const response = await api.changePassword(token, { currentPassword, newPassword });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      Alert.alert('Security updated', response.message);
+    } catch (error) {
+      Alert.alert('Password update failed', error instanceof Error ? error.message : 'Something went wrong.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  }
+
+  function renderActionRow(item: SettingsRow) {
+    const textColor = item.tone === 'danger' ? palette.accent : palette.text;
+
+    return (
+      <Pressable
+        key={item.label}
+        onPress={item.action}
+        style={({ pressed }) => [
+          styles.rowCard,
+          { backgroundColor: palette.surface, opacity: pressed ? 0.72 : 1 },
+        ]}>
+        <View style={[styles.rowIcon, { backgroundColor: item.tone === 'danger' ? `${palette.accent}14` : palette.backgroundSecondary }]}>
+          <Feather name={item.icon} size={17} color={item.tone === 'danger' ? palette.accent : palette.tint} />
+        </View>
+        <View style={styles.rowCopy}>
+          <Text style={[styles.rowTitle, { color: textColor }]}>{item.label}</Text>
+          <Text style={[styles.rowHint, { color: palette.muted }]}>{item.hint}</Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={palette.muted} />
+      </Pressable>
+    );
+  }
+
+  function renderSwitchRow(key: PreferenceKey, label: string, hint: string, icon: keyof typeof Feather.glyphMap) {
+    return (
+      <View key={key} style={[styles.rowCard, { backgroundColor: palette.surface }]}>
+        <View style={[styles.rowIcon, { backgroundColor: palette.backgroundSecondary }]}>
+          <Feather name={icon} size={17} color={palette.tint} />
+        </View>
+        <View style={styles.rowCopy}>
+          <Text style={[styles.rowTitle, { color: palette.text }]}>{label}</Text>
+          <Text style={[styles.rowHint, { color: palette.muted }]}>{hint}</Text>
+        </View>
+        <Switch
+          value={preferences[key]}
+          onValueChange={() => togglePreference(key)}
+          trackColor={{ false: palette.overlay, true: `${palette.tint}55` }}
+          thumbColor={preferences[key] ? palette.tint : palette.surfaceRaised}
+        />
+      </View>
+    );
   }
 
   return (
@@ -59,44 +275,151 @@ export default function SettingsScreen() {
             <Feather name="arrow-left" size={18} color={palette.text} />
           </Pressable>
           <Text style={[styles.topBarTitle, { color: palette.text }]}>Settings</Text>
-          <View style={styles.spacer} />
+          <Pressable onPress={handleContactSupport} style={[styles.iconButton, { backgroundColor: palette.surface }]}>
+            <Feather name="help-circle" size={18} color={palette.text} />
+          </Pressable>
         </View>
 
-        <View style={[styles.hero, { backgroundColor: palette.backgroundSecondary }]}>
-          <Text style={[styles.heroEyebrow, { color: palette.tint }]}>Account</Text>
-          <Text style={[styles.heroTitle, { color: palette.text }]}>{user?.name || 'FarmConnect'} settings</Text>
-          <Text style={[styles.heroCopy, { color: palette.muted }]}>
-            Activity, privacy, and account management belong here so the profile stays cleaner and more social.
-          </Text>
-        </View>
-
-        {sections.map((section) => (
-          <View key={section.title} style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: palette.text }]}>{section.title}</Text>
-            <View style={styles.sectionRows}>
-              {section.items.map((item) => (
-                <Pressable key={item.label} onPress={item.action} style={[styles.rowCard, { backgroundColor: palette.surface }]}>
-                  <View style={styles.rowCopy}>
-                    <Text style={[styles.rowTitle, { color: palette.text }]}>{item.label}</Text>
-                    <Text style={[styles.rowHint, { color: palette.muted }]}>{item.hint}</Text>
-                  </View>
-                  <Feather name="chevron-right" size={18} color={palette.muted} />
-                </Pressable>
-              ))}
+        <View style={[styles.accountCard, { backgroundColor: palette.backgroundSecondary }]}>
+          <View style={styles.accountTop}>
+            <View style={[styles.avatar, { backgroundColor: palette.tint }]}>
+              <Text style={styles.avatarText}>{(user?.name ?? 'F').slice(0, 1).toUpperCase()}</Text>
+            </View>
+            <View style={styles.accountCopy}>
+              <Text style={[styles.accountName, { color: palette.text }]}>{user?.name ?? 'Guest browsing'}</Text>
+              <Text style={[styles.accountMeta, { color: palette.muted }]} selectable>
+                {user?.email ?? 'Sign in to sync your profile, orders, and trust history.'}
+              </Text>
             </View>
           </View>
-        ))}
-
-        <View style={styles.bottomActions}>
-          <Pressable onPress={() => router.push('/(tabs)/profile')} style={[styles.secondaryButton, { backgroundColor: palette.surface }]}>
-            <Text style={[styles.secondaryButtonText, { color: palette.text }]}>Back to profile</Text>
-          </Pressable>
-          <Pressable onPress={handleLogoutPress} style={[styles.logoutButton, { backgroundColor: palette.surface }]}>
-            <Text style={[styles.logoutText, { color: palette.accent }]}>Log out or switch account</Text>
-          </Pressable>
+          <View style={styles.accountStats}>
+            <View style={[styles.statPill, { backgroundColor: palette.surface }]}>
+              <Text style={[styles.statValue, { color: palette.text }]}>{user?.trustScore?.toFixed(1) ?? '0.0'}</Text>
+              <Text style={[styles.statLabel, { color: palette.muted }]}>Trust</Text>
+            </View>
+            <View style={[styles.statPill, { backgroundColor: palette.surface }]}>
+              <Text style={[styles.statValue, { color: palette.text }]}>{user?.followersCount ?? 0}</Text>
+              <Text style={[styles.statLabel, { color: palette.muted }]}>Followers</Text>
+            </View>
+            <View style={[styles.statPill, { backgroundColor: palette.surface }]}>
+              <Text style={[styles.statValue, { color: palette.text }]}>{mode === 'guest' ? 'Guest' : user?.role ?? 'Member'}</Text>
+              <Text style={[styles.statLabel, { color: palette.muted }]}>Mode</Text>
+            </View>
+          </View>
         </View>
+
+        {!isPreferencesReady ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator color={palette.tint} />
+          </View>
+        ) : (
+          <>
+            {isAuthenticated ? (
+              <>
+                <SettingsSection title="Profile">{profileRows.map(renderActionRow)}</SettingsSection>
+                <SettingsSection title="Social">{socialRows.map(renderActionRow)}</SettingsSection>
+              </>
+            ) : (
+              <View style={[styles.guestCard, { backgroundColor: palette.surface }]}>
+                <Text style={[styles.guestTitle, { color: palette.text }]}>Account tools unlock after sign in.</Text>
+                <Text style={[styles.guestCopy, { color: palette.muted }]}>
+                  You can keep browsing as guest, but profile edits, followers, listings, notifications, and security settings need an account.
+                </Text>
+                <Pressable onPress={handleGuestSignIn} style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
+                  <Text style={styles.primaryButtonText}>Sign in</Text>
+                </Pressable>
+              </View>
+            )}
+
+            <SettingsSection title="Notifications">
+              {renderSwitchRow('likesAndComments', 'Likes and comments', 'Alerts when people react to your feed posts.', 'heart')}
+              {renderSwitchRow('orderUpdates', 'Order updates', 'Delivery, buyer, and seller activity on your orders.', 'truck')}
+              {renderSwitchRow('communityReplies', 'Community replies', 'Replies on discussions and questions you join.', 'message-circle')}
+              {renderSwitchRow('marketplaceAlerts', 'Marketplace alerts', 'Price, stock, and buyer-demand prompts on this device.', 'tag')}
+            </SettingsSection>
+
+            <SettingsSection title="Privacy">
+              {renderSwitchRow('showPhoneOnProfile', 'Show phone on profile', 'Controls whether your phone should be shown in future profile privacy flows.', 'phone')}
+              {renderSwitchRow('publicActivity', 'Public activity signals', 'Let your public profile show recent posts, listings, and social counts.', 'eye')}
+            </SettingsSection>
+
+            <SettingsSection title="App preferences">
+              {renderSwitchRow('autoplayMedia', 'Autoplay feed media', 'Play feed videos when they become visible.', 'play-circle')}
+              {renderSwitchRow('dataSaver', 'Data saver', 'Prefer lighter media behavior while browsing.', 'wifi-off')}
+            </SettingsSection>
+
+            {isAuthenticated ? (
+              <SettingsSection title="Login and security">
+                <View style={[styles.securityCard, { backgroundColor: palette.surface }]}>
+                  <TextInput
+                    value={currentPassword}
+                    onChangeText={setCurrentPassword}
+                    placeholder="Current password"
+                    placeholderTextColor={palette.muted}
+                    secureTextEntry
+                    style={[styles.input, { color: palette.text, borderColor: palette.border }]}
+                  />
+                  <TextInput
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    placeholder="New password"
+                    placeholderTextColor={palette.muted}
+                    secureTextEntry
+                    style={[styles.input, { color: palette.text, borderColor: palette.border }]}
+                  />
+                  <TextInput
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    placeholder="Confirm new password"
+                    placeholderTextColor={palette.muted}
+                    secureTextEntry
+                    style={[styles.input, { color: palette.text, borderColor: palette.border }]}
+                  />
+                  <Pressable
+                    disabled={isChangingPassword}
+                    onPress={handleChangePassword}
+                    style={[styles.primaryButton, { backgroundColor: palette.tint, opacity: isChangingPassword ? 0.65 : 1 }]}>
+                    <Text style={styles.primaryButtonText}>{isChangingPassword ? 'Updating...' : 'Update password'}</Text>
+                  </Pressable>
+                </View>
+              </SettingsSection>
+            ) : null}
+
+            <SettingsSection title="Support">
+              {renderActionRow({
+                icon: 'mail',
+                label: 'Help and support',
+                hint: 'Contact support with your account and app version attached.',
+                action: handleContactSupport,
+              })}
+              {renderActionRow({
+                icon: isAuthenticated ? 'log-out' : 'log-in',
+                label: isAuthenticated ? 'Log out or switch account' : 'Sign in to FarmConnect',
+                hint: isAuthenticated ? 'Leave this account or continue browsing as guest.' : 'Connect a profile to sync activity.',
+                action: isAuthenticated ? handleLogoutPress : handleGuestSignIn,
+                tone: isAuthenticated ? 'danger' : 'default',
+              })}
+            </SettingsSection>
+
+            <Text style={[styles.footer, { color: palette.muted }]} selectable>
+              FarmConnect {appVersion} · {api.baseUrl}
+            </Text>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+
+  return (
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: palette.text }]}>{title}</Text>
+      <View style={styles.sectionRows}>{children}</View>
+    </View>
   );
 }
 
@@ -106,21 +429,39 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   iconButton: { width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   topBarTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '700' },
-  spacer: { width: 40 },
-  hero: { borderRadius: 28, padding: 18, gap: 8 },
-  heroEyebrow: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2 },
-  heroTitle: { fontFamily: Fonts.rounded, fontSize: 28, fontWeight: '700', lineHeight: 34 },
-  heroCopy: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
+  accountCard: { borderRadius: 24, padding: 16, gap: 16 },
+  accountTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: { width: 56, height: 56, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#FFFFFF', fontFamily: Fonts.rounded, fontSize: 24, fontWeight: '800' },
+  accountCopy: { flex: 1, gap: 4 },
+  accountName: { fontFamily: Fonts.rounded, fontSize: 24, fontWeight: '800', lineHeight: 29 },
+  accountMeta: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
+  accountStats: { flexDirection: 'row', gap: 8 },
+  statPill: { flex: 1, borderRadius: 16, padding: 10, gap: 3 },
+  statValue: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '800' },
+  statLabel: { fontFamily: Fonts.sans, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  loadingWrap: { paddingVertical: 30 },
   section: { gap: 10 },
-  sectionTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '700' },
+  sectionTitle: { fontFamily: Fonts.rounded, fontSize: 17, fontWeight: '800' },
   sectionRows: { gap: 10 },
-  rowCard: { borderRadius: 20, padding: 15, flexDirection: 'row', gap: 12, alignItems: 'center' },
+  rowCard: { borderRadius: 18, padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center' },
+  rowIcon: { width: 36, height: 36, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   rowCopy: { flex: 1, gap: 4 },
-  rowTitle: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
+  rowTitle: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '800' },
   rowHint: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  bottomActions: { paddingTop: 8 },
-  secondaryButton: { borderRadius: 18, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  secondaryButtonText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
-  logoutButton: { borderRadius: 18, paddingVertical: 15, alignItems: 'center', justifyContent: 'center' },
-  logoutText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
+  guestCard: { borderRadius: 20, padding: 16, gap: 12 },
+  guestTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '800' },
+  guestCopy: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
+  securityCard: { borderRadius: 18, padding: 14, gap: 10 },
+  input: {
+    minHeight: 48,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+  },
+  primaryButton: { minHeight: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  primaryButtonText: { color: '#FFFFFF', fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '800' },
+  footer: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18, textAlign: 'center', paddingTop: 6 },
 });

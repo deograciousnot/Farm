@@ -1,84 +1,80 @@
 import Feather from '@expo/vector-icons/Feather';
-import * as ImagePicker from 'expo-image-picker';
+import { useFocusEffect } from '@react-navigation/native';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Alert, BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image } from 'expo-image';
 
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import type { UploadableAsset } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 
 const roles = [
-  { id: 'farmer', label: 'Farmer', blurb: 'Post produce, answer questions, and sell with credibility.' },
-  { id: 'buyer', label: 'Buyer', blurb: 'Browse suppliers, save listings, and shop with confidence.' },
-  { id: 'hobbyist', label: 'Hobbyist', blurb: 'Learn and browse like a buyer, without seller privileges.' },
+  { id: 'farmer', label: 'Farmer' },
+  { id: 'buyer', label: 'Buyer' },
+  { id: 'hobbyist', label: 'Hobbyist' },
 ] as const;
 
-const interestOptions = ['Crop health', 'Market tea', 'Buyer demand', 'Farm inputs', 'Greenhouse hacks'];
+const defaultInterests = ['Market tea', 'Buyer demand'];
 
 export default function AuthScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const params = useLocalSearchParams<{ mode?: string }>();
-  const initialMode = params.mode === 'login' ? 'login' : 'signup';
-  const { token, mode, isLoading, register, signInDemo, login, markIntroSeen } = useSession();
+  const initialMode = params.mode === 'signup' ? 'signup' : 'login';
+  const { token, isLoading, register, login, continueAsGuest, markIntroSeen } = useSession();
 
-  const [currentMode, setCurrentMode] = useState<'signup' | 'login'>(initialMode);
-  const [selectedRole, setSelectedRole] = useState<(typeof roles)[number]['id']>('buyer');
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(['Market tea', 'Buyer demand']);
+  const [currentMode, setCurrentMode] = useState<'login' | 'signup'>(initialMode);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [location, setLocation] = useState('Nairobi');
-  const [avatar, setAvatar] = useState<UploadableAsset | null>(null);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [location, setLocation] = useState('');
+  const [selectedRole, setSelectedRole] = useState<(typeof roles)[number]['id']>('buyer');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const selectedRoleCopy = useMemo(() => roles.find((role) => role.id === selectedRole) ?? roles[1], [selectedRole]);
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (currentMode === 'signup') {
+          switchMode('login');
+          return true;
+        }
 
-  if (!isLoading && (token || mode === 'guest')) {
+        router.replace('/get-started');
+        return true;
+      });
+
+      return () => subscription.remove();
+    }, [currentMode])
+  );
+
+  if (!isLoading && token) {
     return <Redirect href="/(tabs)" />;
   }
 
-  function toggleInterest(interest: string) {
-    setSelectedInterests((current) =>
-      current.includes(interest) ? current.filter((item) => item !== interest) : [...current, interest]
-    );
-  }
-
-  async function pickAvatar() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Please allow photo access so you can choose a profile picture.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.9,
-    });
-
-    if (result.canceled) {
-      return;
-    }
-
-    const asset = result.assets[0];
-
-    setAvatar({
-      uri: asset.uri,
-      type: asset.mimeType || 'image/jpeg',
-      name: asset.fileName || `farmconnect-avatar-${Date.now()}.jpg`,
-    });
+  function switchMode(nextMode: 'login' | 'signup') {
+    setCurrentMode(nextMode);
+    setSubmitError('');
   }
 
   async function handleSubmit() {
     setSubmitError('');
+
+    if (currentMode === 'signup') {
+      if (password !== confirmPassword) {
+        setSubmitError('Passwords do not match.');
+        return;
+      }
+
+      if (!acceptedTerms) {
+        setSubmitError('Please accept the terms and conditions.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     markIntroSeen();
 
@@ -90,10 +86,9 @@ export default function AuthScreen() {
           name: name.trim(),
           email: email.trim(),
           password,
-          location: location.trim(),
+          location: location.trim() || 'Unknown',
           role: selectedRole,
-          interests: selectedInterests,
-          avatar,
+          interests: defaultInterests,
         });
       }
 
@@ -105,152 +100,40 @@ export default function AuthScreen() {
     }
   }
 
-  async function handleDemo() {
-    setSubmitError('');
-    setIsSubmitting(true);
+  function handleGuest() {
     markIntroSeen();
-
-    try {
-      await signInDemo();
-      router.replace('/(tabs)');
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Could not enter demo.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    continueAsGuest();
+    router.replace('/(tabs)');
   }
 
-  function switchMode(nextMode: 'signup' | 'login') {
-    setCurrentMode(nextMode);
-    setSubmitError('');
+  function showTerms() {
+    Alert.alert(
+      'Terms and conditions',
+      'By creating a FarmConnect account, you agree to use accurate profile information, trade respectfully, follow marketplace rules, and keep community discussions useful and safe.'
+    );
   }
+
+  const isSignup = currentMode === 'signup';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={[styles.heroShell, { backgroundColor: palette.backgroundSecondary }]}>
-          <View style={[styles.glowLarge, { backgroundColor: `${palette.accent}18` }]} />
-          <View style={[styles.glowSmall, { backgroundColor: `${palette.tint}16` }]} />
-          <View style={styles.heroTop}>
-            <View style={[styles.heroBadge, { backgroundColor: palette.surface }]}>
-              <Feather name={currentMode === 'signup' ? 'user-plus' : 'log-in'} size={14} color={palette.tint} />
-              <Text style={[styles.heroBadgeText, { color: palette.text }]}>
-                {currentMode === 'signup' ? 'Create your identity' : 'Welcome back'}
-              </Text>
-            </View>
-            <Pressable onPress={() => router.replace('/get-started')} hitSlop={8}>
-              <Feather name="arrow-left" size={18} color={palette.text} />
-            </Pressable>
-          </View>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.replace('/get-started')} style={[styles.iconButton, { backgroundColor: palette.surface }]}>
+            <Feather name="arrow-left" size={18} color={palette.text} />
+          </Pressable>
+          <Text style={[styles.brand, { color: palette.tint }]}>FarmConnect</Text>
+        </View>
 
-          <Text style={[styles.eyebrow, { color: palette.accent }]}>
-            {currentMode === 'signup' ? 'New to FarmConnect' : 'Account sign in'}
-          </Text>
-          <Text style={[styles.title, { color: palette.text }]}>
-            {currentMode === 'signup'
-              ? 'Set up your role, voice, and profile in one clean flow.'
-              : 'Jump back into your feed, marketplace, and communities.'}
-          </Text>
+        <View style={styles.titleBlock}>
+          <Text style={[styles.title, { color: palette.text }]}>{isSignup ? 'Create account' : 'Log in'}</Text>
           <Text style={[styles.subtitle, { color: palette.muted }]}>
-            Passwords are hashed securely on the backend. Google and phone sign-in can plug into this flow next.
+            {isSignup ? 'Start with the basics. You can complete your profile later.' : 'Welcome back.'}
           </Text>
         </View>
 
-        <View style={[styles.modeSwitch, { backgroundColor: palette.surface }]}>
-          <Pressable
-            onPress={() => switchMode('signup')}
-            style={[styles.modeButton, { backgroundColor: currentMode === 'signup' ? palette.tint : 'transparent' }]}>
-            <Text style={[styles.modeButtonText, { color: currentMode === 'signup' ? '#ffffff' : palette.text }]}>
-              Create account
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => switchMode('login')}
-            style={[styles.modeButton, { backgroundColor: currentMode === 'login' ? palette.accent : 'transparent' }]}>
-            <Text style={[styles.modeButtonText, { color: currentMode === 'login' ? '#ffffff' : palette.text }]}>
-              Log in
-            </Text>
-          </Pressable>
-        </View>
-
-        {currentMode === 'signup' ? (
-          <>
-            <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: palette.muted }]}>Role</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleRow}>
-                {roles.map((role) => (
-                  <Pressable
-                    key={role.id}
-                    onPress={() => setSelectedRole(role.id)}
-                    style={[
-                      styles.roleCard,
-                      { backgroundColor: selectedRole === role.id ? `${palette.tint}12` : palette.surface },
-                    ]}>
-                    <Text style={[styles.roleLabel, { color: selectedRole === role.id ? palette.tint : palette.text }]}>
-                      {role.label}
-                    </Text>
-                    <Text style={[styles.roleBlurb, { color: palette.muted }]}>{role.blurb}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: palette.muted }]}>Profile photo</Text>
-              <View style={[styles.avatarRow, { backgroundColor: palette.surface }]}>
-                <View style={[styles.avatarPreview, { backgroundColor: palette.backgroundSecondary }]}>
-                  {avatar ? (
-                    <Image source={{ uri: avatar.uri }} contentFit="cover" style={styles.avatarImage} />
-                  ) : (
-                    <Feather name="user" size={28} color={palette.muted} />
-                  )}
-                </View>
-                <View style={styles.avatarCopy}>
-                  <Text style={[styles.avatarTitle, { color: palette.text }]}>Make your profile feel real</Text>
-                  <Text style={[styles.avatarHint, { color: palette.muted }]}>
-                    Optional now, useful later for trust and recognition in the feed.
-                  </Text>
-                </View>
-                <Pressable onPress={pickAvatar} style={[styles.avatarButton, { backgroundColor: palette.backgroundSecondary }]}>
-                  <Text style={[styles.avatarButtonText, { color: palette.text }]}>
-                    {avatar ? 'Change' : 'Add'}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: palette.muted }]}>Interests</Text>
-              <Text style={[styles.sectionHint, { color: palette.muted }]}>{selectedRoleCopy.blurb}</Text>
-              <View style={styles.chips}>
-                {interestOptions.map((interest) => {
-                  const isSelected = selectedInterests.includes(interest);
-
-                  return (
-                    <Pressable
-                      key={interest}
-                      onPress={() => toggleInterest(interest)}
-                      style={[
-                        styles.chip,
-                        { backgroundColor: isSelected ? `${palette.accent}14` : palette.surface },
-                      ]}>
-                      <Text style={[styles.chipText, { color: isSelected ? palette.accent : palette.text }]}>
-                        {interest}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          </>
-        ) : null}
-
-        <View style={styles.formSection}>
-          <Text style={[styles.sectionLabel, { color: palette.muted }]}>
-            {currentMode === 'signup' ? 'Account details' : 'Login details'}
-          </Text>
-
-          {currentMode === 'signup' ? (
+        <View style={styles.form}>
+          {isSignup ? (
             <TextInput
               value={name}
               onChangeText={setName}
@@ -269,6 +152,7 @@ export default function AuthScreen() {
             placeholderTextColor={palette.muted}
             style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
           />
+
           <TextInput
             value={password}
             onChangeText={setPassword}
@@ -277,34 +161,80 @@ export default function AuthScreen() {
             placeholderTextColor={palette.muted}
             style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
           />
-          {currentMode === 'signup' ? (
-            <TextInput
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Location"
-              placeholderTextColor={palette.muted}
-              style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
-            />
+
+          {isSignup ? (
+            <>
+              <TextInput
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirm password"
+                secureTextEntry
+                placeholderTextColor={palette.muted}
+                style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
+              />
+              <TextInput
+                value={location}
+                onChangeText={setLocation}
+                placeholder="Location"
+                placeholderTextColor={palette.muted}
+                style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
+              />
+              <View style={styles.roleRow}>
+                {roles.map((role) => {
+                  const isSelected = selectedRole === role.id;
+
+                  return (
+                    <Pressable
+                      key={role.id}
+                      onPress={() => setSelectedRole(role.id)}
+                      style={[
+                        styles.roleButton,
+                        { backgroundColor: isSelected ? palette.tint : palette.surface },
+                      ]}>
+                      <Text style={[styles.roleText, { color: isSelected ? '#FFFFFF' : palette.text }]}>{role.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Pressable onPress={() => setAcceptedTerms((current) => !current)} style={styles.termsRow}>
+                <View
+                  style={[
+                    styles.checkbox,
+                    {
+                      backgroundColor: acceptedTerms ? palette.tint : palette.surface,
+                      borderColor: acceptedTerms ? palette.tint : palette.border,
+                    },
+                  ]}>
+                  {acceptedTerms ? <Feather name="check" size={14} color="#FFFFFF" /> : null}
+                </View>
+                <Text style={[styles.termsText, { color: palette.muted }]}>
+                  I agree to the{' '}
+                  <Text onPress={showTerms} style={{ color: palette.tint, fontWeight: '800' }}>
+                    terms and conditions
+                  </Text>
+                  .
+                </Text>
+              </Pressable>
+            </>
           ) : null}
 
           {submitError ? <Text style={[styles.error, { color: palette.accent }]}>{submitError}</Text> : null}
 
           <Pressable disabled={isSubmitting} onPress={handleSubmit} style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
             <Text style={styles.primaryButtonText}>
-              {isSubmitting
-                ? currentMode === 'signup'
-                  ? 'Setting up...'
-                  : 'Logging in...'
-                : currentMode === 'signup'
-                  ? 'Create account'
-                  : 'Log in'}
+              {isSubmitting ? (isSignup ? 'Creating...' : 'Logging in...') : isSignup ? 'Create account' : 'Log in'}
             </Text>
           </Pressable>
-          <Pressable
-            disabled={isSubmitting}
-            onPress={handleDemo}
-            style={[styles.secondaryButton, { backgroundColor: palette.surface }]}>
-            <Text style={[styles.secondaryButtonText, { color: palette.text }]}>Use demo buyer</Text>
+        </View>
+
+        <View style={styles.links}>
+          <Pressable onPress={() => switchMode(isSignup ? 'login' : 'signup')} hitSlop={10}>
+            <Text style={[styles.linkText, { color: palette.text }]}>
+              {isSignup ? 'Already have an account? Log in' : "Don't have an account yet? Create one"}
+            </Text>
+          </Pressable>
+          <Pressable onPress={handleGuest} style={[styles.guestButton, { backgroundColor: palette.surface }]}>
+            <Text style={[styles.guestButtonText, { color: palette.text }]}>Browse as guest</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -314,42 +244,45 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  content: { padding: 18, gap: 16, paddingBottom: 36 },
-  heroShell: { borderRadius: 32, padding: 18, gap: 12, overflow: 'hidden' },
-  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  heroBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', gap: 8, alignItems: 'center' },
-  heroBadgeText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  glowLarge: { position: 'absolute', width: 180, height: 180, borderRadius: 999, right: -30, top: -44 },
-  glowSmall: { position: 'absolute', width: 100, height: 100, borderRadius: 999, left: -18, bottom: -18 },
-  eyebrow: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2 },
-  title: { fontFamily: Fonts.rounded, fontSize: 31, fontWeight: '700', lineHeight: 38 },
+  content: { flexGrow: 1, padding: 22, justifyContent: 'center', gap: 26 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  iconButton: { width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  brand: {
+    fontFamily: Fonts.rounded,
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  titleBlock: { gap: 8 },
+  title: { fontFamily: Fonts.rounded, fontSize: 34, fontWeight: '800', lineHeight: 40 },
   subtitle: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 22 },
-  modeSwitch: { borderRadius: 999, padding: 4, flexDirection: 'row', gap: 6 },
-  modeButton: { flex: 1, borderRadius: 999, paddingVertical: 11, alignItems: 'center' },
-  modeButtonText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
-  section: { gap: 10 },
-  sectionLabel: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2 },
-  sectionHint: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  roleRow: { gap: 10, paddingRight: 12 },
-  roleCard: { width: 210, borderRadius: 22, padding: 16, gap: 6 },
-  roleLabel: { fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '700' },
-  roleBlurb: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  avatarRow: { borderRadius: 24, padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center' },
-  avatarPreview: { width: 68, height: 68, borderRadius: 999, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  avatarImage: { width: '100%', height: '100%' },
-  avatarCopy: { flex: 1, gap: 4 },
-  avatarTitle: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
-  avatarHint: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
-  avatarButton: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
-  avatarButtonText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
-  chipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  formSection: { gap: 10 },
-  input: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 14, fontFamily: Fonts.sans, fontSize: 14 },
-  error: { fontFamily: Fonts.sans, fontSize: 13 },
-  primaryButton: { borderRadius: 999, paddingVertical: 15, alignItems: 'center', marginTop: 4 },
-  primaryButtonText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700' },
-  secondaryButton: { borderRadius: 999, paddingVertical: 15, alignItems: 'center' },
-  secondaryButtonText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
+  form: { gap: 12 },
+  input: {
+    minHeight: 52,
+    borderRadius: 18,
+    paddingHorizontal: 15,
+    fontFamily: Fonts.sans,
+    fontSize: 15,
+  },
+  roleRow: { flexDirection: 'row', gap: 8 },
+  roleButton: { flex: 1, minHeight: 44, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  roleText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
+  termsRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingTop: 2 },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  termsText: { flex: 1, fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
+  error: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 18 },
+  primaryButton: { minHeight: 52, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  primaryButtonText: { color: '#FFFFFF', fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '800' },
+  links: { alignItems: 'center', gap: 14 },
+  linkText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  guestButton: { minHeight: 48, borderRadius: 999, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center' },
+  guestButtonText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '800' },
 });
