@@ -1,9 +1,20 @@
 import { Order } from "../models/order.model.js";
 import { Product } from "../models/product.model.js";
+import { SellerRemark } from "../models/seller-remark.model.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { createNotification } from "../utils/notifications.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
+
+async function findOrderForUser(orderId, userId) {
+  return Order.findOne({
+    _id: orderId,
+    $or: [{ buyer: userId }, { seller: userId }],
+  })
+    .populate("buyer", "name role location avatarUrl phone verificationStatus trustScore")
+    .populate("seller", "name role location avatarUrl phone verificationStatus trustScore")
+    .populate("items.product", "name category");
+}
 
 export const getOrders = asyncHandler(async (req, res) => {
   const filters = {};
@@ -21,6 +32,23 @@ export const getOrders = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 });
 
   res.json({ items: orders });
+});
+
+export const getOrderById = asyncHandler(async (req, res) => {
+  const order = await findOrderForUser(req.params.orderId, req.user._id);
+
+  if (!order) {
+    throw new AppError("Order not found.", 404);
+  }
+
+  const remark = await SellerRemark.findOne({ order: order._id })
+    .populate("buyer", "name role location avatarUrl verificationStatus trustScore")
+    .populate("seller", "name role location avatarUrl verificationStatus trustScore");
+
+  res.json({
+    item: order,
+    remark,
+  });
 });
 
 export const createOrder = asyncHandler(async (req, res) => {
@@ -101,5 +129,136 @@ export const createOrder = asyncHandler(async (req, res) => {
   res.status(201).json({
     message: "Order created successfully.",
     item: populatedOrder,
+  });
+});
+
+export const completeOrderWithRemark = asyncHandler(async (req, res) => {
+  const { rating, body } = req.body;
+  const parsedRating = Number(rating);
+
+  if (!Number.isFinite(parsedRating) || parsedRating < 1 || parsedRating > 5) {
+    throw new AppError("Rating must be between 1 and 5.", 400);
+  }
+
+  if (!String(body || "").trim()) {
+    throw new AppError("A short remark is required.", 400);
+  }
+
+  const order = await Order.findOne({
+    _id: req.params.orderId,
+    buyer: req.user._id,
+  });
+
+  if (!order) {
+    throw new AppError("Order not found.", 404);
+  }
+
+  if (order.status === "cancelled") {
+    throw new AppError("Cancelled orders cannot be completed.", 400);
+  }
+
+  const remark = await SellerRemark.findOneAndUpdate(
+    { order: order._id },
+    {
+      order: order._id,
+      buyer: req.user._id,
+      seller: order.seller,
+      rating: Math.round(parsedRating),
+      body: String(body).trim(),
+    },
+    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+  )
+    .populate("buyer", "name role location avatarUrl verificationStatus trustScore")
+    .populate("seller", "name role location avatarUrl verificationStatus trustScore");
+
+  order.status = "delivered";
+  order.etaLabel = "Completed";
+  await order.save();
+
+  await Promise.all([
+    createNotification({
+      userId: order.seller,
+      title: "Buyer remark received",
+      body: `${req.user.name} completed an order and left a remark.`,
+      type: "order",
+    }),
+    recalculateTrustScoreForUser(order.seller),
+    recalculateTrustScoreForUser(req.user._id),
+  ]);
+
+  const populatedOrder = await Order.findById(order._id)
+    .populate("buyer", "name role location avatarUrl")
+    .populate("seller", "name role location avatarUrl")
+    .populate("items.product", "name category");
+
+  res.json({
+    message: "Order completed and seller remark saved.",
+    item: populatedOrder,
+    remark,
+  });
+});
+
+export const updateOrderStatus = asyncHandler(async (req, res) => {
+  const { status } = req.body;
+  const allowedStatuses = ["accepted", "in-transit", "cancelled"];
+
+  if (!allowedStatuses.includes(status)) {
+    throw new AppError("Unsupported order status.", 400);
+  }
+
+  const order = await Order.findOne({
+    _id: req.params.orderId,
+    $or: [{ buyer: req.user._id }, { seller: req.user._id }],
+  });
+
+  if (!order) {
+    throw new AppError("Order not found.", 404);
+  }
+
+  const isBuyer = String(order.buyer) === String(req.user._id);
+  const isSeller = String(order.seller) === String(req.user._id);
+
+  if (order.status === "delivered" || order.status === "cancelled") {
+    throw new AppError("This order is already closed.", 400);
+  }
+
+  if (status === "accepted" && (!isSeller || order.status !== "pending")) {
+    throw new AppError("Only the seller can accept a pending order.", 403);
+  }
+
+  if (status === "in-transit" && (!isSeller || order.status !== "accepted")) {
+    throw new AppError("Only the seller can dispatch an accepted order.", 403);
+  }
+
+  if (status === "cancelled" && !((isBuyer && order.status === "pending") || isSeller)) {
+    throw new AppError("This order cannot be cancelled by your account.", 403);
+  }
+
+  order.status = status;
+  order.etaLabel =
+    status === "accepted"
+      ? "Seller accepted"
+      : status === "in-transit"
+        ? "On the way"
+        : "Cancelled";
+  await order.save();
+
+  const notifyUserId = isSeller ? order.buyer : order.seller;
+  await createNotification({
+    userId: notifyUserId,
+    title: "Order status updated",
+    body: `Order ${String(order._id).slice(-6)} is now ${status.replace("-", " ")}.`,
+    type: "order",
+  });
+
+  const populatedOrder = await findOrderForUser(order._id, req.user._id);
+  const remark = await SellerRemark.findOne({ order: order._id })
+    .populate("buyer", "name role location avatarUrl verificationStatus trustScore")
+    .populate("seller", "name role location avatarUrl verificationStatus trustScore");
+
+  res.json({
+    message: "Order status updated.",
+    item: populatedOrder,
+    remark,
   });
 });

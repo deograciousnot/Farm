@@ -2,6 +2,7 @@ import { Notification } from "../models/notification.model.js";
 import { Order } from "../models/order.model.js";
 import { Post } from "../models/post.model.js";
 import { Product } from "../models/product.model.js";
+import { SellerRemark } from "../models/seller-remark.model.js";
 import { User } from "../models/user.model.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -28,7 +29,7 @@ function shapeProfileSummary(user) {
 }
 
 async function buildProfilePayload(viewer, targetUser, { includeNotifications = false } = {}) {
-  const [posts, listings, ordersCount, notifications, unreadNotifications] = await Promise.all([
+  const [posts, listings, ordersCount, notifications, unreadNotifications, receivedRemarks, givenRemarks] = await Promise.all([
     Post.find({ author: targetUser._id })
       .populate("author", "name role location verificationStatus trustScore avatarUrl followers following")
       .sort({ createdAt: -1 })
@@ -50,6 +51,20 @@ async function buildProfilePayload(viewer, targetUser, { includeNotifications = 
     includeNotifications
       ? Notification.countDocuments({ user: targetUser._id, isRead: false })
       : Promise.resolve(0),
+    SellerRemark.find({ seller: targetUser._id })
+      .populate("buyer", "name role location avatarUrl verificationStatus trustScore")
+      .populate("seller", "name role location avatarUrl verificationStatus trustScore")
+      .sort({ createdAt: -1 })
+      .limit(includeNotifications ? 24 : 8)
+      .lean(),
+    includeNotifications
+      ? SellerRemark.find({ buyer: targetUser._id })
+          .populate("buyer", "name role location avatarUrl verificationStatus trustScore")
+          .populate("seller", "name role location avatarUrl verificationStatus trustScore")
+          .sort({ createdAt: -1 })
+          .limit(24)
+          .lean()
+      : Promise.resolve([]),
   ]);
 
   const followers = await User.find({ _id: { $in: targetUser.followers ?? [] } })
@@ -83,6 +98,10 @@ async function buildProfilePayload(viewer, targetUser, { includeNotifications = 
       unreadCount: unreadNotifications,
     },
     notifications,
+    remarks: {
+      received: receivedRemarks,
+      given: givenRemarks,
+    },
   };
 }
 

@@ -28,6 +28,7 @@ type SessionContextValue = {
   updateUser: (nextUser: ApiUser) => Promise<void>;
   logout: () => Promise<void>;
   logoutToGuest: () => Promise<void>;
+  clearDeletedAccount: () => Promise<void>;
 };
 
 const SessionContext = createContext<SessionContextValue>({
@@ -44,6 +45,7 @@ const SessionContext = createContext<SessionContextValue>({
   updateUser: async () => {},
   logout: async () => {},
   logoutToGuest: async () => {},
+  clearDeletedAccount: async () => {},
 });
 
 export function SessionProvider({ children }: PropsWithChildren) {
@@ -179,6 +181,14 @@ export function SessionProvider({ children }: PropsWithChildren) {
     router.replace('/(tabs)');
   }
 
+  async function clearDeletedAccount() {
+    setMode('signed-out');
+    setToken(null);
+    setUser(null);
+    await AsyncStorage.multiRemove([STORAGE_KEYS.token, STORAGE_KEYS.user, STORAGE_KEYS.mode]);
+    router.replace('/auth?mode=login');
+  }
+
   return (
     <SessionContext.Provider
       value={{
@@ -195,6 +205,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         updateUser,
         logout,
         logoutToGuest,
+        clearDeletedAccount,
       }}>
       {children}
     </SessionContext.Provider>

@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { api } from '@/lib/api';
+import type { ProfileResponse } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 
 const SETTINGS_STORAGE_KEY = 'farmconnect.settings.preferences';
@@ -59,13 +60,17 @@ const defaultPreferences: Preferences = {
 export default function SettingsScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
-  const { logout, logoutToGuest, token, user, mode } = useSession();
+  const { clearDeletedAccount, logout, logoutToGuest, token, user, mode } = useSession();
   const [preferences, setPreferences] = useState<Preferences>(defaultPreferences);
   const [isPreferencesReady, setIsPreferencesReady] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [activity, setActivity] = useState<ProfileResponse['remarks'] | null>(null);
 
   const isAuthenticated = Boolean(token && user);
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
@@ -99,6 +104,33 @@ export default function SettingsScreen() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadActivity() {
+      if (!token) {
+        setActivity(null);
+        return;
+      }
+
+      try {
+        const response = await api.getProfile(token);
+
+        if (isMounted) {
+          setActivity(response.remarks);
+        }
+      } catch (error) {
+        console.warn('Failed to load account activity.', error);
+      }
+    }
+
+    void loadActivity();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token]);
 
   const profileRows: SettingsRow[] = [
     {
@@ -221,6 +253,45 @@ export default function SettingsScreen() {
       Alert.alert('Password update failed', error instanceof Error ? error.message : 'Something went wrong.');
     } finally {
       setIsChangingPassword(false);
+    }
+  }
+
+  function handleDeleteAccountPress() {
+    if (!token || !deletePassword || deleteConfirmation !== 'DELETE') {
+      Alert.alert('Confirm deletion', 'Enter your current password and type DELETE before deleting the account.');
+      return;
+    }
+
+    Alert.alert(
+      'Delete account permanently?',
+      'FarmConnect will erase your profile, posts, listings, comments, replies, followers, saved posts, and notifications. Order records are retained only where needed for transaction history, with personal delivery details removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete account', style: 'destructive', onPress: () => void handleDeleteAccount() },
+      ]
+    );
+  }
+
+  async function handleDeleteAccount() {
+    if (!token) {
+      return;
+    }
+
+    setIsDeletingAccount(true);
+
+    try {
+      const response = await api.deleteAccount(token, {
+        currentPassword: deletePassword,
+        confirmation: deleteConfirmation,
+      });
+      setDeletePassword('');
+      setDeleteConfirmation('');
+      Alert.alert('Account deleted', response.message);
+      await clearDeletedAccount();
+    } catch (error) {
+      Alert.alert('Deletion failed', error instanceof Error ? error.message : 'Something went wrong.');
+    } finally {
+      setIsDeletingAccount(false);
     }
   }
 
@@ -349,6 +420,43 @@ export default function SettingsScreen() {
             </SettingsSection>
 
             {isAuthenticated ? (
+              <SettingsSection title="Activity">
+                <View style={[styles.activityCard, { backgroundColor: palette.surface }]}>
+                  <Text style={[styles.activityTitle, { color: palette.text }]}>Remarks about you</Text>
+                  {activity?.received.length ? (
+                    activity.received.slice(0, 3).map((remark) => (
+                      <View key={remark._id} style={[styles.activityRow, { borderBottomColor: palette.border }]}>
+                        <View style={styles.activityRowTop}>
+                          <Text style={[styles.activityName, { color: palette.text }]}>{remark.buyer.name}</Text>
+                          <Text style={[styles.activityRating, { color: palette.tint }]}>{remark.rating}/5</Text>
+                        </View>
+                        <Text style={[styles.activityBody, { color: palette.muted }]}>{remark.body}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={[styles.activityBody, { color: palette.muted }]}>No seller remarks received yet.</Text>
+                  )}
+                </View>
+                <View style={[styles.activityCard, { backgroundColor: palette.surface }]}>
+                  <Text style={[styles.activityTitle, { color: palette.text }]}>Remarks you left</Text>
+                  {activity?.given.length ? (
+                    activity.given.slice(0, 3).map((remark) => (
+                      <View key={remark._id} style={[styles.activityRow, { borderBottomColor: palette.border }]}>
+                        <View style={styles.activityRowTop}>
+                          <Text style={[styles.activityName, { color: palette.text }]}>{remark.seller.name}</Text>
+                          <Text style={[styles.activityRating, { color: palette.tint }]}>{remark.rating}/5</Text>
+                        </View>
+                        <Text style={[styles.activityBody, { color: palette.muted }]}>{remark.body}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={[styles.activityBody, { color: palette.muted }]}>Complete a buyer order to leave your first seller remark.</Text>
+                  )}
+                </View>
+              </SettingsSection>
+            ) : null}
+
+            {isAuthenticated ? (
               <SettingsSection title="Login and security">
                 <View style={[styles.securityCard, { backgroundColor: palette.surface }]}>
                   <TextInput
@@ -380,6 +488,46 @@ export default function SettingsScreen() {
                     onPress={handleChangePassword}
                     style={[styles.primaryButton, { backgroundColor: palette.tint, opacity: isChangingPassword ? 0.65 : 1 }]}>
                     <Text style={styles.primaryButtonText}>{isChangingPassword ? 'Updating...' : 'Update password'}</Text>
+                  </Pressable>
+                </View>
+              </SettingsSection>
+            ) : null}
+
+            {isAuthenticated ? (
+              <SettingsSection title="Data protection">
+                <View style={[styles.securityCard, styles.dangerCard, { backgroundColor: palette.surface, borderColor: `${palette.accent}55` }]}>
+                  <View style={styles.dpaHeader}>
+                    <View style={[styles.rowIcon, { backgroundColor: `${palette.accent}14` }]}>
+                      <Feather name="shield" size={17} color={palette.accent} />
+                    </View>
+                    <View style={styles.rowCopy}>
+                      <Text style={[styles.rowTitle, { color: palette.text }]}>Delete account and data</Text>
+                      <Text style={[styles.rowHint, { color: palette.muted }]}>
+                        DPA-aligned erasure removes profile data, posts, listings, social activity, notifications, and saved content. Transaction records keep only the minimum order history needed for accountability.
+                      </Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    value={deletePassword}
+                    onChangeText={setDeletePassword}
+                    placeholder="Current password"
+                    placeholderTextColor={palette.muted}
+                    secureTextEntry
+                    style={[styles.input, { color: palette.text, borderColor: palette.border }]}
+                  />
+                  <TextInput
+                    value={deleteConfirmation}
+                    onChangeText={setDeleteConfirmation}
+                    placeholder="Type DELETE"
+                    placeholderTextColor={palette.muted}
+                    autoCapitalize="characters"
+                    style={[styles.input, { color: palette.text, borderColor: palette.border }]}
+                  />
+                  <Pressable
+                    disabled={isDeletingAccount}
+                    onPress={handleDeleteAccountPress}
+                    style={[styles.primaryButton, { backgroundColor: palette.accent, opacity: isDeletingAccount ? 0.65 : 1 }]}>
+                    <Text style={styles.primaryButtonText}>{isDeletingAccount ? 'Deleting...' : 'Delete account'}</Text>
                   </Pressable>
                 </View>
               </SettingsSection>
@@ -452,7 +600,16 @@ const styles = StyleSheet.create({
   guestCard: { borderRadius: 20, padding: 16, gap: 12 },
   guestTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '800' },
   guestCopy: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
+  activityCard: { borderRadius: 18, padding: 14, gap: 10 },
+  activityTitle: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '800' },
+  activityRow: { gap: 5, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  activityRowTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  activityName: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
+  activityRating: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '800' },
+  activityBody: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
   securityCard: { borderRadius: 18, padding: 14, gap: 10 },
+  dangerCard: { borderWidth: StyleSheet.hairlineWidth },
+  dpaHeader: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   input: {
     minHeight: 48,
     borderWidth: StyleSheet.hairlineWidth,

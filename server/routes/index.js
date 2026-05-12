@@ -9,7 +9,7 @@ import {
 } from "../controllers/community.controller.js";
 import { createComment, getCommentsForPost, toggleLikedPost, toggleSavedPost } from "../controllers/comments.controller.js";
 import { createFeedPost, deleteFeedPost, getFeed, getFeedPostById } from "../controllers/feed.controller.js";
-import { createOrder, getOrders } from "../controllers/orders.controller.js";
+import { completeOrderWithRemark, createOrder, getOrderById, getOrders, updateOrderStatus } from "../controllers/orders.controller.js";
 import {
   getPublicProfile,
   getMyProfile,
@@ -49,6 +49,9 @@ apiRouter.post("/community", requireAuth, createThread);
 apiRouter.post("/community/:id/replies", requireAuth, createReply);
 apiRouter.get("/orders", requireAuth, getOrders);
 apiRouter.post("/orders", requireAuth, createOrder);
+apiRouter.get("/orders/:orderId", requireAuth, getOrderById);
+apiRouter.patch("/orders/:orderId/status", requireAuth, updateOrderStatus);
+apiRouter.post("/orders/:orderId/complete", requireAuth, completeOrderWithRemark);
 apiRouter.get("/profile/me", requireAuth, getMyProfile);
 apiRouter.get("/profile/:userId", attachUserIfPresent, getPublicProfile);
 apiRouter.patch("/profile/me", requireAuth, upload.single("avatar"), updateMyProfile);

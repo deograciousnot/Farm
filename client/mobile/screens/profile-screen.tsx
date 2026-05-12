@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProfileView } from '@/components/profile-view';
 import { Colors, Fonts } from '@/constants/theme';
@@ -25,6 +26,7 @@ export default function ProfileScreen() {
   const params = useLocalSearchParams<{ tab?: string; edit?: string }>();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+  const insets = useSafeAreaInsets();
   const { token, isLoading: isSessionLoading, updateUser } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
@@ -282,7 +284,9 @@ export default function ProfileScreen() {
 
   if (!token) {
     return (
-      <ScrollView style={[styles.screen, { backgroundColor: palette.background }]} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={[styles.screen, { backgroundColor: palette.background }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 14 }]}>
         <View style={styles.guestShell}>
           <Text style={[styles.eyebrow, { color: palette.tint }]}>Guest mode</Text>
           <Text style={[styles.guestTitle, { color: palette.text }]}>Sign in to build your FarmConnect profile.</Text>
@@ -303,7 +307,9 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={[styles.screen, { backgroundColor: palette.background }]} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.screen, { backgroundColor: palette.background }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 14 }]}>
       {showLoading || !profileData ? (
         <View style={styles.loadingShell}>
           <ActivityIndicator color={palette.tint} />

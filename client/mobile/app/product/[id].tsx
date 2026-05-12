@@ -148,7 +148,15 @@ export default function ProductDetailsScreen() {
               <Text style={[styles.price, { color: palette.text }]}>
                 {formatCurrency(product.price)} / {product.unit}
               </Text>
-              <View style={styles.sellerRow}>
+              <Pressable
+                onPress={() => {
+                  const sellerId = product.seller._id ?? product.seller.id;
+
+                  if (sellerId) {
+                    router.push({ pathname: '/profile/[id]', params: { id: sellerId } });
+                  }
+                }}
+                style={styles.sellerRow}>
                 <SocialAvatar name={product.seller.name} imageUrl={product.seller.avatarUrl} size={38} />
                 <View>
                   <Text style={[styles.sellerName, { color: palette.text }]}>{product.seller.name}</Text>
@@ -156,7 +164,8 @@ export default function ProductDetailsScreen() {
                     {product.location} - {product.seller.verificationStatus}
                   </Text>
                 </View>
-              </View>
+                <Feather name="chevron-right" size={18} color={palette.muted} />
+              </Pressable>
               <Text style={[styles.stockMeta, { color: palette.muted }]}>
                 {product.stock} {product.unit} available · Trust score {product.seller.trustScore?.toFixed(1) ?? '0.0'}
               </Text>

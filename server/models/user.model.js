@@ -72,6 +72,15 @@ const userSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    accountStatus: {
+      type: String,
+      enum: ["active", "deleted"],
+      default: "active",
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

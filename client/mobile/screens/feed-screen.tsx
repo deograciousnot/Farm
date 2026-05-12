@@ -14,7 +14,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { FeedPostCard } from '@/components/feed/feed-post-card';
@@ -29,6 +29,7 @@ import { formatRelativeTime } from '@/utils/feed-utils';
 export default function FeedScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+  const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { token, user, mode } = useSession();
   const [isLoading, setIsLoading] = useState(true);
@@ -406,14 +407,14 @@ export default function FeedScreen() {
         keyExtractor={(item) => item._id}
         renderItem={renderFeedItem}
         style={[styles.screen, { backgroundColor: palette.background }]}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 14 }]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={header}
         onViewableItemsChanged={onViewableItemsChanged.current}
         viewabilityConfig={viewabilityConfigRef.current}
       />
 
-      <View style={styles.floatingDock}>
+      <View style={[styles.floatingDock, { bottom: insets.bottom + 92 }]}>
         <Pressable
           onPress={() => setIsTuneSheetOpen(true)}
           style={[styles.floatingButton, { backgroundColor: `${palette.surfaceRaised}F2`, borderColor: palette.border }]}

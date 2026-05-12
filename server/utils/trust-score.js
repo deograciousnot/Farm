@@ -3,6 +3,7 @@ import { CommunityThread } from "../models/community-thread.model.js";
 import { Order } from "../models/order.model.js";
 import { Post } from "../models/post.model.js";
 import { Product } from "../models/product.model.js";
+import { SellerRemark } from "../models/seller-remark.model.js";
 import { User } from "../models/user.model.js";
 
 function clamp(value, min, max) {
@@ -20,7 +21,16 @@ export async function recalculateTrustScoreForUser(userId) {
     return null;
   }
 
-  const [postsCount, listingsCount, threadsCount, commentsCount, buyerOrdersCount, sellerOrdersCount, deliveredSales] =
+  const [
+    postsCount,
+    listingsCount,
+    threadsCount,
+    commentsCount,
+    buyerOrdersCount,
+    sellerOrdersCount,
+    deliveredSales,
+    remarkStats,
+  ] =
     await Promise.all([
       Post.countDocuments({ author: user._id }),
       Product.countDocuments({ seller: user._id }),
@@ -29,6 +39,10 @@ export async function recalculateTrustScoreForUser(userId) {
       Order.countDocuments({ buyer: user._id }),
       Order.countDocuments({ seller: user._id }),
       Order.countDocuments({ seller: user._id, status: "delivered" }),
+      SellerRemark.aggregate([
+        { $match: { seller: user._id } },
+        { $group: { _id: "$seller", avgRating: { $avg: "$rating" }, count: { $sum: 1 } } },
+      ]),
     ]);
 
   let score = 0.9;
@@ -60,6 +74,9 @@ export async function recalculateTrustScoreForUser(userId) {
     score += 0.6;
     score += Math.min(0.7, listingsCount * 0.18);
     score += Math.min(1.1, deliveredSales * 0.3 + sellerOrdersCount * 0.08);
+    if (remarkStats[0]?.count) {
+      score += Math.min(0.9, (remarkStats[0].avgRating / 5) * 0.7 + remarkStats[0].count * 0.08);
+    }
   } else {
     score += Math.min(0.9, buyerOrdersCount * 0.22);
   }

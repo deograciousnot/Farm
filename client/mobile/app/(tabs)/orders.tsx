@@ -1,6 +1,8 @@
+import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SocialAvatar } from '@/components/social-avatar';
 import { StatusPill } from '@/components/status-pill';
@@ -14,10 +16,15 @@ import { formatCurrency } from '@/utils/format';
 export default function OrdersScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+  const insets = useSafeAreaInsets();
   const { token, isLoading: isSessionLoading } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [scope, setScope] = useState<'buyer' | 'seller'>('buyer');
+  const [reviewOrder, setReviewOrder] = useState<Order | null>(null);
+  const [remarkDraft, setRemarkDraft] = useState('');
+  const [ratingDraft, setRatingDraft] = useState(5);
+  const [isCompletingOrder, setIsCompletingOrder] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -59,15 +66,13 @@ export default function OrdersScreen() {
 
   const showLoading = Boolean(token) && (isSessionLoading || isLoading);
 
-  return (
-    <ScrollView
-      style={[styles.screen, { backgroundColor: palette.background }]}
-      contentContainerStyle={styles.content}>
+  const header = useMemo(
+    () => (
+      <>
       <View style={[styles.heroCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
-        <View style={[styles.heroGlow, { backgroundColor: `${palette.tint}18` }]} />
         <Text style={[styles.heading, { color: palette.text }]}>Orders</Text>
         <Text style={[styles.subheading, { color: palette.muted }]}>
-          Cleaner status tracking, but still human. You should always see who the order is with.
+          Cleaner status tracking with buyer, seller, delivery, and payment context kept close.
         </Text>
 
         {token ? (
@@ -117,12 +122,19 @@ export default function OrdersScreen() {
           </Text>
         </View>
       ) : null}
+      </>
+    ),
+    [orders.length, palette, scope, showLoading, token]
+  );
 
-      {orders.map((order) => {
+  const renderOrder = useCallback(
+    ({ item: order }: { item: Order }) => {
         const counterparty = scope === 'buyer' ? order.seller : order.buyer;
+        const canComplete = scope === 'buyer' && order.status !== 'delivered' && order.status !== 'cancelled';
 
         return (
-          <View
+          <Pressable
+            onPress={() => router.push({ pathname: '/order/[id]', params: { id: order._id } })}
             key={order._id}
             style={[styles.orderCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
             <View style={styles.orderHeader}>
@@ -158,25 +170,115 @@ export default function OrdersScreen() {
               ) : null}
               {order.note ? <Text style={[styles.orderBodyText, { color: palette.muted }]}>{order.note}</Text> : null}
             </View>
-          </View>
+
+            {canComplete ? (
+              <Pressable
+                onPress={(event) => {
+                  event.stopPropagation();
+                  setReviewOrder(order);
+                  setRatingDraft(5);
+                  setRemarkDraft('');
+                }}
+                style={[styles.completeButton, { backgroundColor: `${palette.tint}18` }]}>
+                <Text style={[styles.completeButtonText, { color: palette.tint }]}>Complete order and review seller</Text>
+              </Pressable>
+            ) : null}
+          </Pressable>
         );
-      })}
-    </ScrollView>
+    },
+    [palette, scope]
+  );
+
+  async function handleCompleteOrder() {
+    if (!token || !reviewOrder) {
+      return;
+    }
+
+    const body = remarkDraft.trim();
+
+    if (!body) {
+      Alert.alert('Remark needed', 'Leave a short note about the seller before completing the order.');
+      return;
+    }
+
+    setIsCompletingOrder(true);
+
+    try {
+      const response = await api.completeOrderWithRemark(token, reviewOrder._id, {
+        rating: ratingDraft,
+        body,
+      });
+      setOrders((current) => current.map((order) => (order._id === response.item._id ? response.item : order)));
+      setReviewOrder(null);
+      setRemarkDraft('');
+      Alert.alert('Order completed', response.message);
+    } catch (error) {
+      Alert.alert('Could not complete order', error instanceof Error ? error.message : 'Something went wrong.');
+    } finally {
+      setIsCompletingOrder(false);
+    }
+  }
+
+  return (
+    <>
+      <FlatList
+        data={orders}
+        keyExtractor={(item) => item._id}
+        renderItem={renderOrder}
+        style={[styles.screen, { backgroundColor: palette.background }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 14 }]}
+        ListHeaderComponent={header}
+        showsVerticalScrollIndicator={false}
+      />
+
+      <Modal visible={Boolean(reviewOrder)} animationType="fade" transparent onRequestClose={() => setReviewOrder(null)}>
+        <View style={styles.modalRoot}>
+          <Pressable style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.28)' }]} onPress={() => setReviewOrder(null)} />
+          <View style={[styles.reviewPanel, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
+            <Text style={[styles.reviewTitle, { color: palette.text }]}>Seller remark</Text>
+            <Text style={[styles.reviewCopy, { color: palette.muted }]}>
+              This completes the order and adds your public remark to the seller profile.
+            </Text>
+            <View style={styles.ratingRow}>
+              {[1, 2, 3, 4, 5].map((value) => (
+                <Pressable
+                  key={value}
+                  onPress={() => setRatingDraft(value)}
+                  style={[styles.ratingButton, { backgroundColor: value <= ratingDraft ? palette.tint : palette.surface }]}>
+                  <Text style={[styles.ratingText, { color: value <= ratingDraft ? '#ffffff' : palette.text }]}>{value}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              value={remarkDraft}
+              onChangeText={setRemarkDraft}
+              placeholder="How was quality, timing, packaging, and communication?"
+              placeholderTextColor={palette.muted}
+              multiline
+              style={[styles.reviewInput, { backgroundColor: palette.surface, color: palette.text, borderColor: palette.border }]}
+            />
+            <View style={styles.reviewActions}>
+              <Pressable onPress={() => setReviewOrder(null)} style={[styles.reviewSecondary, { backgroundColor: palette.surface }]}>
+                <Text style={[styles.reviewActionText, { color: palette.text }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void handleCompleteOrder()}
+                disabled={isCompletingOrder}
+                style={[styles.reviewPrimary, { backgroundColor: palette.tint, opacity: isCompletingOrder ? 0.65 : 1 }]}>
+                <Text style={styles.reviewPrimaryText}>{isCompletingOrder ? 'Saving...' : 'Complete'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { padding: 18, gap: 14, paddingBottom: 36 },
-  heroCard: { borderRadius: 28, borderWidth: 1, padding: 20, gap: 10, overflow: 'hidden' },
-  heroGlow: {
-    position: 'absolute',
-    width: 132,
-    height: 132,
-    borderRadius: 999,
-    right: -22,
-    top: -24,
-  },
+  heroCard: { borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 18, gap: 10 },
   heading: { fontFamily: Fonts.rounded, fontSize: 30, fontWeight: '700' },
   subheading: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 22 },
   scopeSwitch: { borderRadius: 999, padding: 4, flexDirection: 'row', gap: 6, alignSelf: 'flex-start' },
@@ -199,4 +301,30 @@ const styles = StyleSheet.create({
   orderBody: { gap: 6 },
   orderBodyStrong: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
   orderBodyText: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
+  completeButton: { borderRadius: 999, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12 },
+  completeButtonText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
+  modalRoot: { flex: 1, justifyContent: 'flex-end' },
+  modalOverlay: { ...StyleSheet.absoluteFillObject },
+  reviewPanel: { margin: 14, borderRadius: 28, borderWidth: StyleSheet.hairlineWidth, padding: 18, gap: 12 },
+  reviewTitle: { fontFamily: Fonts.rounded, fontSize: 22, fontWeight: '800' },
+  reviewCopy: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
+  ratingRow: { flexDirection: 'row', gap: 8 },
+  ratingButton: { width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  ratingText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '800' },
+  reviewInput: {
+    minHeight: 104,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    textAlignVertical: 'top',
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  reviewActions: { flexDirection: 'row', gap: 10 },
+  reviewSecondary: { flex: 1, borderRadius: 16, alignItems: 'center', paddingVertical: 13 },
+  reviewPrimary: { flex: 1, borderRadius: 16, alignItems: 'center', paddingVertical: 13 },
+  reviewActionText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
+  reviewPrimaryText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
 });

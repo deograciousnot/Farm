@@ -125,6 +125,18 @@ export type Order = {
   deliveryContact?: string;
   buyer: ApiUser;
   seller: ApiUser;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type SellerRemark = {
+  _id: string;
+  order: string;
+  rating: number;
+  body: string;
+  createdAt: string;
+  buyer: ApiUser;
+  seller: ApiUser;
 };
 
 export type NotificationItem = {
@@ -155,6 +167,10 @@ export type ProfileResponse = {
     unreadCount: number;
   };
   notifications: NotificationItem[];
+  remarks: {
+    received: SellerRemark[];
+    given: SellerRemark[];
+  };
 };
 
 export type CommunityStat = {

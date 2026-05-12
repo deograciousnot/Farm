@@ -140,7 +140,15 @@ export default function CommunityThreadScreen() {
             <Text style={[styles.title, { color: palette.text }]}>{thread.title}</Text>
             <Text style={[styles.body, { color: palette.muted }]}>{thread.body}</Text>
 
-            <View style={[styles.authorCard, { backgroundColor: palette.surface }]}>
+            <Pressable
+              onPress={() => {
+                const authorId = thread.author._id ?? thread.author.id;
+
+                if (authorId) {
+                  router.push({ pathname: '/profile/[id]', params: { id: authorId } });
+                }
+              }}
+              style={[styles.authorCard, { backgroundColor: palette.surface }]}>
               <SocialAvatar name={thread.author.name} imageUrl={thread.author.avatarUrl} size={42} />
               <View style={styles.authorText}>
                 <Text style={[styles.authorName, { color: palette.text }]}>{thread.author.name}</Text>
@@ -148,7 +156,8 @@ export default function CommunityThreadScreen() {
                   {thread.author.role} - {thread.author.location}
                 </Text>
               </View>
-            </View>
+              <Feather name="chevron-right" size={18} color={palette.muted} />
+            </Pressable>
 
             <View style={styles.metricsRow}>
               <View style={styles.metric}>
@@ -222,7 +231,15 @@ export default function CommunityThreadScreen() {
             replies.map((reply) => (
               <View key={reply._id} style={[styles.replyCard, { backgroundColor: palette.surfaceRaised }]}>
                 <View style={styles.replyTopRow}>
-                  <View style={styles.replyAuthorRow}>
+                  <Pressable
+                    onPress={() => {
+                      const authorId = reply.author._id ?? reply.author.id;
+
+                      if (authorId) {
+                        router.push({ pathname: '/profile/[id]', params: { id: authorId } });
+                      }
+                    }}
+                    style={styles.replyAuthorRow}>
                     <SocialAvatar name={reply.author.name} imageUrl={reply.author.avatarUrl} size={38} />
                     <View style={styles.replyAuthorText}>
                       <Text style={[styles.replyAuthorName, { color: palette.text }]}>{reply.author.name}</Text>
@@ -230,7 +247,7 @@ export default function CommunityThreadScreen() {
                         {reply.author.role} · {reply.author.location} · {formatRelativeDate(reply.createdAt)}
                       </Text>
                     </View>
-                  </View>
+                  </Pressable>
                 </View>
                 <Text style={[styles.replyBody, { color: palette.text }]}>{reply.body}</Text>
               </View>

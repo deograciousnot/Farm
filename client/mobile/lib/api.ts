@@ -12,6 +12,7 @@ import type {
   ProfileResponse,
   RegisterInput,
   ThreadReply,
+  SellerRemark,
   UploadableAsset,
 } from '@/lib/types';
 
@@ -152,6 +153,13 @@ export const api = {
   changePassword(token: string, input: { currentPassword: string; newPassword: string }) {
     return request<{ message: string }>('/auth/password', {
       method: 'PATCH',
+      token,
+      body: input,
+    });
+  },
+  deleteAccount(token: string, input: { currentPassword: string; confirmation: string }) {
+    return request<{ message: string }>('/auth/account', {
+      method: 'DELETE',
       token,
       body: input,
     });
@@ -300,6 +308,16 @@ export const api = {
     const query = scope === 'seller' ? '?scope=seller' : '';
     return request<{ items: Order[] }>(`/orders${query}`, { token });
   },
+  getOrderById(token: string, orderId: string) {
+    return request<{ item: Order; remark: SellerRemark | null }>(`/orders/${orderId}`, { token });
+  },
+  updateOrderStatus(token: string, orderId: string, status: 'accepted' | 'in-transit' | 'cancelled') {
+    return request<{ item: Order; remark: SellerRemark | null; message: string }>(`/orders/${orderId}/status`, {
+      method: 'PATCH',
+      token,
+      body: { status },
+    });
+  },
   createOrder(
     token: string,
     input: {
@@ -311,6 +329,13 @@ export const api = {
     }
   ) {
     return request<{ item: Order; message: string }>('/orders', {
+      method: 'POST',
+      token,
+      body: input,
+    });
+  },
+  completeOrderWithRemark(token: string, orderId: string, input: { rating: number; body: string }) {
+    return request<{ item: Order; remark: SellerRemark; message: string }>(`/orders/${orderId}/complete`, {
       method: 'POST',
       token,
       body: input,

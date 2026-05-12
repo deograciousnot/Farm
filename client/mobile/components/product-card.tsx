@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -38,12 +39,22 @@ export function ProductCard({ product }: ProductCardProps) {
             <Text style={[styles.mediaTrendText, { color: accents.secondary }]}>Hot listing</Text>
           </View>
         </View>
-        <View style={styles.sellerRow}>
+        <Pressable
+          onPress={(event) => {
+            event.stopPropagation();
+            const sellerId = product.seller._id ?? product.seller.id;
+
+            if (sellerId) {
+              router.push({ pathname: '/profile/[id]', params: { id: sellerId } });
+            }
+          }}
+          style={styles.sellerRow}>
           <SocialAvatar name={product.seller.name} imageUrl={product.seller.avatarUrl} size={28} />
           <Text style={[styles.mediaMeta, { color: palette.text }]}>
             {product.seller.name} - {product.location}
           </Text>
-        </View>
+          <Feather name="chevron-right" size={16} color={palette.muted} />
+        </Pressable>
       </View>
 
       <View style={styles.header}>

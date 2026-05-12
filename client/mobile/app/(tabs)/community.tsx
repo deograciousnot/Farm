@@ -1,8 +1,9 @@
 import { Link, router } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SocialAvatar } from '@/components/social-avatar';
 import { Colors, Fonts } from '@/constants/theme';
@@ -13,6 +14,7 @@ import type { CommunityThread } from '@/lib/types';
 export default function CommunityScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+  const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(true);
   const [rooms, setRooms] = useState<string[]>([]);
   const [threads, setThreads] = useState<CommunityThread[]>([]);
@@ -37,14 +39,10 @@ export default function CommunityScreen() {
     }, [loadCommunity])
   );
 
-  return (
-    <ScrollView
-      style={[styles.screen, { backgroundColor: palette.background }]}
-      contentContainerStyle={styles.content}>
+  const header = useMemo(
+    () => (
+      <>
       <View style={[styles.heroCard, { backgroundColor: palette.surfaceRaised }]}>
-        <View style={[styles.heroGlowLarge, { backgroundColor: `${palette.tint}18` }]} />
-        <View style={[styles.heroGlowSmall, { backgroundColor: `${palette.accentSecondary}18` }]} />
-
         <View style={styles.headerRow}>
           <Text style={[styles.heading, { color: palette.text }]}>Community</Text>
           <View style={styles.headerActions}>
@@ -84,7 +82,19 @@ export default function CommunityScreen() {
         </View>
       ) : null}
 
-      {threads.map((thread, index) => (
+      {!isLoading && threads.length === 0 ? (
+        <View style={[styles.emptyCard, { backgroundColor: palette.surfaceRaised }]}>
+          <Text style={[styles.emptyTitle, { color: palette.text }]}>No discussions yet</Text>
+          <Text style={[styles.emptyCopy, { color: palette.muted }]}>Start a practical question for farmers, buyers, or hobbyists.</Text>
+        </View>
+      ) : null}
+      </>
+    ),
+    [isLoading, palette, rooms, threads.length]
+  );
+
+  const renderThread = useCallback(
+    ({ item: thread, index }: { item: CommunityThread; index: number }) => (
         <Pressable
           onPress={() => router.push({ pathname: '/community/[id]', params: { id: thread._id } })}
           key={thread._id}
@@ -136,40 +146,39 @@ export default function CommunityScreen() {
             </View>
           </View>
         </Pressable>
-      ))}
-    </ScrollView>
+    ),
+    [palette]
+  );
+
+  return (
+    <FlatList
+      data={threads}
+      keyExtractor={(item) => item._id}
+      renderItem={renderThread}
+      style={[styles.screen, { backgroundColor: palette.background }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 14 }]}
+      ListHeaderComponent={header}
+      showsVerticalScrollIndicator={false}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: 14, paddingTop: 14, gap: 14, paddingBottom: 28 },
-  heroCard: { borderRadius: 24, padding: 16, gap: 12, overflow: 'hidden' },
+  heroCard: { borderRadius: 22, padding: 16, gap: 12 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' },
   headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   iconButton: { width: 38, height: 38, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  heroGlowLarge: {
-    position: 'absolute',
-    width: 152,
-    height: 152,
-    borderRadius: 999,
-    right: -28,
-    top: -32,
-  },
-  heroGlowSmall: {
-    position: 'absolute',
-    width: 88,
-    height: 88,
-    borderRadius: 999,
-    left: -18,
-    bottom: -14,
-  },
   heading: { fontFamily: Fonts.rounded, fontSize: 27, fontWeight: '700' },
   subheading: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
   topRooms: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   roomChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   roomChipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
   loadingShell: { alignItems: 'center', paddingVertical: 8 },
+  emptyCard: { borderRadius: 18, padding: 16, gap: 6 },
+  emptyTitle: { fontFamily: Fonts.rounded, fontSize: 17, fontWeight: '800' },
+  emptyCopy: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
   threadCard: { borderRadius: 22, padding: 14 },
   threadBody: { flexDirection: 'row', gap: 12 },
   voteRail: { width: 34, alignItems: 'center', gap: 6, paddingTop: 4 },

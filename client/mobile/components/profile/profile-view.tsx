@@ -145,6 +145,22 @@ export function ProfileView({
         </View>
       </View>
 
+      {profileData.remarks.received.length ? (
+        <View style={styles.remarksSection}>
+          <View style={styles.remarksHeader}>
+            <Text style={[styles.sectionTitle, { color: palette.text }]}>Seller remarks</Text>
+            <Text style={[styles.remarksCount, { color: palette.muted }]}>
+              {profileData.remarks.received.length} recent
+            </Text>
+          </View>
+          <View style={styles.listSection}>
+            {profileData.remarks.received.slice(0, 4).map((remark) => (
+              <RemarkRow key={remark._id} remark={remark} palette={palette} mode="received" />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.contentSection}>
         {activeTab === 'posts'
           ? profileData.posts.length
@@ -204,6 +220,43 @@ export function ProfileView({
 
       {showNotifications ? notificationsSlot : null}
     </>
+  );
+}
+
+export function RemarkRow({
+  remark,
+  palette,
+  mode,
+}: {
+  remark: ProfileResponse['remarks']['received'][number];
+  palette: (typeof Colors)['light'] | (typeof Colors)['dark'];
+  mode: 'received' | 'given';
+}) {
+  const person = mode === 'received' ? remark.buyer : remark.seller;
+  const personId = person._id ?? person.id;
+
+  return (
+    <Pressable
+      onPress={() => {
+        if (personId) {
+          router.push({ pathname: '/profile/[id]', params: { id: personId } });
+        }
+      }}
+      style={[styles.remarkRow, { backgroundColor: palette.surface }]}>
+      <View style={styles.remarkTop}>
+        <SocialAvatar name={person.name} imageUrl={person.avatarUrl} size={38} />
+        <View style={styles.remarkPersonCopy}>
+          <Text style={[styles.remarkPersonName, { color: palette.text }]}>{person.name}</Text>
+          <Text style={[styles.remarkMeta, { color: palette.muted }]}>
+            {mode === 'received' ? 'Buyer remark' : 'Seller reviewed'} - {remark.rating}/5
+          </Text>
+        </View>
+        <View style={[styles.ratingPill, { backgroundColor: `${palette.tint}16` }]}>
+          <Text style={[styles.ratingPillText, { color: palette.tint }]}>{remark.rating}.0</Text>
+        </View>
+      </View>
+      <Text style={[styles.remarkBody, { color: palette.text }]}>{remark.body}</Text>
+    </Pressable>
   );
 }
 
@@ -381,6 +434,10 @@ const styles = StyleSheet.create({
   },
   tabLabel: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700' },
   contentSection: { gap: 12 },
+  sectionTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '800' },
+  remarksSection: { gap: 10 },
+  remarksHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'center' },
+  remarksCount: { fontFamily: Fonts.sans, fontSize: 12 },
   listSection: { gap: 10 },
   emptyBlock: { borderRadius: 22, padding: 18, gap: 8 },
   emptyTitle: { fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '700' },
@@ -397,4 +454,12 @@ const styles = StyleSheet.create({
   userCopy: { flex: 1, gap: 3 },
   userName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
   userMeta: { fontFamily: Fonts.sans, fontSize: 12, textTransform: 'capitalize' },
+  remarkRow: { borderRadius: 20, padding: 14, gap: 10 },
+  remarkTop: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  remarkPersonCopy: { flex: 1, gap: 2 },
+  remarkPersonName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '800' },
+  remarkMeta: { fontFamily: Fonts.sans, fontSize: 12 },
+  ratingPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  ratingPillText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '800' },
+  remarkBody: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
 });

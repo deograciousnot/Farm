@@ -26,7 +26,7 @@ export const attachUserIfPresent = asyncHandler(async (req, _res, next) => {
     const payload = jwt.verify(token, env.jwtSecret);
     const user = await User.findById(payload.sub);
 
-    if (user) {
+    if (user && user.accountStatus !== "deleted") {
       req.user = user;
     }
   } catch (_error) {
@@ -46,7 +46,7 @@ export const requireAuth = asyncHandler(async (req, _res, next) => {
   const payload = jwt.verify(token, env.jwtSecret);
   const user = await User.findById(payload.sub);
 
-  if (!user) {
+  if (!user || user.accountStatus === "deleted") {
     throw new AppError("User no longer exists.", 401);
   }
 
