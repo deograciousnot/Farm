@@ -7,6 +7,7 @@
     "server": "nodemon server/server.js",
     "server:start": "node server/server.js",
     "server:seed": "node server/data/seed.js",
+    "server:seed:reset": "node server/data/seed.js --reset",
     "server:trust": "node server/scripts/recalculate-trust-scores.js",
     "client": "npm --prefix client/mobile start",
     "android": "npm --prefix client/mobile run android",

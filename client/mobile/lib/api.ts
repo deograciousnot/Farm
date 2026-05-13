@@ -164,12 +164,22 @@ export const api = {
       body: input,
     });
   },
-  getFeed(token?: string | null, filter?: string) {
-    const query = filter ? `?filter=${encodeURIComponent(filter)}` : '';
+  getFeed(token?: string | null, filter?: string, page = 1, limit = 10) {
+    const params = new URLSearchParams();
+
+    if (filter) {
+      params.set('filter', filter);
+    }
+
+    params.set('page', String(page));
+    params.set('limit', String(limit));
+
+    const query = `?${params.toString()}`;
     return request<{
       highlights: FeedHighlight[];
       interestChips: string[];
       activeFilter: string;
+      pagination: { page: number; limit: number; total: number; hasMore: boolean };
       posts: FeedPost[];
       previewProducts: Product[];
     }>(`/feed${query}`, { token });

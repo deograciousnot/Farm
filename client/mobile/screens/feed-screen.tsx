@@ -33,6 +33,9 @@ export default function FeedScreen() {
   const isFocused = useIsFocused();
   const { token, user, mode } = useSession();
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [feedPage, setFeedPage] = useState(1);
+  const [hasMorePosts, setHasMorePosts] = useState(false);
   const [interestChips, setInterestChips] = useState<string[]>([]);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [activeFilter, setActiveFilter] = useState('All');
@@ -51,16 +54,44 @@ export default function FeedScreen() {
     setIsLoading(true);
 
     try {
-      const response = await api.getFeed(token, activeFilter === 'All' ? undefined : activeFilter);
+      const response = await api.getFeed(token, activeFilter === 'All' ? undefined : activeFilter, 1);
       setInterestChips(response.interestChips);
       setPosts(response.posts);
       setActiveFilter(response.activeFilter || 'All');
+      setFeedPage(response.pagination.page);
+      setHasMorePosts(response.pagination.hasMore);
     } catch (error) {
       console.warn('Failed to load FarmConnect feed.', error);
     } finally {
       setIsLoading(false);
     }
   }, [activeFilter, token]);
+
+  const loadMorePosts = useCallback(async () => {
+    if (isLoading || isLoadingMore || !hasMorePosts) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+
+    try {
+      const nextPage = feedPage + 1;
+      const response = await api.getFeed(token, activeFilter === 'All' ? undefined : activeFilter, nextPage);
+
+      setPosts((current) => {
+        const existingIds = new Set(current.map((post) => post._id));
+        const nextPosts = response.posts.filter((post) => !existingIds.has(post._id));
+
+        return [...current, ...nextPosts];
+      });
+      setFeedPage(response.pagination.page);
+      setHasMorePosts(response.pagination.hasMore);
+    } catch (error) {
+      console.warn('Failed to load more FarmConnect feed posts.', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [activeFilter, feedPage, hasMorePosts, isLoading, isLoadingMore, token]);
 
   useFocusEffect(
     useCallback(() => {
@@ -400,6 +431,16 @@ export default function FeedScreen() {
     ]
   );
 
+  const footer = useMemo(
+    () =>
+      isLoadingMore ? (
+        <View style={styles.loadMoreFooter}>
+          <ActivityIndicator color={palette.tint} />
+        </View>
+      ) : null,
+    [isLoadingMore, palette.tint]
+  );
+
   return (
     <>
       <FlatList
@@ -410,6 +451,9 @@ export default function FeedScreen() {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 14 }]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={header}
+        ListFooterComponent={footer}
+        onEndReached={() => void loadMorePosts()}
+        onEndReachedThreshold={0.45}
         onViewableItemsChanged={onViewableItemsChanged.current}
         viewabilityConfig={viewabilityConfigRef.current}
       />
@@ -580,6 +624,7 @@ const styles = StyleSheet.create({
   accountTitle: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
   accountMeta: { fontFamily: Fonts.sans, fontSize: 12, fontWeight: '500' },
   loadingShell: { alignItems: 'center', gap: 8, paddingVertical: 8 },
+  loadMoreFooter: { alignItems: 'center', paddingVertical: 18 },
   loadingText: { fontFamily: Fonts.sans, fontSize: 13 },
   sectionHeader: { paddingHorizontal: 2 },
   sectionTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '700' },

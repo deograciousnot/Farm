@@ -24,6 +24,7 @@ export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT || 8000),
   mongoUri: process.env.MONGO_URI || "",
+  mongoDnsServers: normalizeList(process.env.MONGO_DNS_SERVERS),
   jwtSecret: process.env.JWT_SECRET || "",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME || "",

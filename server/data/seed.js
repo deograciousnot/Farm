@@ -8,13 +8,26 @@ import { Order } from "../models/order.model.js";
 import { Post } from "../models/post.model.js";
 import { Product } from "../models/product.model.js";
 import { SavedPost } from "../models/saved-post.model.js";
+import { SellerRemark } from "../models/seller-remark.model.js";
 import { ThreadReply } from "../models/thread-reply.model.js";
 import { User } from "../models/user.model.js";
 
-export async function seedDatabase() {
+async function findOrCreateMany(Model, records, getFilter) {
+  const savedRecords = [];
+
+  for (const record of records) {
+    const existingRecord = await Model.findOne(getFilter(record));
+    savedRecords.push(existingRecord || (await Model.create(record)));
+  }
+
+  return savedRecords;
+}
+
+async function resetDatabase() {
   await Promise.all([
     Notification.deleteMany({}),
     SavedPost.deleteMany({}),
+    SellerRemark.deleteMany({}),
     LikedPost.deleteMany({}),
     Comment.deleteMany({}),
     Order.deleteMany({}),
@@ -24,8 +37,15 @@ export async function seedDatabase() {
     Product.deleteMany({}),
     User.deleteMany({}),
   ]);
+}
 
-  const [buyer, farmer, hobbyist] = await User.create([
+export async function seedDatabase({ reset = false } = {}) {
+  if (reset) {
+    await resetDatabase();
+  }
+
+  const [buyer, farmer, hobbyist, hotelBuyer, dairyFarmer, inputSupplier, fishFarmer, youthFarmer] =
+    await findOrCreateMany(User, [
     {
       name: "Amina Njeri",
       email: "amina@farmconnect.app",
@@ -65,9 +85,103 @@ export async function seedDatabase() {
       verificationStatus: "unverified",
       trustScore: 3.6,
     },
+    {
+      name: "Wanjiku Hotel Supplies",
+      email: "wanjiku@farmconnect.app",
+      password: "password123",
+      role: "buyer",
+      location: "Westlands, Nairobi",
+      interests: ["Bulk vegetables", "Same-day delivery", "Quality grading"],
+      bio: "Procurement lead buying fresh produce for hotels, cafes, and small caterers around Westlands and Kilimani.",
+      phone: "+254711444555",
+      avatarUrl: "https://i.pravatar.cc/150?img=47",
+      verificationStatus: "verified",
+      trustScore: 4.6,
+    },
+    {
+      name: "Lemook Dairy Cooperative",
+      email: "lemook@farmconnect.app",
+      password: "password123",
+      role: "farmer",
+      location: "Njoro, Nakuru",
+      interests: ["Dairy feeds", "Silage", "Cooperative sales"],
+      bio: "Small dairy cooperative sharing practical feed planning, milk quality notes, and cooperative buying lessons.",
+      phone: "+254722555666",
+      avatarUrl: "https://i.pravatar.cc/150?img=52",
+      verificationStatus: "top-rated",
+      trustScore: 4.9,
+    },
+    {
+      name: "AgriVet East Africa",
+      email: "agrivet@farmconnect.app",
+      password: "password123",
+      role: "farmer",
+      location: "Thika",
+      interests: ["Farm inputs", "Soil testing", "Extension support"],
+      bio: "Input supplier posting verified farm inputs, soil amendment tips, and safe application reminders.",
+      phone: "+254733666777",
+      avatarUrl: "https://i.pravatar.cc/150?img=56",
+      verificationStatus: "verified",
+      trustScore: 4.2,
+    },
+    {
+      name: "Ahero Fresh Fish Farm",
+      email: "ahero@farmconnect.app",
+      password: "password123",
+      role: "farmer",
+      location: "Ahero, Kisumu",
+      interests: ["Aquaculture", "Cold chain", "Restaurant supply"],
+      bio: "Tilapia producer serving Kisumu, Kericho, and Nairobi buyers with packed, iced fish on dispatch days.",
+      phone: "+254744777888",
+      avatarUrl: "https://i.pravatar.cc/150?img=59",
+      verificationStatus: "verified",
+      trustScore: 4.5,
+    },
+    {
+      name: "Brian Kiptoo",
+      email: "brian@farmconnect.app",
+      password: "password123",
+      role: "hobbyist",
+      location: "Eldoret",
+      interests: ["Youth agribusiness", "Potatoes", "Market prices"],
+      bio: "Young grower documenting potato trials, broker negotiations, and small farm bookkeeping lessons.",
+      phone: "+254755888999",
+      avatarUrl: "https://i.pravatar.cc/150?img=60",
+      verificationStatus: "unverified",
+      trustScore: 3.9,
+    },
+    ], ({ email }) => ({ email }));
+
+  await Promise.all([
+    User.updateOne(
+      { _id: buyer._id },
+      { $addToSet: { following: { $each: [farmer._id, hotelBuyer._id, fishFarmer._id] } } }
+    ),
+    User.updateOne(
+      { _id: farmer._id },
+      {
+        $addToSet: {
+          followers: { $each: [buyer._id, hobbyist._id] },
+          following: { $each: [dairyFarmer._id] },
+        },
+      }
+    ),
+    User.updateOne(
+      { _id: hotelBuyer._id },
+      { $addToSet: { following: { $each: [farmer._id, youthFarmer._id, fishFarmer._id] } } }
+    ),
+    User.updateOne(
+      { _id: youthFarmer._id },
+      {
+        $addToSet: {
+          followers: { $each: [hotelBuyer._id] },
+          following: { $each: [farmer._id, inputSupplier._id] },
+        },
+      }
+    ),
   ]);
 
-  const products = await Product.create([
+  const products = await findOrCreateMany(Product, [
     {
       seller: farmer._id,
       name: "Roma Tomatoes",
@@ -104,9 +218,107 @@ export async function seedDatabase() {
       location: "Eldoret",
       sellerType: "farmer",
     },
-  ]);
+    {
+      seller: youthFarmer._id,
+      name: "Shangi Potatoes",
+      category: "Vegetables",
+      description: "Sorted medium-size Shangi potatoes packed in 50kg bags for chips vendors and estate groceries.",
+      unit: "50kg bag",
+      price: 3200,
+      stock: 42,
+      location: "Molo",
+      sellerType: "farmer",
+      featured: true,
+      mediaUrls: ["https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=1200&q=80"],
+    },
+    {
+      seller: farmer._id,
+      name: "Hass Avocados",
+      category: "Fruits",
+      description: "Export-grade Hass avocados, size-count sorted with firm fruit for Nairobi buyers and aggregators.",
+      unit: "crate",
+      price: 1850,
+      stock: 65,
+      location: "Muranga",
+      sellerType: "farmer",
+      isOrganic: true,
+      featured: true,
+      mediaUrls: ["https://images.unsplash.com/photo-1601039641847-7857b994d704?auto=format&fit=crop&w=1200&q=80"],
+    },
+    {
+      seller: dairyFarmer._id,
+      name: "Boma Rhodes Hay",
+      category: "Farm inputs",
+      description: "Dry Boma Rhodes hay bales from Njoro, suitable for dairy cows during short dry spells.",
+      unit: "bale",
+      price: 320,
+      stock: 180,
+      location: "Njoro",
+      sellerType: "farmer",
+      mediaUrls: ["https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80"],
+    },
+    {
+      seller: inputSupplier._id,
+      name: "Soil Test Kit",
+      category: "Farm inputs",
+      description: "Basic pH and nutrient screening kit for small farms planning lime, manure, and fertilizer use.",
+      unit: "kit",
+      price: 1450,
+      stock: 27,
+      location: "Thika",
+      sellerType: "input-company",
+      featured: true,
+    },
+    {
+      seller: inputSupplier._id,
+      name: "Certified Sukuma Wiki Seeds",
+      category: "Farm inputs",
+      description: "Certified kale seed packets for kitchen gardens, schools, and small commercial plots.",
+      unit: "packet",
+      price: 180,
+      stock: 240,
+      location: "Thika",
+      sellerType: "input-company",
+    },
+    {
+      seller: fishFarmer._id,
+      name: "Fresh Whole Tilapia",
+      category: "Fish",
+      description: "Iced whole tilapia packed on dispatch morning for restaurants, fish shops, and family orders.",
+      unit: "kg",
+      price: 520,
+      stock: 75,
+      location: "Kisumu",
+      sellerType: "farmer",
+      featured: true,
+      mediaUrls: ["https://images.unsplash.com/photo-1534766555764-ce878a5e3a2b?auto=format&fit=crop&w=1200&q=80"],
+    },
+    {
+      seller: farmer._id,
+      name: "Red Bulb Onions",
+      category: "Vegetables",
+      description: "Cured red onions in net bags, dry necks, low sprouting, ready for estate shops and hotel kitchens.",
+      unit: "13kg net",
+      price: 1150,
+      stock: 90,
+      location: "Kajiado",
+      sellerType: "farmer",
+      mediaUrls: ["https://images.unsplash.com/photo-1587049633312-d628ae50a8ae?auto=format&fit=crop&w=1200&q=80"],
+    },
+    {
+      seller: dairyFarmer._id,
+      name: "Fresh Morning Milk",
+      category: "Dairy",
+      description: "Chilled cooperative milk available for local buyers with morning collection in Njoro.",
+      unit: "litre",
+      price: 68,
+      stock: 310,
+      location: "Nakuru",
+      sellerType: "farmer",
+    },
+  ], ({ seller, name }) => ({ seller, name }));
 
-  const posts = await Post.create([
+  const posts = await findOrCreateMany(Post, [
     {
       author: farmer._id,
       postType: "knowledge",
@@ -332,9 +544,9 @@ export async function seedDatabase() {
         },
       ],
     },
-  ]);
+  ], ({ author, headline }) => ({ author, headline }));
 
-  await Comment.create([
+  await findOrCreateMany(Comment, [
     {
       post: posts[0]._id,
       author: buyer._id,
@@ -350,9 +562,29 @@ export async function seedDatabase() {
       author: farmer._id,
       body: "Buyers sharing real demand trends makes planning harvests much easier on our side.",
     },
-  ]);
+    {
+      post: posts[4]._id,
+      author: hotelBuyer._id,
+      body: "This is exactly what our kitchen team asks for. Grade and dispatch time matter more than a small price discount.",
+    },
+    {
+      post: posts[5]._id,
+      author: youthFarmer._id,
+      body: "The payment timing point is real. A better price with delayed payment can still be a bad deal.",
+    },
+    {
+      post: posts[6]._id,
+      author: buyer._id,
+      body: "Honest sorting builds repeat orders. Mixed crates are where buyer trust disappears fastest.",
+    },
+    {
+      post: posts[7]._id,
+      author: inputSupplier._id,
+      body: "For onions, curing is where many small losses start. Buyers can smell wet bags before opening them.",
+    },
+  ], ({ post, author, body }) => ({ post, author, body }));
 
-  await SavedPost.create([
+  await findOrCreateMany(SavedPost, [
     {
       user: buyer._id,
       post: posts[0]._id,
@@ -365,9 +597,9 @@ export async function seedDatabase() {
       user: hobbyist._id,
       post: posts[2]._id,
     },
-  ]);
+  ], ({ user, post }) => ({ user, post }));
 
-  await LikedPost.create([
+  await findOrCreateMany(LikedPost, [
     {
       user: buyer._id,
       post: posts[1]._id,
@@ -376,9 +608,9 @@ export async function seedDatabase() {
       user: hobbyist._id,
       post: posts[0]._id,
     },
-  ]);
+  ], ({ user, post }) => ({ user, post }));
 
-  const threads = await CommunityThread.create([
+  const threads = await findOrCreateMany(CommunityThread, [
     {
       author: farmer._id,
       title: "What is the best way to price onions after harvest if Wakulima prices keep moving?",
@@ -407,9 +639,36 @@ export async function seedDatabase() {
       repliesCount: 11,
       viewsCount: 148,
     },
-  ]);
+    {
+      author: dairyFarmer._id,
+      title: "What is everyone paying for dairy meal around Nakuru this week?",
+      body: "Our cooperative is comparing hay, dairy meal, and silage costs before placing a bulk order.",
+      preview: "Our cooperative is comparing hay, dairy meal, and silage costs before placing a bulk order.",
+      category: "Livestock",
+      repliesCount: 9,
+      viewsCount: 124,
+    },
+    {
+      author: fishFarmer._id,
+      title: "Any Nairobi buyers using insulated boxes for same-day tilapia delivery?",
+      body: "We want to reduce spoilage complaints on hot travel days without making delivery too expensive.",
+      preview: "We want to reduce spoilage complaints on hot travel days without making delivery too expensive.",
+      category: "Cold chain",
+      repliesCount: 7,
+      viewsCount: 102,
+    },
+    {
+      author: youthFarmer._id,
+      title: "How do you handle brokers who change the potato price after loading?",
+      body: "Looking for practical ways to agree on grade, weight, and payment before the lorry leaves the farm.",
+      preview: "Looking for practical ways to agree on grade, weight, and payment before the lorry leaves the farm.",
+      category: "Market access",
+      repliesCount: 16,
+      viewsCount: 211,
+    },
+  ], ({ author, title }) => ({ author, title }));
 
-  await ThreadReply.create([
+  await findOrCreateMany(ThreadReply, [
     {
       thread: threads[0]._id,
       author: buyer._id,
@@ -425,9 +684,24 @@ export async function seedDatabase() {
       author: farmer._id,
       body: "Try tighter spray timing between rainy breaks and remove the worst-hit leaves early.",
     },
-  ]);
+    {
+      thread: threads[3]._id,
+      author: inputSupplier._id,
+      body: "Compare cost per litre of milk, not just price per bag. Cheap feed can still lower production.",
+    },
+    {
+      thread: threads[4]._id,
+      author: hotelBuyer._id,
+      body: "Restaurants will pay a bit more for fish that arrives cold, labelled, and predictable.",
+    },
+    {
+      thread: threads[5]._id,
+      author: farmer._id,
+      body: "Write the grade and bag count on WhatsApp before loading. It gives you something to point back to.",
+    },
+  ], ({ thread, author, body }) => ({ thread, author, body }));
 
-  await Order.create([
+  const orders = await findOrCreateMany(Order, [
     {
       buyer: buyer._id,
       seller: farmer._id,
@@ -462,9 +736,83 @@ export async function seedDatabase() {
       etaLabel: "Apr 19",
       note: "Packing team accepted the order and started sorting peppers for dispatch.",
     },
-  ]);
+    {
+      buyer: hotelBuyer._id,
+      seller: youthFarmer._id,
+      items: [
+        {
+          product: products[3]._id,
+          name: products[3].name,
+          quantity: 8,
+          unitPrice: products[3].price,
+          unit: products[3].unit,
+        },
+      ],
+      totalAmount: 25600,
+      status: "delivered",
+      etaLabel: "Delivered Apr 16",
+      note: "Delivered to Westlands kitchen entrance. Buyer accepted grade after spot check.",
+      deliveryLocation: "Westlands, Nairobi",
+      deliveryContact: "+254711444555",
+    },
+    {
+      buyer: buyer._id,
+      seller: fishFarmer._id,
+      items: [
+        {
+          product: products[8]._id,
+          name: products[8].name,
+          quantity: 15,
+          unitPrice: products[8].price,
+          unit: products[8].unit,
+        },
+      ],
+      totalAmount: 7800,
+      status: "accepted",
+      etaLabel: "Apr 20",
+      note: "Seller confirmed morning harvest and insulated packing before Kisumu dispatch.",
+      deliveryLocation: "Parklands, Nairobi",
+      deliveryContact: "+254700111111",
+    },
+    {
+      buyer: hotelBuyer._id,
+      seller: farmer._id,
+      items: [
+        {
+          product: products[9]._id,
+          name: products[9].name,
+          quantity: 12,
+          unitPrice: products[9].price,
+          unit: products[9].unit,
+        },
+      ],
+      totalAmount: 13800,
+      status: "pending",
+      etaLabel: "Awaiting seller",
+      note: "Buyer requested dry necks and no mixed wet bags.",
+      deliveryLocation: "Kilimani, Nairobi",
+      deliveryContact: "+254711444555",
+    },
+  ], ({ buyer, seller, totalAmount, note }) => ({ buyer, seller, totalAmount, note }));
 
-  await Notification.create([
+  await findOrCreateMany(SellerRemark, [
+    {
+      order: orders[0]._id,
+      buyer: buyer._id,
+      seller: farmer._id,
+      rating: 5,
+      body: "Tomatoes arrived clean and honestly sorted. The crate weight matched what was agreed.",
+    },
+    {
+      order: orders[2]._id,
+      buyer: hotelBuyer._id,
+      seller: youthFarmer._id,
+      rating: 4,
+      body: "Good potato size for chips. Delivery was late by one hour but the grading was consistent.",
+    },
+  ], ({ order }) => ({ order }));
+
+  await findOrCreateMany(Notification, [
     {
       user: buyer._id,
       title: "Order update",
@@ -483,10 +831,22 @@ export async function seedDatabase() {
       body: "Add clearer profile details and recent garden photos to improve credibility in the feed.",
       type: "system",
     },
-  ]);
+    {
+      user: hotelBuyer._id,
+      title: "Order accepted",
+      body: "Ahero Fresh Fish Farm accepted your tilapia request and will pack on dispatch morning.",
+      type: "order",
+    },
+    {
+      user: youthFarmer._id,
+      title: "New seller remark",
+      body: "Wanjiku Hotel Supplies rated your potato delivery and mentioned consistent grading.",
+      type: "system",
+    },
+  ], ({ user, title, body }) => ({ user, title, body }));
 
   return {
-    users: 3,
+    users: 8,
     products: products.length,
     posts: posts.length,
     threads: threads.length,
@@ -497,9 +857,10 @@ async function seed() {
   validateEnv();
   await connectToDatabase();
 
-  const summary = await seedDatabase();
+  const reset = process.argv.includes("--reset");
+  const summary = await seedDatabase({ reset });
 
-  console.log("FarmConnect database seeded successfully.", summary);
+  console.log(`FarmConnect database ${reset ? "reset and seeded" : "seeded without resetting"} successfully.`, summary);
 }
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"))) {

@@ -78,6 +78,9 @@ function buildBodyBlocks(body, media = []) {
 
 export const getFeed = asyncHandler(async (_req, res) => {
   const { filter } = _req.query;
+  const page = Math.max(1, Number(_req.query.page) || 1);
+  const limit = Math.min(30, Math.max(1, Number(_req.query.limit) || 30));
+  const skip = (page - 1) * limit;
   const filters = {};
 
   if (filter === "Following") {
@@ -107,12 +110,16 @@ export const getFeed = asyncHandler(async (_req, res) => {
     ];
   }
 
-  const posts = await Post.find(filters)
-    .populate("author", "name role location verificationStatus trustScore avatarUrl")
-    .populate("linkedProduct", "name price unit location")
-    .sort({ isSponsored: -1, createdAt: -1 })
-    .limit(10)
-    .lean();
+  const [posts, totalPosts] = await Promise.all([
+    Post.find(filters)
+      .populate("author", "name role location verificationStatus trustScore avatarUrl")
+      .populate("linkedProduct", "name price unit location")
+      .sort({ isSponsored: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Post.countDocuments(filters),
+  ]);
 
   const postIds = posts.map((post) => post._id);
 
@@ -163,6 +170,12 @@ export const getFeed = asyncHandler(async (_req, res) => {
       ? ["All", "Following", "Crop health", "Market tea", "Farm inputs", "Buyer demand", "Greenhouse hacks"]
       : ["All", "Crop health", "Market tea", "Farm inputs", "Buyer demand", "Greenhouse hacks"],
     activeFilter: filter || "All",
+    pagination: {
+      page,
+      limit,
+      total: totalPosts,
+      hasMore: skip + posts.length < totalPosts,
+    },
     posts: posts.map((post) => ({
       ...shapePost(post, { savedPostIds, likedPostIds, commentsByPostId, currentUser: _req.user }),
     })),
