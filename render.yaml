@@ -21,3 +21,16 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: ADMIN_SECRET
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  - type: web
+    name: farmconnect-admin
+    runtime: static
+    buildCommand: npm --prefix client/admin install && npm --prefix client/admin run build
+    staticPublishPath: client/admin/dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false

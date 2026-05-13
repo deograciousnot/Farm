@@ -27,6 +27,7 @@ export const env = {
   mongoDnsServers: normalizeList(process.env.MONGO_DNS_SERVERS),
   jwtSecret: process.env.JWT_SECRET || "",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
+  adminSecret: process.env.ADMIN_SECRET || "",
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY || "",
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET || "",

@@ -23,6 +23,7 @@ import { upload } from "../middleware/upload.middleware.js";
 import adminRouter from "./admin.routes.js";
 import authRouter from "./auth.routes.js";
 import marketplaceRouter from "./marketplace.routes.js";
+import reportRouter from "./report.routes.js";
 
 export const apiRouter = Router();
 
@@ -36,6 +37,7 @@ apiRouter.get("/health", (_req, res) => {
 apiRouter.use("/admin", adminRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/marketplace", marketplaceRouter);
+apiRouter.use("/reports", requireAuth, reportRouter);
 apiRouter.get("/feed", attachUserIfPresent, getFeed);
 apiRouter.post("/feed", requireAuth, upload.array("media", 4), createFeedPost);
 apiRouter.get("/feed/:postId", attachUserIfPresent, getFeedPostById);

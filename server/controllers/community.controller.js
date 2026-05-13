@@ -6,7 +6,7 @@ import { createNotification } from "../utils/notifications.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
 export const getCommunityOverview = asyncHandler(async (_req, res) => {
-  const topThreads = await CommunityThread.find()
+  const topThreads = await CommunityThread.find({ moderationStatus: { $ne: "removed" } })
     .populate("author", "name role location avatarUrl")
     .sort({ isPinned: -1, repliesCount: -1, createdAt: -1 })
     .limit(8);
@@ -14,8 +14,8 @@ export const getCommunityOverview = asyncHandler(async (_req, res) => {
   const categories = ["Pricing", "Crop care", "Trade trust", "Market Prices", "Farm Inputs"];
   const stats = await Promise.all(
     categories.map(async (category) => ({
-      category,
-      threads: await CommunityThread.countDocuments({ category }),
+    category,
+    threads: await CommunityThread.countDocuments({ category, moderationStatus: { $ne: "removed" } }),
     }))
   );
 
@@ -27,7 +27,7 @@ export const getCommunityOverview = asyncHandler(async (_req, res) => {
 });
 
 export const getThreadById = asyncHandler(async (req, res) => {
-  const thread = await CommunityThread.findById(req.params.id).populate(
+  const thread = await CommunityThread.findOne({ _id: req.params.id, moderationStatus: { $ne: "removed" } }).populate(
     "author",
     "name role location verificationStatus avatarUrl"
   );
@@ -52,7 +52,7 @@ function normalizeReply(reply) {
 }
 
 export const getRepliesForThread = asyncHandler(async (req, res) => {
-  const thread = await CommunityThread.findById(req.params.id);
+  const thread = await CommunityThread.findOne({ _id: req.params.id, moderationStatus: { $ne: "removed" } });
 
   if (!thread) {
     throw new AppError("Community thread not found.", 404);
@@ -98,7 +98,7 @@ export const createThread = asyncHandler(async (req, res) => {
 
 export const createReply = asyncHandler(async (req, res) => {
   const { body } = req.body;
-  const thread = await CommunityThread.findById(req.params.id).populate(
+  const thread = await CommunityThread.findOne({ _id: req.params.id, moderationStatus: { $ne: "removed" } }).populate(
     "author",
     "name role location avatarUrl verificationStatus"
   );

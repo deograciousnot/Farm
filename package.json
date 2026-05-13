@@ -10,6 +10,8 @@
     "server:seed:reset": "node server/data/seed.js --reset",
     "server:trust": "node server/scripts/recalculate-trust-scores.js",
     "client": "npm --prefix client/mobile start",
+    "admin": "npm --prefix client/admin run dev",
+    "admin:build": "npm --prefix client/admin run build",
     "android": "npm --prefix client/mobile run android",
     "build:apk": "npm --prefix client/mobile run build:apk",
     "ios": "npm --prefix client/mobile run ios",

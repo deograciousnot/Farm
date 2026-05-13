@@ -39,6 +39,20 @@ const communityThreadSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    moderationStatus: {
+      type: String,
+      enum: ["active", "removed"],
+      default: "active",
+    },
+    removedReason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    removedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

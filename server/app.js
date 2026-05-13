@@ -1,6 +1,7 @@
 import cookieParser from "cookie-parser";
 import express from "express";
 
+import { env } from "./config/env.js";
 import { apiRouter } from "./routes/index.js";
 
 export function createApp() {
@@ -9,6 +10,25 @@ export function createApp() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    const isAllowedOrigin = origin && (env.allowedOrigins.length === 0 || env.allowedOrigins.includes(origin));
+
+    if (isAllowedOrigin) {
+      res.header("Access-Control-Allow-Origin", origin);
+      res.header("Vary", "Origin");
+    }
+
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-admin-secret, x-seed-secret");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+
+    if (req.method === "OPTIONS") {
+      res.sendStatus(204);
+      return;
+    }
+
+    next();
+  });
 
   app.get("/", (_req, res) => {
     res.json({

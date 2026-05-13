@@ -1,11 +1,14 @@
 node_modules/
 client/mobile/node_modules/
+client/admin/node_modules/
 client/mobile/.expo/
 client/mobile/dist/
 client/mobile/web-build/
+client/admin/dist/
 .env
 *.env
 *.log
+*.tsbuildinfo
 *.apk
 .DS_Store
 client/mobile/.vscode/

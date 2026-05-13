@@ -82,7 +82,6 @@ export const getFeed = asyncHandler(async (_req, res) => {
   const limit = Math.min(30, Math.max(1, Number(_req.query.limit) || 30));
   const skip = (page - 1) * limit;
   const filters = {};
-
   if (filter === "Following") {
     if (!_req.user) {
       res.json({
@@ -110,11 +109,13 @@ export const getFeed = asyncHandler(async (_req, res) => {
     ];
   }
 
+  filters.moderationStatus = { $ne: "removed" };
+
   const [posts, totalPosts] = await Promise.all([
     Post.find(filters)
       .populate("author", "name role location verificationStatus trustScore avatarUrl")
       .populate("linkedProduct", "name price unit location")
-      .sort({ isSponsored: -1, createdAt: -1 })
+      .sort({ isPinned: -1, isSponsored: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),

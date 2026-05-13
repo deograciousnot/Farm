@@ -53,6 +53,28 @@ const postSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isPinned: {
+      type: Boolean,
+      default: false,
+    },
+    pinnedUntil: {
+      type: Date,
+      default: null,
+    },
+    moderationStatus: {
+      type: String,
+      enum: ["active", "removed"],
+      default: "active",
+    },
+    removedReason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    removedAt: {
+      type: Date,
+      default: null,
+    },
     media: [
       {
         type: {
