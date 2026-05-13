@@ -5,6 +5,7 @@ import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -237,6 +238,37 @@ export default function FeedScreen() {
     router.push({ pathname: '/product/[id]', params: { id: productId } });
   }, []);
 
+  const handleReportPost = useCallback(
+    (post: FeedPost) => {
+      if (!token) {
+        Alert.alert('Sign in required', 'Please sign in before reporting content.');
+        return;
+      }
+
+      Alert.alert('Report post?', 'Send this post to FarmConnect moderation for review.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.reportContent(token, {
+                targetType: 'post',
+                targetId: post._id,
+                reason: 'User reported post',
+                note: post.headline,
+              });
+              Alert.alert('Report sent', 'Thanks. The moderation team will review this post.');
+            } catch (error) {
+              Alert.alert('Report failed', error instanceof Error ? error.message : 'Something went wrong.');
+            }
+          },
+        },
+      ]);
+    },
+    [token]
+  );
+
   const handlePlaybackTimeChange = useCallback((mediaUrl: string, currentTime: number) => {
     setPlaybackPositions((current) => {
       if (Math.abs((current[mediaUrl] ?? 0) - currentTime) < 0.2) {
@@ -410,6 +442,7 @@ export default function FeedScreen() {
         onOpenComments={openComments}
         onToggleSave={handleToggleSave}
         onToggleFollow={handleToggleFollow}
+        onReportPost={handleReportPost}
         onPlaybackTimeChange={handlePlaybackTimeChange}
       />
     ),
@@ -417,6 +450,7 @@ export default function FeedScreen() {
       handlePlaybackTimeChange,
       handleToggleFollow,
       handleToggleLike,
+      handleReportPost,
       handleToggleSave,
       isFocused,
       openAuthorProfile,

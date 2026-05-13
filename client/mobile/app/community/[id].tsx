@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -94,6 +94,37 @@ export default function CommunityThreadScreen() {
     }
   }
 
+  const reportContent = useCallback(
+    (target: { targetType: 'thread' | 'reply'; targetId: string; label: string; note: string }) => {
+      if (!token) {
+        Alert.alert('Sign in required', 'Please sign in before reporting content.');
+        return;
+      }
+
+      Alert.alert(`Report ${target.label}?`, 'Send this content to FarmConnect moderation for review.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.reportContent(token, {
+                targetType: target.targetType,
+                targetId: target.targetId,
+                reason: `User reported ${target.label}`,
+                note: target.note,
+              });
+              Alert.alert('Report sent', 'Thanks. The moderation team will review it.');
+            } catch (error) {
+              Alert.alert('Report failed', error instanceof Error ? error.message : 'Something went wrong.');
+            }
+          },
+        },
+      ]);
+    },
+    [token]
+  );
+
   function formatRelativeDate(value?: string) {
     if (!value) {
       return 'Now';
@@ -134,7 +165,22 @@ export default function CommunityThreadScreen() {
               <View style={[styles.categoryPill, { backgroundColor: `${palette.tint}12` }]}>
                 <Text style={[styles.categoryText, { color: palette.tint }]}>{thread.category}</Text>
               </View>
-              <Text style={[styles.metaText, { color: palette.muted }]}>{thread.viewsCount} views</Text>
+              <View style={styles.metaActions}>
+                <Text style={[styles.metaText, { color: palette.muted }]}>{thread.viewsCount} views</Text>
+                <Pressable
+                  onPress={() =>
+                    reportContent({
+                      targetType: 'thread',
+                      targetId: thread._id,
+                      label: 'thread',
+                      note: thread.title,
+                    })
+                  }
+                  hitSlop={8}
+                  style={styles.moreButton}>
+                  <Feather name="more-horizontal" size={18} color={palette.muted} />
+                </Pressable>
+              </View>
             </View>
 
             <Text style={[styles.title, { color: palette.text }]}>{thread.title}</Text>
@@ -248,6 +294,19 @@ export default function CommunityThreadScreen() {
                       </Text>
                     </View>
                   </Pressable>
+                  <Pressable
+                    onPress={() =>
+                      reportContent({
+                        targetType: 'reply',
+                        targetId: reply._id,
+                        label: 'reply',
+                        note: reply.body.slice(0, 180),
+                      })
+                    }
+                    hitSlop={8}
+                    style={styles.moreButton}>
+                    <Feather name="more-horizontal" size={18} color={palette.muted} />
+                  </Pressable>
                 </View>
                 <Text style={[styles.replyBody, { color: palette.text }]}>{reply.body}</Text>
               </View>
@@ -276,6 +335,8 @@ const styles = StyleSheet.create({
   loadingShell: { paddingVertical: 40, alignItems: 'center' },
   threadCard: { borderRadius: 26, padding: 18, gap: 14 },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  metaActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  moreButton: { width: 30, height: 30, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   categoryPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   categoryText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
   metaText: { fontFamily: Fonts.sans, fontSize: 12 },

@@ -2,7 +2,7 @@ import { Link, router } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SocialAvatar } from '@/components/social-avatar';
@@ -10,11 +10,13 @@ import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { api } from '@/lib/api';
 import type { CommunityThread } from '@/lib/types';
+import { useSession } from '@/providers/session-provider';
 
 export default function CommunityScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const insets = useSafeAreaInsets();
+  const { token } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [rooms, setRooms] = useState<string[]>([]);
   const [threads, setThreads] = useState<CommunityThread[]>([]);
@@ -37,6 +39,37 @@ export default function CommunityScreen() {
     useCallback(() => {
       void loadCommunity();
     }, [loadCommunity])
+  );
+
+  const reportThread = useCallback(
+    (thread: CommunityThread) => {
+      if (!token) {
+        Alert.alert('Sign in required', 'Please sign in before reporting content.');
+        return;
+      }
+
+      Alert.alert('Report thread?', 'Send this discussion to FarmConnect moderation for review.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.reportContent(token, {
+                targetType: 'thread',
+                targetId: thread._id,
+                reason: 'User reported thread',
+                note: thread.title,
+              });
+              Alert.alert('Report sent', 'Thanks. The moderation team will review this thread.');
+            } catch (error) {
+              Alert.alert('Report failed', error instanceof Error ? error.message : 'Something went wrong.');
+            }
+          },
+        },
+      ]);
+    },
+    [token]
   );
 
   const header = useMemo(
@@ -121,11 +154,22 @@ export default function CommunityScreen() {
                     {thread.category}
                   </Text>
                 </View>
-                {thread.isPinned ? (
-                  <Text style={[styles.replyCount, { color: palette.tint }]}>Pinned</Text>
-                ) : (
-                  <Text style={[styles.replyCount, { color: palette.muted }]}>{thread.viewsCount} views</Text>
-                )}
+                <View style={styles.threadMetaActions}>
+                  {thread.isPinned ? (
+                    <Text style={[styles.replyCount, { color: palette.tint }]}>Pinned</Text>
+                  ) : (
+                    <Text style={[styles.replyCount, { color: palette.muted }]}>{thread.viewsCount} views</Text>
+                  )}
+                  <Pressable
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      reportThread(thread);
+                    }}
+                    hitSlop={8}
+                    style={styles.moreButton}>
+                    <Feather name="more-horizontal" size={18} color={palette.muted} />
+                  </Pressable>
+                </View>
               </View>
 
               <Text style={[styles.threadTitle, { color: palette.text }]}>{thread.title}</Text>
@@ -147,7 +191,7 @@ export default function CommunityScreen() {
           </View>
         </Pressable>
     ),
-    [palette]
+    [palette, reportThread]
   );
 
   return (
@@ -185,6 +229,8 @@ const styles = StyleSheet.create({
   voteCount: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
   threadContent: { flex: 1, gap: 10 },
   threadMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  threadMetaActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  moreButton: { width: 28, height: 28, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   categoryPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   categoryText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
   replyCount: { fontFamily: Fonts.sans, fontSize: 13 },

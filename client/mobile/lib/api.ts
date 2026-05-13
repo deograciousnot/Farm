@@ -215,6 +215,21 @@ export const api = {
       token,
     });
   },
+  reportContent(
+    token: string,
+    input: {
+      targetType: 'post' | 'comment' | 'thread' | 'reply' | 'product' | 'user';
+      targetId: string;
+      reason: string;
+      note?: string;
+    }
+  ) {
+    return request<{ message: string }>('/reports', {
+      method: 'POST',
+      token,
+      body: input,
+    });
+  },
   toggleFollow(token: string, userId: string) {
     return request<{ following: boolean; followersCount: number; followingCount: number }>(`/profile/${userId}/follow`, {
       method: 'POST',

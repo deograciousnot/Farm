@@ -28,6 +28,7 @@ type FeedPostCardProps = {
   onOpenComments: (post: FeedPost) => void;
   onToggleSave: (postId: string) => void;
   onToggleFollow: (post: FeedPost) => void;
+  onReportPost: (post: FeedPost) => void;
   onPlaybackTimeChange: (mediaUrl: string, currentTime: number) => void;
 };
 
@@ -47,6 +48,7 @@ export const FeedPostCard = memo(function FeedPostCard({
   onOpenComments,
   onToggleSave,
   onToggleFollow,
+  onReportPost,
   onPlaybackTimeChange,
 }: FeedPostCardProps) {
   const linkedProduct = post.linkedProduct;
@@ -76,7 +78,12 @@ export const FeedPostCard = memo(function FeedPostCard({
         <View style={[styles.storyTypePill, { backgroundColor: `${palette.tint}14` }]}>
           <Text style={[styles.storyTypeText, { color: palette.tint }]}>{postLabel}</Text>
         </View>
-        <Text style={[styles.storyTime, { color: palette.muted }]}>{formatRelativeTime(post.createdAt)}</Text>
+        <View style={styles.storyMetaActions}>
+          <Text style={[styles.storyTime, { color: palette.muted }]}>{formatRelativeTime(post.createdAt)}</Text>
+          <Pressable onPress={() => onReportPost(post)} hitSlop={8} style={styles.moreButton}>
+            <Feather name="more-horizontal" size={18} color={palette.muted} />
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.postTopRow}>
@@ -205,9 +212,11 @@ export const FeedPostCard = memo(function FeedPostCard({
 const styles = StyleSheet.create({
   postShell: { gap: 12, padding: 14, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth },
   storyRail: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  storyMetaActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   storyTypePill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   storyTypeText: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '800', textTransform: 'capitalize' },
   storyTime: { fontFamily: Fonts.sans, fontSize: 12 },
+  moreButton: { width: 28, height: 28, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   postTopRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' },
   postIdentity: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   postIdentityText: { flex: 1, gap: 2 },
