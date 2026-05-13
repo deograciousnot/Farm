@@ -192,4 +192,5 @@ export type UploadableAsset = {
   uri: string;
   type: string;
   name?: string;
+  fileSize?: number;
 };

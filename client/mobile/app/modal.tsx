@@ -27,6 +27,8 @@ type ComposerMode = 'post' | 'listing';
 
 const postTags = ['Crop health', 'Market tea', 'Farm inputs', 'Knowledge', 'Community'];
 const listingCategories = ['Vegetables', 'Fruits', 'Grains', 'Farm inputs'];
+const maxUploadFileSizeMb = 40;
+const maxUploadFileSizeBytes = maxUploadFileSizeMb * 1024 * 1024;
 
 export default function ComposerModal() {
   const scheme = useColorScheme() ?? 'light';
@@ -127,10 +129,21 @@ export default function ComposerModal() {
       return;
     }
 
+    const oversizedAssets = result.assets.filter((asset) => asset.fileSize && asset.fileSize > maxUploadFileSizeBytes);
+
+    if (oversizedAssets.length > 0) {
+      Alert.alert(
+        'File too large',
+        `Each photo or video must be ${maxUploadFileSizeMb} MB or smaller. Pick a shorter video or compress it first.`
+      );
+      return;
+    }
+
     const nextAssets = result.assets.map((asset, index) => ({
       uri: asset.uri,
       type: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
       name: asset.fileName || `farmconnect-media-${Date.now()}-${index}`,
+      fileSize: asset.fileSize,
     }));
 
     setSelectedMedia(options?.cropSingleImage ? nextAssets : nextAssets.slice(0, mediaLimit));
@@ -284,7 +297,7 @@ export default function ComposerModal() {
 
           {selectedMedia.length ? <Text style={[styles.helperText, { color: palette.muted }]}>{stageCopy}</Text> : null}
           <Text style={[styles.helperText, { color: palette.muted }]}>
-            Cropping is available for single-photo picks. Multi-select galleries keep the original framing.
+            Cropping is available for single-photo picks. Each file can be up to {maxUploadFileSizeMb} MB.
           </Text>
         </View>
 

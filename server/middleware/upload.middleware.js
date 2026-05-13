@@ -3,6 +3,7 @@ import multer from "multer";
 import { AppError } from "../utils/app-error.js";
 
 const storage = multer.memoryStorage();
+const maxUploadFileSizeMb = 40;
 
 function fileFilter(_req, file, callback) {
   const isAccepted = file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/");
@@ -18,7 +19,7 @@ function fileFilter(_req, file, callback) {
 export const upload = multer({
   storage,
   limits: {
-    fileSize: 25 * 1024 * 1024,
+    fileSize: maxUploadFileSizeMb * 1024 * 1024,
     files: 6,
   },
   fileFilter,
