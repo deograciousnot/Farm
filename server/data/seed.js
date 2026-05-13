@@ -11,10 +11,7 @@ import { SavedPost } from "../models/saved-post.model.js";
 import { ThreadReply } from "../models/thread-reply.model.js";
 import { User } from "../models/user.model.js";
 
-async function seed() {
-  validateEnv();
-  await connectToDatabase();
-
+export async function seedDatabase() {
   await Promise.all([
     Notification.deleteMany({}),
     SavedPost.deleteMany({}),
@@ -488,14 +485,30 @@ async function seed() {
     },
   ]);
 
-  console.log("FarmConnect database seeded successfully.");
+  return {
+    users: 3,
+    products: products.length,
+    posts: posts.length,
+    threads: threads.length,
+  };
 }
 
-seed()
-  .catch((error) => {
-    console.error("Failed to seed FarmConnect database.", error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await disconnectFromDatabase();
-  });
+async function seed() {
+  validateEnv();
+  await connectToDatabase();
+
+  const summary = await seedDatabase();
+
+  console.log("FarmConnect database seeded successfully.", summary);
+}
+
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"))) {
+  seed()
+    .catch((error) => {
+      console.error("Failed to seed FarmConnect database.", error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await disconnectFromDatabase();
+    });
+}

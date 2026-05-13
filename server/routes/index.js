@@ -20,6 +20,7 @@ import {
 } from "../controllers/profile.controller.js";
 import { attachUserIfPresent, requireAuth } from "../middleware/auth.middleware.js";
 import { upload } from "../middleware/upload.middleware.js";
+import adminRouter from "./admin.routes.js";
 import authRouter from "./auth.routes.js";
 import marketplaceRouter from "./marketplace.routes.js";
 
@@ -32,6 +33,7 @@ apiRouter.get("/health", (_req, res) => {
   });
 });
 
+apiRouter.use("/admin", adminRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/marketplace", marketplaceRouter);
 apiRouter.get("/feed", attachUserIfPresent, getFeed);
