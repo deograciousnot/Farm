@@ -6,6 +6,7 @@ client/mobile/web-build/
 .env
 *.env
 *.log
+*.apk
 .DS_Store
 client/mobile/.vscode/
 client/mobile/.git/

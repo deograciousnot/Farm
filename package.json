@@ -10,6 +10,7 @@
     "server:trust": "node server/scripts/recalculate-trust-scores.js",
     "client": "npm --prefix client/mobile start",
     "android": "npm --prefix client/mobile run android",
+    "build:apk": "npm --prefix client/mobile run build:apk",
     "ios": "npm --prefix client/mobile run ios",
     "web": "npm --prefix client/mobile run web",
     "lint:mobile": "npm --prefix client/mobile run lint"

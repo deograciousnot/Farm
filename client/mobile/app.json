@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "FarmConnect",
-    "slug": "FarmConnect",
+    "slug": "farmconnect",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/farmconnect-icon.png",
@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.farmconnect.app",
       "adaptiveIcon": {
         "backgroundColor": "#fff8f1",
         "foregroundImage": "./assets/images/farmconnect-adaptive-foreground.png",
@@ -19,7 +20,8 @@
         "monochromeImage": "./assets/images/farmconnect-adaptive-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": []
     },
     "web": {
       "output": "static",
@@ -50,6 +52,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e3e3ac51-4cae-45c4-b210-9809ad7eb572"
+      }
+    },
+    "owner": "notsyx"
   }
 }
