@@ -23,7 +23,7 @@ import { SocialAvatar } from '@/components/social-avatar';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { api } from '@/lib/api';
-import type { Comment, FeedPost } from '@/lib/types';
+import type { Comment, CommunityThread, FeedPost } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 import { formatRelativeTime } from '@/utils/feed-utils';
 
@@ -39,6 +39,7 @@ export default function FeedScreen() {
   const [hasMorePosts, setHasMorePosts] = useState(false);
   const [interestChips, setInterestChips] = useState<string[]>([]);
   const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [communityThreads, setCommunityThreads] = useState<CommunityThread[]>([]);
   const [activeFilter, setActiveFilter] = useState('All');
   const [commentDraft, setCommentDraft] = useState('');
   const [commentSheetPostId, setCommentSheetPostId] = useState<string | null>(null);
@@ -55,12 +56,27 @@ export default function FeedScreen() {
     setIsLoading(true);
 
     try {
-      const response = await api.getFeed(token, activeFilter === 'All' ? undefined : activeFilter, 1);
-      setInterestChips(response.interestChips);
-      setPosts(response.posts);
-      setActiveFilter(response.activeFilter || 'All');
-      setFeedPage(response.pagination.page);
-      setHasMorePosts(response.pagination.hasMore);
+      const [feedResult, communityResult] = await Promise.allSettled([
+        api.getFeed(token, activeFilter === 'All' ? undefined : activeFilter, 1),
+        api.getCommunity(),
+      ]);
+
+      if (feedResult.status === 'fulfilled') {
+        const response = feedResult.value;
+        setInterestChips(response.interestChips);
+        setPosts(response.posts);
+        setActiveFilter(response.activeFilter || 'All');
+        setFeedPage(response.pagination.page);
+        setHasMorePosts(response.pagination.hasMore);
+      } else {
+        throw feedResult.reason;
+      }
+
+      if (communityResult.status === 'fulfilled') {
+        setCommunityThreads(communityResult.value.threads);
+      } else {
+        console.warn('Failed to load community trend card.', communityResult.reason);
+      }
     } catch (error) {
       console.warn('Failed to load FarmConnect feed.', error);
     } finally {
@@ -346,19 +362,23 @@ export default function FeedScreen() {
   }, [interestChips]);
 
   const trendDigest = useMemo(() => {
-    const topicPost =
-      posts.find((post) => /pest|disease|chaos|problem|debate|solution|forum/i.test(`${post.headline} ${post.body}`)) ??
-      posts.find((post) => post.tag?.toLowerCase().includes('community')) ??
-      posts[0];
+    const topicThread =
+      communityThreads.find((thread) => thread.isPinned) ??
+      [...communityThreads].sort((first, second) => {
+        const firstScore = first.repliesCount * 3 + first.viewsCount;
+        const secondScore = second.repliesCount * 3 + second.viewsCount;
+
+        return secondScore - firstScore;
+      })[0];
     const marketPost =
       posts.find((post) => /egg|tomato|price|prices|market|soar|cost/i.test(`${post.headline} ${post.body}`)) ??
       posts.find((post) => post.tag?.toLowerCase().includes('market'));
 
     return {
-      topicPost,
+      topicThread,
       marketPost,
     };
-  }, [posts]);
+  }, [communityThreads, posts]);
 
   const header = useMemo(
     () => (
@@ -370,7 +390,7 @@ export default function FeedScreen() {
           </View>
         </Animated.View>
 
-        {trendDigest.topicPost ? (
+        {trendDigest.topicThread ? (
           <Animated.View entering={FadeIn.duration(320)} style={[styles.teaBrief, { backgroundColor: `${palette.tint}0F` }]}>
             <View style={styles.teaBriefHeader}>
               <View style={[styles.teaIcon, { backgroundColor: `${palette.tint}18` }]}>
@@ -381,17 +401,23 @@ export default function FeedScreen() {
                 <Text style={[styles.teaTitle, { color: palette.text }]}>What farmers are debating now</Text>
               </View>
             </View>
+            <Text style={[styles.teaThreadTitle, { color: palette.text }]}>
+              {trendDigest.topicThread.title}
+            </Text>
             <Text style={[styles.teaBody, { color: palette.text }]}>
-              FarmConnect noticed a community topic picking up steam around {trendDigest.topicPost.tag?.toLowerCase() || 'farm decisions'}.
-              People are comparing what worked, what failed, and which advice is worth trusting before more farmers are affected.
+              This community thread is active in {trendDigest.topicThread.category.toLowerCase()}, with {trendDigest.topicThread.repliesCount} replies and {trendDigest.topicThread.viewsCount} views.
+              Farmers are comparing what worked, what failed, and which advice is worth trusting.
             </Text>
             {trendDigest.marketPost ? (
               <Text style={[styles.teaAside, { color: palette.muted }]}>
                 Also trending: {trendDigest.marketPost.headline}
               </Text>
             ) : null}
-            <Pressable onPress={() => router.push('/(tabs)/community')} style={styles.teaLink} hitSlop={8}>
-              <Text style={[styles.teaLinkText, { color: palette.tint }]}>Open community discussion</Text>
+            <Pressable
+              onPress={() => router.push({ pathname: '/community/[id]', params: { id: trendDigest.topicThread._id } })}
+              style={styles.teaLink}
+              hitSlop={8}>
+              <Text style={[styles.teaLinkText, { color: palette.tint }]}>Open this discussion</Text>
               <Feather name="arrow-right" size={15} color={palette.tint} />
             </Pressable>
           </Animated.View>
@@ -689,6 +715,7 @@ const styles = StyleSheet.create({
   teaBriefTitleWrap: { flex: 1, gap: 2 },
   teaKicker: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1 },
   teaTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '800', lineHeight: 23 },
+  teaThreadTitle: { fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '800', lineHeight: 21 },
   teaBody: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
   teaAside: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
   teaLink: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
