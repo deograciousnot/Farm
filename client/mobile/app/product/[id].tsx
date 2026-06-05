@@ -119,7 +119,7 @@ export default function ProductDetailsScreen() {
 
       Alert.alert(
         'Order request sent',
-        'FarmConnect has opened an order record. For Version 1, confirm payment directly with the verified seller contact and track fulfilment in Orders.',
+        'FarmConnect has opened an order record. Confirm payment directly with the verified seller contact and track fulfilment in Orders.',
         [
           {
             text: 'View orders',
@@ -185,10 +185,10 @@ export default function ProductDetailsScreen() {
           <View style={[styles.v1PolicyCard, { backgroundColor: `${palette.tint}12`, borderColor: `${palette.tint}45` }]}>
             <View style={styles.policyHeader}>
               <Feather name="shield" size={17} color={palette.tint} />
-              <Text style={[styles.policyTitle, { color: palette.text }]}>Version 1 order policy</Text>
+              <Text style={[styles.policyTitle, { color: palette.text }]}>Order policy</Text>
             </View>
             <Text style={[styles.policyCopy, { color: palette.muted }]}>
-              FarmConnect does not process payments in Version 1. The app records the request, seller identity, contact point,
+              FarmConnect does not process payments in app. The app records the request, seller identity, contact point,
               delivery details, and order status so buyer and seller can coordinate safely.
             </Text>
             <View style={[styles.contactStrip, { backgroundColor: palette.surface }]}>
@@ -213,7 +213,7 @@ export default function ProductDetailsScreen() {
         <View style={[styles.detailsCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
           <Text style={[styles.cardTitle, { color: palette.text }]}>Request order</Text>
           <Text style={[styles.cardBody, { color: palette.muted }]}>
-            Confirm quantity, delivery details, and a short note. Payment is coordinated directly with the verified seller for Version 1.
+            Confirm quantity, delivery details, and a short note. Payment is coordinated directly with the verified seller.
           </Text>
 
           <View style={styles.quantityRow}>

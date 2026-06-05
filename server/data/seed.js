@@ -570,7 +570,7 @@ export async function seedDatabase({ reset = false } = {}) {
     {
       post: posts[5]._id,
       author: youthFarmer._id,
-      body: "Direct payment timing is exactly why verified seller contacts and written order notes matter in Version 1.",
+      body: "Direct payment timing is exactly why verified seller contacts and written order notes matter.",
     },
     {
       post: posts[6]._id,

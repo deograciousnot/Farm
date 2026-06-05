@@ -52,6 +52,16 @@ export type Report = {
   reporter?: ApiUser | null;
 };
 
+export type AdminNotification = {
+  _id: string;
+  title: string;
+  body: string;
+  type: "order" | "community" | "system" | "like" | "comment" | "reply";
+  isRead: boolean;
+  createdAt?: string;
+  user?: ApiUser | null;
+};
+
 export type OverviewResponse = {
   stats: Record<string, number>;
   recentReports: Report[];

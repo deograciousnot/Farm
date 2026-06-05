@@ -220,7 +220,7 @@ nav button.active {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
   gap: 12px;
 }
 
@@ -266,6 +266,53 @@ nav button.active {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.analytics-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.analytics-row {
+  display: grid;
+  gap: 8px;
+}
+
+.analytics-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #667066;
+  font-size: 13px;
+}
+
+.analytics-label strong {
+  color: #1d241f;
+}
+
+.bar-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(35, 52, 39, 0.1);
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #5c7c67;
+}
+
+.bar-fill.green {
+  background: #2f6f4e;
+}
+
+.bar-fill.amber {
+  background: #d7941e;
+}
+
+.bar-fill.red {
+  background: #a63a32;
 }
 
 .card {

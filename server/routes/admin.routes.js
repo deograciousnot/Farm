@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { seedDatabase } from "../data/seed.js";
 import { CommunityThread } from "../models/community-thread.model.js";
+import { Notification } from "../models/notification.model.js";
 import { Order } from "../models/order.model.js";
 import { Post } from "../models/post.model.js";
 import { Product } from "../models/product.model.js";
@@ -115,6 +116,8 @@ adminRouter.get(
       totalListings,
       totalOrders,
       pendingReports,
+      totalNotifications,
+      unreadNotifications,
       recentReports,
       topPosts,
       topThreads,
@@ -130,6 +133,8 @@ adminRouter.get(
       Product.countDocuments(),
       Order.countDocuments(),
       Report.countDocuments({ status: "pending" }),
+      Notification.countDocuments(),
+      Notification.countDocuments({ isRead: false }),
       Report.find().sort({ createdAt: -1 }).limit(5).populate("reporter", "name email role").lean(),
       Post.find({ moderationStatus: { $ne: "removed" } })
         .populate("author", "name role location avatarUrl")
@@ -156,11 +161,52 @@ adminRouter.get(
         totalListings,
         totalOrders,
         pendingReports,
+        totalNotifications,
+        unreadNotifications,
       },
       recentReports,
       topPosts,
       topThreads,
     });
+  })
+);
+
+adminRouter.get(
+  "/notifications",
+  requireAdminSecret,
+  asyncHandler(async (req, res) => {
+    const { page, limit, skip } = parsePagination(req, 30);
+    const type = req.query.type || "all";
+    const filters = type === "all" ? {} : { type };
+
+    const [items, total] = await Promise.all([
+      Notification.find(filters)
+        .populate("user", "name email role location avatarUrl")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Notification.countDocuments(filters),
+    ]);
+
+    res.json({
+      items,
+      pagination: { page, limit, total, hasMore: skip + items.length < total },
+    });
+  })
+);
+
+adminRouter.delete(
+  "/notifications/:notificationId",
+  requireAdminSecret,
+  asyncHandler(async (req, res) => {
+    const notification = await Notification.findByIdAndDelete(req.params.notificationId);
+
+    if (!notification) {
+      throw new AppError("Notification not found.", 404);
+    }
+
+    res.json({ message: "Notification removed.", item: notification });
   })
 );
 

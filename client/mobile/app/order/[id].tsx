@@ -171,7 +171,7 @@ export default function OrderDetailScreen() {
               <View style={[styles.totalCard, { backgroundColor: palette.surface }]}>
                 <Text style={[styles.totalLabel, { color: palette.muted }]}>Estimated order value</Text>
                 <Text style={[styles.totalValue, { color: palette.text }]}>{formatCurrency(order.totalAmount)}</Text>
-                <Text style={[styles.totalHint, { color: palette.muted }]}>Payment is coordinated outside FarmConnect V1</Text>
+                <Text style={[styles.totalHint, { color: palette.muted }]}>Payment is coordinated outside FarmConnect</Text>
               </View>
             </View>
 
@@ -229,7 +229,7 @@ export default function OrderDetailScreen() {
                 <Text style={[styles.sectionTitle, { color: palette.text }]}>Order coordination space</Text>
               </View>
               <Text style={[styles.contextLine, { color: palette.muted }]}>
-                Version 1 tracks the agreement and fulfilment status here. Buyer and seller confirm payment directly using verified contact details.
+                FarmConnect tracks the agreement and fulfilment status here. Buyer and seller confirm payment directly using verified contact details.
               </Text>
               <View style={[styles.contactCard, { backgroundColor: palette.surface }]}>
                 <View style={styles.contactCopy}>

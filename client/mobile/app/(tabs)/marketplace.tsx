@@ -22,6 +22,7 @@ export default function MarketplaceScreen() {
   const [activeLocation, setActiveLocation] = useState('All locations');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isLocationOpen, setIsLocationOpen] = useState(false);
 
   const loadMarketplace = useCallback(async () => {
     setIsLoading(true);
@@ -114,25 +115,15 @@ export default function MarketplaceScreen() {
         ))}
       </ScrollView>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-        {locations.map((location) => (
-          <Pressable
-            key={location}
-            onPress={() => setActiveLocation(location)}
-            style={[
-              styles.locationChip,
-              {
-                backgroundColor: activeLocation === location ? palette.text : palette.surface,
-                borderColor: activeLocation === location ? palette.text : palette.border,
-              },
-            ]}>
-            <Feather name="map-pin" size={13} color={activeLocation === location ? palette.background : palette.muted} />
-            <Text style={[styles.locationChipText, { color: activeLocation === location ? palette.background : palette.text }]}>
-              {location}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <Pressable
+        onPress={() => setIsLocationOpen(true)}
+        style={[styles.locationSelect, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+        <View style={styles.locationSelectLabel}>
+          <Feather name="map-pin" size={15} color={palette.tint} />
+          <Text style={[styles.locationSelectText, { color: palette.text }]}>{activeLocation}</Text>
+        </View>
+        <Feather name="chevron-down" size={17} color={palette.muted} />
+      </Pressable>
 
       {isLoading ? (
         <View style={styles.loadingShell}>
@@ -148,7 +139,7 @@ export default function MarketplaceScreen() {
       ) : null}
       </>
     ),
-    [activeFilter, activeLocation, filters, isLoading, locations, palette, searchQuery, visibleProducts.length]
+    [activeFilter, activeLocation, filters, isLoading, palette, searchQuery, visibleProducts.length]
   );
 
   const renderProduct = useCallback(
@@ -240,6 +231,47 @@ export default function MarketplaceScreen() {
           </View>
         </SafeAreaView>
       </Modal>
+
+      <Modal visible={isLocationOpen} animationType="fade" transparent onRequestClose={() => setIsLocationOpen(false)}>
+        <SafeAreaView style={styles.searchModalRoot}>
+          <Pressable
+            style={[styles.searchModalOverlay, { backgroundColor: 'rgba(0,0,0,0.26)' }]}
+            onPress={() => setIsLocationOpen(false)}
+          />
+          <View style={[styles.locationPanel, { backgroundColor: `${palette.surfaceRaised}F7`, borderColor: palette.border }]}>
+            <View style={styles.searchPanelHeader}>
+              <View>
+                <Text style={[styles.searchEyebrow, { color: palette.tint }]}>Filter by location</Text>
+                <Text style={[styles.searchTitle, { color: palette.text }]}>Choose a marketplace area.</Text>
+              </View>
+              <Pressable onPress={() => setIsLocationOpen(false)} hitSlop={8}>
+                <Feather name="x" size={20} color={palette.text} />
+              </Pressable>
+            </View>
+            <View style={styles.locationOptionList}>
+              {locations.map((location) => {
+                const isActive = activeLocation === location;
+
+                return (
+                  <Pressable
+                    key={location}
+                    onPress={() => {
+                      setActiveLocation(location);
+                      setIsLocationOpen(false);
+                    }}
+                    style={[
+                      styles.locationOption,
+                      { backgroundColor: isActive ? palette.tint : palette.backgroundSecondary, borderColor: palette.border },
+                    ]}>
+                    <Text style={[styles.locationOptionText, { color: isActive ? '#ffffff' : palette.text }]}>{location}</Text>
+                    {isActive ? <Feather name="check" size={17} color="#ffffff" /> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </>
   );
 }
@@ -260,16 +292,17 @@ const styles = StyleSheet.create({
   filters: { gap: 8, paddingVertical: 4, paddingRight: 10 },
   filterChip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
   filterChipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  locationChip: {
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+  locationSelect: {
+    minHeight: 48,
+    borderRadius: 18,
+    paddingHorizontal: 14,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    gap: 6,
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  locationChipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
+  locationSelectLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  locationSelectText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800', flexShrink: 1 },
   productRow: { gap: 10 },
   productTile: { flex: 1, maxWidth: '48.6%' },
   loadingShell: { alignItems: 'center', paddingVertical: 8 },
@@ -311,4 +344,24 @@ const styles = StyleSheet.create({
   searchQuickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   searchQuickChip: { borderRadius: 999, paddingHorizontal: 13, paddingVertical: 10 },
   searchQuickText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '800' },
+  locationPanel: {
+    margin: 14,
+    borderRadius: 28,
+    padding: 18,
+    gap: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    maxHeight: '72%',
+  },
+  locationOptionList: { gap: 8 },
+  locationOption: {
+    minHeight: 46,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  locationOptionText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800', flexShrink: 1 },
 });

@@ -109,7 +109,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     await createNotification({
       userId: product.seller._id,
       title: "New marketplace request",
-      body: `${req.user.name} requested ${product.name}. Confirm stock, contact details, and direct payment outside FarmConnect V1.`,
+      body: `${req.user.name} requested ${product.name}. Confirm stock, contact details, and direct payment outside FarmConnect.`,
       type: "order",
     });
 

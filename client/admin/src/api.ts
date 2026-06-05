@@ -1,10 +1,10 @@
-import type { CommunityThread, FeedPost, OverviewResponse, Paginated, Report } from "./types";
+import type { AdminNotification, CommunityThread, FeedPost, OverviewResponse, Paginated, Report } from "./types";
 
 const API_BASE_URL = `${(import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "")}/api`;
 
 type RequestOptions = {
   secret: string;
-  method?: "GET" | "PATCH" | "POST";
+  method?: "DELETE" | "GET" | "PATCH" | "POST";
   body?: unknown;
 };
 
@@ -83,6 +83,15 @@ export const api = {
       secret,
       method: "PATCH",
       body: { status, reason },
+    });
+  },
+  getNotifications(secret: string, type = "all") {
+    return request<Paginated<AdminNotification>>(`/admin/notifications?type=${encodeURIComponent(type)}`, { secret });
+  },
+  deleteNotification(secret: string, notificationId: string) {
+    return request<{ item: AdminNotification; message: string }>(`/admin/notifications/${notificationId}`, {
+      secret,
+      method: "DELETE",
     });
   },
 };

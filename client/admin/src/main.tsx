@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import {
   AlertTriangle,
   BarChart3,
+  Bell,
   CheckCircle2,
   EyeOff,
   Flag,
@@ -20,10 +21,10 @@ import {
 } from "lucide-react";
 
 import { api } from "./api";
-import type { CommunityThread, FeedPost, OverviewResponse, Report } from "./types";
+import type { AdminNotification, CommunityThread, FeedPost, OverviewResponse, Report } from "./types";
 import "./styles.css";
 
-type Tab = "overview" | "reports" | "feed" | "threads";
+type Tab = "overview" | "reports" | "feed" | "threads" | "notifications";
 
 const storedSecretKey = "farmconnect-admin-secret";
 
@@ -38,6 +39,22 @@ function MetricCard({ label, value, tone }: { label: string; value: number; tone
       <span>{label}</span>
       <strong>{value.toLocaleString("en-KE")}</strong>
     </article>
+  );
+}
+
+function AnalyticsBar({ label, value, max, tone }: { label: string; value: number; max: number; tone?: string }) {
+  const width = max > 0 ? Math.max(8, Math.round((value / max) * 100)) : 0;
+
+  return (
+    <div className="analytics-row">
+      <div className="analytics-label">
+        <span>{label}</span>
+        <strong>{value.toLocaleString("en-KE")}</strong>
+      </div>
+      <div className="bar-track" aria-hidden="true">
+        <div className={`bar-fill ${tone ?? ""}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
   );
 }
 
@@ -80,6 +97,15 @@ function SecretGate({ onUnlock }: { onUnlock: (secret: string) => void }) {
 }
 
 function Overview({ data }: { data: OverviewResponse }) {
+  const contentMax = Math.max(data.stats.activePosts ?? 0, data.stats.totalThreads ?? 0, data.stats.totalListings ?? 0, 1);
+  const moderationMax = Math.max(
+    data.stats.pinnedPosts ?? 0,
+    data.stats.removedPosts ?? 0,
+    data.stats.pendingReports ?? 0,
+    data.stats.unreadNotifications ?? 0,
+    1
+  );
+
   return (
     <section className="panel-grid">
       <div className="metrics-grid">
@@ -89,6 +115,34 @@ function Overview({ data }: { data: OverviewResponse }) {
         <MetricCard label="Pending reports" value={data.stats.pendingReports ?? 0} tone="red" />
         <MetricCard label="Listings" value={data.stats.totalListings ?? 0} />
         <MetricCard label="Orders" value={data.stats.totalOrders ?? 0} />
+        <MetricCard label="Unread notices" value={data.stats.unreadNotifications ?? 0} tone="amber" />
+      </div>
+
+      <div className="split-grid">
+        <section className="card">
+          <div className="card-head">
+            <h2>Content activity</h2>
+            <BarChart3 size={18} />
+          </div>
+          <div className="analytics-stack">
+            <AnalyticsBar label="Active feed posts" value={data.stats.activePosts ?? 0} max={contentMax} tone="green" />
+            <AnalyticsBar label="Community threads" value={data.stats.totalThreads ?? 0} max={contentMax} />
+            <AnalyticsBar label="Marketplace listings" value={data.stats.totalListings ?? 0} max={contentMax} tone="amber" />
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="card-head">
+            <h2>Moderation pressure</h2>
+            <Sparkles size={18} />
+          </div>
+          <div className="analytics-stack">
+            <AnalyticsBar label="Pinned feed posts" value={data.stats.pinnedPosts ?? 0} max={moderationMax} tone="amber" />
+            <AnalyticsBar label="Removed posts" value={data.stats.removedPosts ?? 0} max={moderationMax} tone="red" />
+            <AnalyticsBar label="Pending reports" value={data.stats.pendingReports ?? 0} max={moderationMax} tone="red" />
+            <AnalyticsBar label="Unread notifications" value={data.stats.unreadNotifications ?? 0} max={moderationMax} />
+          </div>
+        </section>
       </div>
 
       <div className="split-grid">
@@ -127,6 +181,64 @@ function Overview({ data }: { data: OverviewResponse }) {
             ))}
           </div>
         </section>
+      </div>
+    </section>
+  );
+}
+
+function Notifications({
+  notifications,
+  type,
+  onType,
+  onDelete,
+}: {
+  notifications: AdminNotification[];
+  type: string;
+  onType: (value: string) => void;
+  onDelete: (notification: AdminNotification) => void;
+}) {
+  return (
+    <section className="card">
+      <div className="card-head with-controls">
+        <div>
+          <h2>Notifications</h2>
+          <p>Remove demo prompts or stale notices that should no longer appear in user profiles.</p>
+        </div>
+        <div className="control-row">
+          <select value={type} onChange={(event) => onType(event.target.value)}>
+            <option value="all">All notifications</option>
+            <option value="community">Community</option>
+            <option value="order">Orders</option>
+            <option value="system">System</option>
+            <option value="like">Likes</option>
+            <option value="comment">Comments</option>
+            <option value="reply">Replies</option>
+          </select>
+        </div>
+      </div>
+      <div className="table-list">
+        {notifications.map((notification) => (
+          <article className="moderation-row" key={notification._id}>
+            <div className="row-main">
+              <div className="row-title">
+                <span className="pill">{notification.type}</span>
+                {!notification.isRead ? <span className="pill pinned">Unread</span> : null}
+                <strong>{notification.title}</strong>
+              </div>
+              <p>{notification.body}</p>
+              <small>
+                {notification.user?.name ?? "Unknown user"} - {formatDate(notification.createdAt)}
+              </small>
+            </div>
+            <div className="actions">
+              <button className="danger-button" onClick={() => onDelete(notification)}>
+                <Trash2 size={16} />
+                Remove
+              </button>
+            </div>
+          </article>
+        ))}
+        {!notifications.length ? <p className="empty">No notifications match this filter.</p> : null}
       </div>
     </section>
   );
@@ -343,10 +455,12 @@ function App() {
   const [reports, setReports] = useState<Report[]>([]);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [threads, setThreads] = useState<CommunityThread[]>([]);
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [feedSort, setFeedSort] = useState("newest");
   const [feedStatus, setFeedStatus] = useState("all");
   const [threadSortState, setThreadSortState] = useState("top");
   const [threadStatus, setThreadStatus] = useState("all");
+  const [notificationType, setNotificationType] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -356,6 +470,7 @@ function App() {
       { key: "reports" as Tab, label: "Reports", icon: Flag },
       { key: "feed" as Tab, label: "Feed", icon: BarChart3 },
       { key: "threads" as Tab, label: "Threads", icon: MessageSquare },
+      { key: "notifications" as Tab, label: "Notifications", icon: Bell },
     ],
     []
   );
@@ -366,16 +481,18 @@ function App() {
     setError("");
 
     try {
-      const [overviewData, reportsData, feedData, threadData] = await Promise.all([
+      const [overviewData, reportsData, feedData, threadData, notificationData] = await Promise.all([
         api.getOverview(secret),
         api.getReports(secret),
         api.getFeed(secret, { sort: feedSort, status: feedStatus }),
         api.getThreads(secret, { sort: threadSortState, status: threadStatus }),
+        api.getNotifications(secret, notificationType),
       ]);
       setOverview(overviewData);
       setReports(reportsData.items);
       setPosts(feedData.items);
       setThreads(threadData.items);
+      setNotifications(notificationData.items);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load dashboard.");
     } finally {
@@ -385,7 +502,7 @@ function App() {
 
   useEffect(() => {
     void loadData();
-  }, [secret, feedSort, feedStatus, threadSortState, threadStatus]);
+  }, [secret, feedSort, feedStatus, threadSortState, threadStatus, notificationType]);
 
   async function act(action: () => Promise<unknown>) {
     setError("");
@@ -440,7 +557,17 @@ function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">Moderation and growth</p>
-            <h1>{tab === "overview" ? "Dashboard" : tab === "reports" ? "Reports" : tab === "feed" ? "Feed control" : "Community control"}</h1>
+            <h1>
+              {tab === "overview"
+                ? "Dashboard"
+                : tab === "reports"
+                  ? "Reports"
+                  : tab === "feed"
+                    ? "Feed control"
+                    : tab === "threads"
+                      ? "Community control"
+                      : "Notification control"}
+            </h1>
           </div>
           <button className="refresh-button" onClick={() => void loadData()} disabled={isLoading}>
             {isLoading ? <Loader2 className="spin" size={17} /> : <RefreshCcw size={17} />}
@@ -485,6 +612,14 @@ function App() {
                 api.moderateThread(secret, thread._id, status, status === "removed" ? "Removed from admin dashboard" : "")
               )
             }
+          />
+        ) : null}
+        {tab === "notifications" ? (
+          <Notifications
+            notifications={notifications}
+            type={notificationType}
+            onType={setNotificationType}
+            onDelete={(notification) => void act(() => api.deleteNotification(secret, notification._id))}
           />
         ) : null}
 
