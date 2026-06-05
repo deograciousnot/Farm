@@ -27,6 +27,20 @@ type AuthResponse = {
   user: ProfileResponse['profile'];
 };
 
+export class ApiRequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+  }
+}
+
+export function isStaleSessionError(error: unknown) {
+  return error instanceof ApiRequestError && error.status === 401 && /user no longer exists/i.test(error.message);
+}
+
 function getApiBaseUrl() {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
 
@@ -73,7 +87,7 @@ async function request<T>(path: string, options: RequestOptions = {}) {
   const data = (await response.json()) as T & { message?: string };
 
   if (!response.ok) {
-    throw new Error(data.message || 'Request failed.');
+    throw new ApiRequestError(data.message || 'Request failed.', response.status);
   }
 
   return data;
@@ -91,7 +105,7 @@ async function requestFormData<T>(path: string, options: { token?: string | null
   const data = (await response.json()) as T & { message?: string };
 
   if (!response.ok) {
-    throw new Error(data.message || 'Request failed.');
+    throw new ApiRequestError(data.message || 'Request failed.', response.status);
   }
 
   return data;
@@ -315,11 +329,16 @@ export const api = {
   getThreadReplies(id: string) {
     return request<{ items: ThreadReply[] }>(`/community/${id}/replies`);
   },
-  createThread(token: string, input: { title: string; body: string; category: string }) {
-    return request<{ item: CommunityThread; message: string }>('/community', {
-      method: 'POST',
+  createThread(token: string, input: { title: string; body: string; category: string; media?: UploadableAsset[] }) {
+    const formData = new FormData();
+    formData.append('title', input.title);
+    formData.append('body', input.body);
+    formData.append('category', input.category);
+    appendMediaAssets(formData, input.media ?? []);
+
+    return requestFormData<{ item: CommunityThread; message: string }>('/community', {
       token,
-      body: input,
+      formData,
     });
   },
   createThreadReply(token: string, id: string, body: string) {

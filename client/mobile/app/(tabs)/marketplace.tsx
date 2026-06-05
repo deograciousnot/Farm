@@ -19,6 +19,7 @@ export default function MarketplaceScreen() {
   const [filters, setFilters] = useState<string[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [activeFilter, setActiveFilter] = useState('All produce');
+  const [activeLocation, setActiveLocation] = useState('All locations');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
@@ -46,22 +47,31 @@ export default function MarketplaceScreen() {
     const query = searchQuery.trim().toLowerCase();
     const categoryProducts =
       activeFilter === 'All produce' ? products : products.filter((product) => product.category === activeFilter);
+    const locationProducts =
+      activeLocation === 'All locations'
+        ? categoryProducts
+        : categoryProducts.filter((product) => product.location === activeLocation);
 
     if (!query) {
-      return categoryProducts;
+      return locationProducts;
     }
 
-    return categoryProducts.filter((product) =>
+    return locationProducts.filter((product) =>
       [product.name, product.category, product.description, product.location, product.seller?.name]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query))
     );
-  }, [activeFilter, products, searchQuery]);
+  }, [activeFilter, activeLocation, products, searchQuery]);
+
+  const locations = useMemo(() => {
+    const uniqueLocations = Array.from(new Set(products.map((product) => product.location).filter(Boolean))).sort();
+    return ['All locations', ...uniqueLocations];
+  }, [products]);
 
   const header = useMemo(
     () => (
       <>
-      <View style={[styles.heroCard, { backgroundColor: palette.backgroundSecondary }]}>
+      <View style={styles.heroBlock}>
         <View style={styles.heroTop}>
           <View style={styles.heroTitleWrap}>
             <Text style={[styles.eyebrow, { color: palette.tint }]}>Marketplace</Text>
@@ -76,7 +86,7 @@ export default function MarketplaceScreen() {
         </View>
 
         <Text style={[styles.subheading, { color: palette.muted }]}>
-          Browse produce and inputs with clearer trust context and less listing noise.
+          Browse produce and inputs quickly by category, seller, and location.
         </Text>
         {searchQuery ? (
           <View style={[styles.searchSummary, { backgroundColor: palette.surface }]}>
@@ -104,6 +114,26 @@ export default function MarketplaceScreen() {
         ))}
       </ScrollView>
 
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+        {locations.map((location) => (
+          <Pressable
+            key={location}
+            onPress={() => setActiveLocation(location)}
+            style={[
+              styles.locationChip,
+              {
+                backgroundColor: activeLocation === location ? palette.text : palette.surface,
+                borderColor: activeLocation === location ? palette.text : palette.border,
+              },
+            ]}>
+            <Feather name="map-pin" size={13} color={activeLocation === location ? palette.background : palette.muted} />
+            <Text style={[styles.locationChipText, { color: activeLocation === location ? palette.background : palette.text }]}>
+              {location}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
       {isLoading ? (
         <View style={styles.loadingShell}>
           <ActivityIndicator color={palette.tint} />
@@ -118,10 +148,17 @@ export default function MarketplaceScreen() {
       ) : null}
       </>
     ),
-    [activeFilter, filters, isLoading, palette, searchQuery, visibleProducts.length]
+    [activeFilter, activeLocation, filters, isLoading, locations, palette, searchQuery, visibleProducts.length]
   );
 
-  const renderProduct = useCallback(({ item }: { item: Product }) => <ProductCard product={item} />, []);
+  const renderProduct = useCallback(
+    ({ item }: { item: Product }) => (
+      <View style={styles.productTile}>
+        <ProductCard product={item} compact />
+      </View>
+    ),
+    []
+  );
 
   return (
     <>
@@ -129,6 +166,8 @@ export default function MarketplaceScreen() {
         data={visibleProducts}
         keyExtractor={(item) => item._id}
         renderItem={renderProduct}
+        numColumns={2}
+        columnWrapperStyle={styles.productRow}
         style={[styles.screen, { backgroundColor: palette.background }]}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 14 }]}
         ListHeaderComponent={header}
@@ -143,7 +182,7 @@ export default function MarketplaceScreen() {
           <Feather name="search" size={20} color={palette.text} />
         </Pressable>
         <Pressable
-          onPress={() => router.push('/modal')}
+          onPress={() => router.push({ pathname: '/modal', params: { mode: 'listing' } })}
           style={[styles.floatingButton, styles.floatingPrimaryButton, { backgroundColor: `${palette.tint}EE` }]}
           hitSlop={8}>
           <Feather name="plus" size={22} color="#ffffff" />
@@ -208,7 +247,7 @@ export default function MarketplaceScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: 14, paddingTop: 14, gap: 14, paddingBottom: 118 },
-  heroCard: { borderRadius: 22, padding: 16, gap: 12 },
+  heroBlock: { gap: 12, paddingHorizontal: 2, paddingBottom: 2 },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' },
   heroTitleWrap: { flex: 1, gap: 6 },
   eyebrow: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.3 },
@@ -221,6 +260,18 @@ const styles = StyleSheet.create({
   filters: { gap: 8, paddingVertical: 4, paddingRight: 10 },
   filterChip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
   filterChipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
+  locationChip: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+  },
+  locationChipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
+  productRow: { gap: 10 },
+  productTile: { flex: 1, maxWidth: '48.6%' },
   loadingShell: { alignItems: 'center', paddingVertical: 8 },
   emptyCard: { borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 6 },
   emptyTitle: { fontFamily: Fonts.rounded, fontSize: 17, fontWeight: '800' },

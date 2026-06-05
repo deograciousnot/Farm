@@ -8,7 +8,7 @@ import { SocialAvatar } from '@/components/social-avatar';
 import { StatusPill } from '@/components/status-pill';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { api } from '@/lib/api';
+import { api, isStaleSessionError } from '@/lib/api';
 import type { Order } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 import { formatCurrency } from '@/utils/format';
@@ -17,7 +17,7 @@ export default function OrdersScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const insets = useSafeAreaInsets();
-  const { token, isLoading: isSessionLoading } = useSession();
+  const { token, isLoading: isSessionLoading, clearDeletedAccount } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [scope, setScope] = useState<'buyer' | 'seller'>('buyer');
@@ -48,6 +48,11 @@ export default function OrdersScreen() {
 
           setOrders(response.items);
         } catch (error) {
+          if (isStaleSessionError(error)) {
+            await clearDeletedAccount();
+            return;
+          }
+
           console.warn('Failed to load orders.', error);
         } finally {
           if (isMounted) {
@@ -61,7 +66,7 @@ export default function OrdersScreen() {
       return () => {
         isMounted = false;
       };
-    }, [scope, token])
+    }, [clearDeletedAccount, scope, token])
   );
 
   const showLoading = Boolean(token) && (isSessionLoading || isLoading);
@@ -72,7 +77,7 @@ export default function OrdersScreen() {
       <View style={[styles.heroCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
         <Text style={[styles.heading, { color: palette.text }]}>Orders</Text>
         <Text style={[styles.subheading, { color: palette.muted }]}>
-          Cleaner status tracking with buyer, seller, delivery, and payment context kept close.
+          Cleaner status tracking with buyer, seller, delivery, and direct-payment coordination kept close.
         </Text>
 
         {token ? (

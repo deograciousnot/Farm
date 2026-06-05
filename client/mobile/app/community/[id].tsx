@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -186,6 +187,19 @@ export default function CommunityThreadScreen() {
             <Text style={[styles.title, { color: palette.text }]}>{thread.title}</Text>
             <Text style={[styles.body, { color: palette.muted }]}>{thread.body}</Text>
 
+            {thread.media?.length ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.threadMediaRow}>
+                {thread.media.map((item, index) => (
+                  <Image
+                    key={`${item.url}-${index}`}
+                    source={{ uri: item.thumbnailUrl || item.url }}
+                    contentFit="cover"
+                    style={styles.threadImage}
+                  />
+                ))}
+              </ScrollView>
+            ) : null}
+
             <Pressable
               onPress={() => {
                 const authorId = thread.author._id ?? thread.author.id;
@@ -342,6 +356,8 @@ const styles = StyleSheet.create({
   metaText: { fontFamily: Fonts.sans, fontSize: 12 },
   title: { fontFamily: Fonts.rounded, fontSize: 24, fontWeight: '700', lineHeight: 30 },
   body: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 23 },
+  threadMediaRow: { gap: 10 },
+  threadImage: { width: 220, height: 170, borderRadius: 18 },
   authorCard: { borderRadius: 18, padding: 12, flexDirection: 'row', gap: 12, alignItems: 'center' },
   authorText: { flex: 1 },
   authorName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },

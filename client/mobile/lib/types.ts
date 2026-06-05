@@ -97,6 +97,11 @@ export type CommunityThread = {
   isPinned: boolean;
   author: ApiUser;
   createdAt?: string;
+  media?: {
+    type: 'image' | 'video';
+    url: string;
+    thumbnailUrl?: string;
+  }[];
 };
 
 export type ThreadReply = {

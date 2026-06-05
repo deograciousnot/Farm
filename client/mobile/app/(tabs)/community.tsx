@@ -1,8 +1,9 @@
 import { Link, router } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SocialAvatar } from '@/components/social-avatar';
@@ -20,6 +21,7 @@ export default function CommunityScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [rooms, setRooms] = useState<string[]>([]);
   const [threads, setThreads] = useState<CommunityThread[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadCommunity = useCallback(async () => {
     setIsLoading(true);
@@ -72,16 +74,27 @@ export default function CommunityScreen() {
     [token]
   );
 
+  const visibleThreads = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return threads;
+    }
+
+    return threads.filter((thread) =>
+      [thread.title, thread.body, thread.preview, thread.category, thread.author.name, thread.author.location]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query))
+    );
+  }, [searchQuery, threads]);
+
   const header = useMemo(
     () => (
       <>
-      <View style={[styles.heroCard, { backgroundColor: palette.surfaceRaised }]}>
+      <View style={styles.heroBlock}>
         <View style={styles.headerRow}>
           <Text style={[styles.heading, { color: palette.text }]}>Community</Text>
           <View style={styles.headerActions}>
-            <Pressable style={[styles.iconButton, { backgroundColor: palette.surface }]} hitSlop={8}>
-              <Feather name="search" size={16} color={palette.text} />
-            </Pressable>
             <Link href="/community/new" asChild>
               <Pressable style={[styles.iconButton, { backgroundColor: `${palette.tint}16` }]} hitSlop={8}>
                 <Feather name="plus" size={16} color={palette.tint} />
@@ -93,18 +106,35 @@ export default function CommunityScreen() {
           Focused agri questions, sharper answers, less forum clutter.
         </Text>
 
+        <View style={[styles.searchBox, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
+          <Feather name="search" size={17} color={palette.muted} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search pests, prices, animals, inputs..."
+            placeholderTextColor={palette.muted}
+            style={[styles.searchInput, { color: palette.text }]}
+          />
+          {searchQuery ? (
+            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+              <Feather name="x-circle" size={18} color={palette.muted} />
+            </Pressable>
+          ) : null}
+        </View>
+
         <View style={styles.topRooms}>
           {rooms.map((room) => (
-            <View
+            <Pressable
               key={room}
+              onPress={() => setSearchQuery((current) => (current === room ? '' : room))}
               style={[
                 styles.roomChip,
                 {
-                  backgroundColor: palette.surface,
+                  backgroundColor: searchQuery === room ? palette.text : palette.surfaceRaised,
                 },
               ]}>
-              <Text style={[styles.roomChipText, { color: palette.text }]}>{room}</Text>
-            </View>
+              <Text style={[styles.roomChipText, { color: searchQuery === room ? palette.background : palette.text }]}>{room}</Text>
+            </Pressable>
           ))}
         </View>
       </View>
@@ -115,15 +145,19 @@ export default function CommunityScreen() {
         </View>
       ) : null}
 
-      {!isLoading && threads.length === 0 ? (
-        <View style={[styles.emptyCard, { backgroundColor: palette.surfaceRaised }]}>
-          <Text style={[styles.emptyTitle, { color: palette.text }]}>No discussions yet</Text>
-          <Text style={[styles.emptyCopy, { color: palette.muted }]}>Start a practical question for farmers, buyers, or hobbyists.</Text>
+      {!isLoading && visibleThreads.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={[styles.emptyTitle, { color: palette.text }]}>
+            {searchQuery ? 'No matching discussions' : 'No discussions yet'}
+          </Text>
+          <Text style={[styles.emptyCopy, { color: palette.muted }]}>
+            {searchQuery ? 'Try a different topic, crop, place, or symptom.' : 'Start a practical question for farmers, buyers, or hobbyists.'}
+          </Text>
         </View>
       ) : null}
       </>
     ),
-    [isLoading, palette, rooms, threads.length]
+    [isLoading, palette, rooms, searchQuery, visibleThreads.length]
   );
 
   const renderThread = useCallback(
@@ -131,7 +165,7 @@ export default function CommunityScreen() {
         <Pressable
           onPress={() => router.push({ pathname: '/community/[id]', params: { id: thread._id } })}
           key={thread._id}
-          style={[styles.threadCard, { backgroundColor: palette.surfaceRaised }]}>
+          style={styles.threadCard}>
           <View style={styles.threadBody}>
             <View style={styles.voteRail}>
               <Feather name="arrow-up" size={16} color={palette.muted} />
@@ -174,6 +208,13 @@ export default function CommunityScreen() {
 
               <Text style={[styles.threadTitle, { color: palette.text }]}>{thread.title}</Text>
               <Text style={[styles.threadPreview, { color: palette.muted }]}>{thread.preview}</Text>
+              {thread.media?.[0] ? (
+                <Image
+                  source={{ uri: thread.media[0].thumbnailUrl || thread.media[0].url }}
+                  contentFit="cover"
+                  style={styles.threadThumb}
+                />
+              ) : null}
 
               <View style={styles.threadFooter}>
                 <View style={styles.threadAuthorRow}>
@@ -196,7 +237,7 @@ export default function CommunityScreen() {
 
   return (
     <FlatList
-      data={threads}
+      data={visibleThreads}
       keyExtractor={(item) => item._id}
       renderItem={renderThread}
       style={[styles.screen, { backgroundColor: palette.background }]}
@@ -210,20 +251,30 @@ export default function CommunityScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: 14, paddingTop: 14, gap: 14, paddingBottom: 28 },
-  heroCard: { borderRadius: 22, padding: 16, gap: 12 },
+  heroBlock: { paddingHorizontal: 2, gap: 12 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' },
   headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   iconButton: { width: 38, height: 38, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   heading: { fontFamily: Fonts.rounded, fontSize: 27, fontWeight: '700' },
   subheading: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
+  searchBox: {
+    minHeight: 48,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    gap: 9,
+    alignItems: 'center',
+  },
+  searchInput: { flex: 1, fontFamily: Fonts.sans, fontSize: 14, paddingVertical: 10 },
   topRooms: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   roomChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   roomChipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
   loadingShell: { alignItems: 'center', paddingVertical: 8 },
-  emptyCard: { borderRadius: 18, padding: 16, gap: 6 },
+  emptyCard: { paddingVertical: 18, gap: 6 },
   emptyTitle: { fontFamily: Fonts.rounded, fontSize: 17, fontWeight: '800' },
   emptyCopy: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  threadCard: { borderRadius: 22, padding: 14 },
+  threadCard: { paddingVertical: 14 },
   threadBody: { flexDirection: 'row', gap: 12 },
   voteRail: { width: 34, alignItems: 'center', gap: 6, paddingTop: 4 },
   voteCount: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
@@ -236,6 +287,7 @@ const styles = StyleSheet.create({
   replyCount: { fontFamily: Fonts.sans, fontSize: 13 },
   threadTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '700', lineHeight: 24 },
   threadPreview: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
+  threadThumb: { width: '100%', height: 150, borderRadius: 18 },
   threadFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   threadAuthorRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   threadAuthorText: { flex: 1, marginLeft: 10 },

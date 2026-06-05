@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProfileView } from '@/components/profile-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { api } from '@/lib/api';
+import { api, isStaleSessionError } from '@/lib/api';
 import type { NotificationItem, ProfileResponse, UploadableAsset } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 
@@ -27,7 +27,7 @@ export default function ProfileScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const insets = useSafeAreaInsets();
-  const { token, isLoading: isSessionLoading, updateUser } = useSession();
+  const { token, isLoading: isSessionLoading, updateUser, clearDeletedAccount } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'listings' | 'followers' | 'following'>('posts');
@@ -60,11 +60,16 @@ export default function ProfileScreen() {
       setDraftPhone(response.profile.phone ?? '');
       setDraftInterests((response.profile.interests ?? []).join(', '));
     } catch (error) {
+      if (isStaleSessionError(error)) {
+        await clearDeletedAccount();
+        return;
+      }
+
       console.warn('Failed to load profile.', error);
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [clearDeletedAccount, token]);
 
   useFocusEffect(
     useCallback(() => {

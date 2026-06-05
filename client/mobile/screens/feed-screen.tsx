@@ -345,6 +345,21 @@ export default function FeedScreen() {
     return Array.from(uniqueFilters);
   }, [interestChips]);
 
+  const trendDigest = useMemo(() => {
+    const topicPost =
+      posts.find((post) => /pest|disease|chaos|problem|debate|solution|forum/i.test(`${post.headline} ${post.body}`)) ??
+      posts.find((post) => post.tag?.toLowerCase().includes('community')) ??
+      posts[0];
+    const marketPost =
+      posts.find((post) => /egg|tomato|price|prices|market|soar|cost/i.test(`${post.headline} ${post.body}`)) ??
+      posts.find((post) => post.tag?.toLowerCase().includes('market'));
+
+    return {
+      topicPost,
+      marketPost,
+    };
+  }, [posts]);
+
   const header = useMemo(
     () => (
       <>
@@ -353,14 +368,34 @@ export default function FeedScreen() {
             <Text style={[styles.eyebrow, { color: palette.tint }]}>FarmConnect</Text>
             <Text style={[styles.title, { color: palette.text }]}>Feed</Text>
           </View>
-          <Pressable
-            onPress={() => router.push('/modal')}
-            style={[styles.inlinePostButton, { backgroundColor: `${palette.tint}18` }]}
-            hitSlop={8}>
-            <Feather name="edit-3" size={15} color={palette.tint} />
-            <Text style={[styles.inlinePostButtonText, { color: palette.tint }]}>Post</Text>
-          </Pressable>
         </Animated.View>
+
+        {trendDigest.topicPost ? (
+          <Animated.View entering={FadeIn.duration(320)} style={[styles.teaBrief, { backgroundColor: `${palette.tint}0F` }]}>
+            <View style={styles.teaBriefHeader}>
+              <View style={[styles.teaIcon, { backgroundColor: `${palette.tint}18` }]}>
+                <Feather name="trending-up" size={16} color={palette.tint} />
+              </View>
+              <View style={styles.teaBriefTitleWrap}>
+                <Text style={[styles.teaKicker, { color: palette.tint }]}>Latest tea</Text>
+                <Text style={[styles.teaTitle, { color: palette.text }]}>What farmers are debating now</Text>
+              </View>
+            </View>
+            <Text style={[styles.teaBody, { color: palette.text }]}>
+              FarmConnect noticed a community topic picking up steam around {trendDigest.topicPost.tag?.toLowerCase() || 'farm decisions'}.
+              People are comparing what worked, what failed, and which advice is worth trusting before more farmers are affected.
+            </Text>
+            {trendDigest.marketPost ? (
+              <Text style={[styles.teaAside, { color: palette.muted }]}>
+                Also trending: {trendDigest.marketPost.headline}
+              </Text>
+            ) : null}
+            <Pressable onPress={() => router.push('/(tabs)/community')} style={styles.teaLink} hitSlop={8}>
+              <Text style={[styles.teaLinkText, { color: palette.tint }]}>Open community discussion</Text>
+              <Feather name="arrow-right" size={15} color={palette.tint} />
+            </Pressable>
+          </Animated.View>
+        ) : null}
 
         {user ? (
           <Animated.View entering={FadeIn.duration(300)} style={[styles.accountStrip, { backgroundColor: palette.surface }]}>
@@ -421,7 +456,7 @@ export default function FeedScreen() {
         ) : null}
       </>
     ),
-    [activeFilter, filters, isLoading, mode, palette, posts.length, user]
+    [activeFilter, filters, isLoading, mode, palette, posts.length, trendDigest.marketPost, trendDigest.topicPost, user]
   );
 
   const renderFeedItem = useCallback(
@@ -648,8 +683,16 @@ const styles = StyleSheet.create({
   feedTitleWrap: { gap: 2 },
   eyebrow: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.3 },
   title: { fontFamily: Fonts.rounded, fontSize: 27, fontWeight: '800', lineHeight: 32 },
-  inlinePostButton: { borderRadius: 999, paddingHorizontal: 13, paddingVertical: 10, flexDirection: 'row', gap: 7, alignItems: 'center' },
-  inlinePostButtonText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '800' },
+  teaBrief: { borderRadius: 20, padding: 15, gap: 10 },
+  teaBriefHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  teaIcon: { width: 34, height: 34, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  teaBriefTitleWrap: { flex: 1, gap: 2 },
+  teaKicker: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1 },
+  teaTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '800', lineHeight: 23 },
+  teaBody: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
+  teaAside: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
+  teaLink: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
+  teaLinkText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
   topicRow: { gap: 8, paddingRight: 10, paddingVertical: 2 },
   topicChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth },
   topicChipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '800' },

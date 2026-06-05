@@ -27,6 +27,23 @@ const communityThreadSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    media: [
+      {
+        type: {
+          type: String,
+          enum: ["image", "video"],
+          default: "image",
+        },
+        url: {
+          type: String,
+          required: true,
+        },
+        thumbnailUrl: {
+          type: String,
+          default: "",
+        },
+      },
+    ],
     repliesCount: {
       type: Number,
       default: 0,

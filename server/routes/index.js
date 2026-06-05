@@ -49,7 +49,7 @@ apiRouter.post("/feed/:postId/save", requireAuth, toggleSavedPost);
 apiRouter.get("/community", getCommunityOverview);
 apiRouter.get("/community/:id", getThreadById);
 apiRouter.get("/community/:id/replies", getRepliesForThread);
-apiRouter.post("/community", requireAuth, createThread);
+apiRouter.post("/community", requireAuth, upload.array("media", 4), createThread);
 apiRouter.post("/community/:id/replies", requireAuth, createReply);
 apiRouter.get("/orders", requireAuth, getOrders);
 apiRouter.post("/orders", requireAuth, createOrder);

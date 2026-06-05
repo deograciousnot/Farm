@@ -1,4 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -7,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { api } from '@/lib/api';
+import type { UploadableAsset } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 
 const categories = ['Pricing', 'Crop care', 'Trade trust', 'Market Prices', 'Farm Inputs'];
@@ -18,7 +21,37 @@ export default function NewThreadScreen() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [category, setCategory] = useState(categories[0]);
+  const [selectedMedia, setSelectedMedia] = useState<UploadableAsset[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function pickMedia() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Please allow photo access so FarmConnect can attach an image to your thread.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: 4,
+      quality: 0.85,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    setSelectedMedia(
+      result.assets.slice(0, 4).map((asset, index) => ({
+        uri: asset.uri,
+        type: asset.mimeType || 'image/jpeg',
+        name: asset.fileName || `community-thread-${Date.now()}-${index}.jpg`,
+        fileSize: asset.fileSize,
+      }))
+    );
+  }
 
   async function handleSubmit() {
     if (!token) {
@@ -29,7 +62,7 @@ export default function NewThreadScreen() {
     setIsSubmitting(true);
 
     try {
-      const response = await api.createThread(token, { title, body, category });
+      const response = await api.createThread(token, { title, body, category, media: selectedMedia });
       router.replace({ pathname: '/community/[id]', params: { id: response.item._id } });
     } catch (error) {
       Alert.alert('Could not publish thread', error instanceof Error ? error.message : 'Something went wrong.');
@@ -67,6 +100,33 @@ export default function NewThreadScreen() {
             multiline
             style={[styles.bodyInput, { color: palette.text, backgroundColor: palette.surface }]}
           />
+          <View style={styles.mediaSection}>
+            <View style={styles.mediaHeader}>
+              <Text style={[styles.mediaTitle, { color: palette.text }]}>Photo evidence</Text>
+              <Pressable onPress={() => void pickMedia()} style={[styles.mediaButton, { backgroundColor: palette.surface }]}>
+                <Feather name="image" size={15} color={palette.text} />
+                <Text style={[styles.mediaButtonText, { color: palette.text }]}>Add photos</Text>
+              </Pressable>
+            </View>
+            {selectedMedia.length ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaPreviewRow}>
+                {selectedMedia.map((item, index) => (
+                  <View key={`${item.uri}-${index}`} style={styles.mediaPreviewItem}>
+                    <Image source={{ uri: item.uri }} contentFit="cover" style={styles.mediaPreviewImage} />
+                    <Pressable
+                      onPress={() => setSelectedMedia((current) => current.filter((_, mediaIndex) => mediaIndex !== index))}
+                      style={styles.removeMediaButton}>
+                      <Feather name="x" size={14} color="#ffffff" />
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <Text style={[styles.helperText, { color: palette.muted }]}>
+                Add close-up photos when asking about pests, crop disease, animal skin, soil, or inputs.
+              </Text>
+            )}
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {categories.map((item) => (
               <Pressable
@@ -94,6 +154,26 @@ const styles = StyleSheet.create({
   card: { borderRadius: 24, padding: 14, gap: 12 },
   titleInput: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 13, fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '700' },
   bodyInput: { borderRadius: 18, minHeight: 140, paddingHorizontal: 14, paddingVertical: 14, textAlignVertical: 'top', fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
+  mediaSection: { gap: 10 },
+  mediaHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'center' },
+  mediaTitle: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
+  mediaButton: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  mediaButtonText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
+  mediaPreviewRow: { gap: 10 },
+  mediaPreviewItem: { width: 104, height: 116, borderRadius: 16, overflow: 'hidden' },
+  mediaPreviewImage: { width: '100%', height: '100%' },
+  removeMediaButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.56)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helperText: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
   chips: { gap: 8 },
   chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9 },
   chipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },

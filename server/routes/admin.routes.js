@@ -32,11 +32,27 @@ function requireSecret({ envKey, header, label }) {
   };
 }
 
-const requireSeedSecret = requireSecret({
-  envKey: "SEED_SECRET",
-  header: "x-seed-secret",
-  label: "SEED_SECRET",
-});
+function requireSeedOrAdminSecret(req, _res, next) {
+  const providedSeedSecret = req.header("x-seed-secret") || req.body?.seedSecret || req.body?.secret;
+  const providedAdminSecret = req.header("x-admin-secret") || req.body?.adminSecret;
+
+  if (process.env.SEED_SECRET && providedSeedSecret === process.env.SEED_SECRET) {
+    next();
+    return;
+  }
+
+  if (env.adminSecret && providedAdminSecret === env.adminSecret) {
+    next();
+    return;
+  }
+
+  if (!process.env.SEED_SECRET && !env.adminSecret) {
+    next(new AppError("SEED_SECRET or ADMIN_SECRET is not configured.", 503));
+    return;
+  }
+
+  next(new AppError("Invalid seed/admin secret.", 403));
+}
 
 const requireAdminSecret = requireSecret({
   envKey: "ADMIN_SECRET",
@@ -71,12 +87,13 @@ function threadSort(sort = "top") {
 
 adminRouter.post(
   "/seed",
-  requireSeedSecret,
-  asyncHandler(async (_req, res) => {
-    const summary = await seedDatabase();
+  requireSeedOrAdminSecret,
+  asyncHandler(async (req, res) => {
+    const reset = req.query.reset === "true" || req.body?.reset === true;
+    const summary = await seedDatabase({ reset });
 
     res.json({
-      message: "FarmConnect database seeded successfully.",
+      message: `FarmConnect database ${reset ? "reset and seeded" : "seeded"} successfully.`,
       summary,
     });
   })

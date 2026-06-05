@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { api } from '@/lib/api';
+import { api, isStaleSessionError } from '@/lib/api';
 import type { ProfileResponse } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 
@@ -121,6 +121,11 @@ export default function SettingsScreen() {
           setActivity(response.remarks);
         }
       } catch (error) {
+        if (isStaleSessionError(error)) {
+          await clearDeletedAccount();
+          return;
+        }
+
         console.warn('Failed to load account activity.', error);
       }
     }
@@ -130,7 +135,7 @@ export default function SettingsScreen() {
     return () => {
       isMounted = false;
     };
-  }, [token]);
+  }, [clearDeletedAccount, token]);
 
   const profileRows: SettingsRow[] = [
     {

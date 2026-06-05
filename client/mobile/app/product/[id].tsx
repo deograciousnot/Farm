@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -75,6 +76,8 @@ export default function ProductDetailsScreen() {
   const productSellerId = product?.seller.id || product?.seller._id;
   const currentUserId = user?.id || user?._id;
   const isOwnListing = Boolean(productSellerId && currentUserId && productSellerId === currentUserId);
+  const sellerPhone = product?.seller.phone?.trim();
+  const sellerIsVerified = product?.seller.verificationStatus === 'verified' || product?.seller.verificationStatus === 'top-rated';
 
   async function handleStartOrder() {
     if (!product) {
@@ -82,7 +85,7 @@ export default function ProductDetailsScreen() {
     }
 
     if (!token) {
-      Alert.alert('Sign in required', 'Please sign in to place an order.', [
+      Alert.alert('Sign in required', 'Please sign in to request an order.', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Go to login', onPress: () => router.replace('/auth?mode=login') },
       ]);
@@ -114,12 +117,16 @@ export default function ProductDetailsScreen() {
           : current
       );
 
-      Alert.alert('Order placed', 'Your request has been sent to the seller.', [
-        {
-          text: 'View orders',
-          onPress: () => router.replace('/(tabs)/orders'),
-        },
-      ]);
+      Alert.alert(
+        'Order request sent',
+        'FarmConnect has opened an order record. For Version 1, confirm payment directly with the verified seller contact and track fulfilment in Orders.',
+        [
+          {
+            text: 'View orders',
+            onPress: () => router.replace('/(tabs)/orders'),
+          },
+        ]
+      );
     } catch (error) {
       Alert.alert('Order failed', error instanceof Error ? error.message : 'Something went wrong.');
     } finally {
@@ -174,10 +181,39 @@ export default function ProductDetailsScreen() {
           )}
         </View>
 
+        {product ? (
+          <View style={[styles.v1PolicyCard, { backgroundColor: `${palette.tint}12`, borderColor: `${palette.tint}45` }]}>
+            <View style={styles.policyHeader}>
+              <Feather name="shield" size={17} color={palette.tint} />
+              <Text style={[styles.policyTitle, { color: palette.text }]}>Version 1 order policy</Text>
+            </View>
+            <Text style={[styles.policyCopy, { color: palette.muted }]}>
+              FarmConnect does not process payments in Version 1. The app records the request, seller identity, contact point,
+              delivery details, and order status so buyer and seller can coordinate safely.
+            </Text>
+            <View style={[styles.contactStrip, { backgroundColor: palette.surface }]}>
+              <View style={styles.contactCopy}>
+                <Text style={[styles.contactLabel, { color: palette.muted }]}>Verified seller phone</Text>
+                <Text style={[styles.contactValue, { color: palette.text }]}>
+                  {sellerIsVerified && sellerPhone ? sellerPhone : 'Shown after seller verification'}
+                </Text>
+              </View>
+              {sellerIsVerified && sellerPhone ? (
+                <Pressable
+                  onPress={() => void Linking.openURL(`tel:${sellerPhone.replace(/\s/g, '')}`)}
+                  style={[styles.callButton, { backgroundColor: palette.tint }]}>
+                  <Feather name="phone" size={15} color="#ffffff" />
+                  <Text style={styles.callButtonText}>Call</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
         <View style={[styles.detailsCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
-          <Text style={[styles.cardTitle, { color: palette.text }]}>Start order flow</Text>
+          <Text style={[styles.cardTitle, { color: palette.text }]}>Request order</Text>
           <Text style={[styles.cardBody, { color: palette.muted }]}>
-            Confirm quantity, delivery details, and a short note so the seller can respond faster.
+            Confirm quantity, delivery details, and a short note. Payment is coordinated directly with the verified seller for Version 1.
           </Text>
 
           <View style={styles.quantityRow}>
@@ -226,8 +262,9 @@ export default function ProductDetailsScreen() {
           />
 
           <View style={[styles.summaryCard, { backgroundColor: palette.surface }]}>
-            <Text style={[styles.summaryLabel, { color: palette.muted }]}>Estimated total</Text>
+            <Text style={[styles.summaryLabel, { color: palette.muted }]}>Estimated order value</Text>
             <Text style={[styles.summaryValue, { color: palette.text }]}>{formatCurrency(estimatedTotal)}</Text>
+            <Text style={[styles.summaryHelp, { color: palette.muted }]}>Not charged in app</Text>
           </View>
 
           <Pressable
@@ -244,7 +281,7 @@ export default function ProductDetailsScreen() {
                 styles.buttonText,
                 { color: !product?.stock || isOwnListing ? palette.muted : '#ffffff' },
               ]}>
-              {isOwnListing ? 'Your listing' : isSubmittingOrder ? 'Placing order...' : product?.stock ? 'Place order' : 'Out of stock'}
+              {isOwnListing ? 'Your listing' : isSubmittingOrder ? 'Sending request...' : product?.stock ? 'Request order' : 'Out of stock'}
             </Text>
           </Pressable>
         </View>
@@ -288,6 +325,16 @@ const styles = StyleSheet.create({
   meta: { fontFamily: Fonts.sans, fontSize: 13 },
   stockMeta: { fontFamily: Fonts.sans, fontSize: 13, marginTop: 4 },
   description: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 22 },
+  v1PolicyCard: { borderRadius: 24, borderWidth: 1, padding: 16, gap: 12 },
+  policyHeader: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  policyTitle: { fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '800' },
+  policyCopy: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
+  contactStrip: { borderRadius: 18, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  contactCopy: { flex: 1, gap: 3 },
+  contactLabel: { fontFamily: Fonts.sans, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  contactValue: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '800' },
+  callButton: { borderRadius: 999, paddingHorizontal: 13, paddingVertical: 10, flexDirection: 'row', gap: 7, alignItems: 'center' },
+  callButtonText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '800' },
   detailsCard: { borderRadius: 24, borderWidth: 1, padding: 18, gap: 12 },
   cardTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '700' },
   cardBody: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
@@ -323,6 +370,7 @@ const styles = StyleSheet.create({
   summaryCard: { borderRadius: 18, padding: 14, gap: 4 },
   summaryLabel: { fontFamily: Fonts.sans, fontSize: 12 },
   summaryValue: { fontFamily: Fonts.rounded, fontSize: 20, fontWeight: '700' },
+  summaryHelp: { fontFamily: Fonts.sans, fontSize: 12 },
   button: {
     borderRadius: 999,
     paddingHorizontal: 18,

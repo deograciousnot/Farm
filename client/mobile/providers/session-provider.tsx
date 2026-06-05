@@ -60,9 +60,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
     async function restoreSession() {
       try {
-        const [storedToken, storedUser, storedMode, storedIntro] = await Promise.all([
+        const [storedToken, storedMode, storedIntro] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.token),
-          AsyncStorage.getItem(STORAGE_KEYS.user),
           AsyncStorage.getItem(STORAGE_KEYS.mode),
           AsyncStorage.getItem(STORAGE_KEYS.hasSeenIntro),
         ]);

@@ -4,6 +4,7 @@ import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { createNotification } from "../utils/notifications.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
+import { uploadManyToCloudinary } from "../utils/media-upload.js";
 
 export const getCommunityOverview = asyncHandler(async (_req, res) => {
   const topThreads = await CommunityThread.find({ moderationStatus: { $ne: "removed" } })
@@ -75,12 +76,17 @@ export const createThread = asyncHandler(async (req, res) => {
     throw new AppError("Title, body, and category are required.", 400);
   }
 
+  const media = await uploadManyToCloudinary(req.files, {
+    folder: "farmconnect/community",
+  });
+
   const thread = await CommunityThread.create({
     author: req.user._id,
     title,
     body,
     preview: body.slice(0, 160),
     category,
+    media,
   });
 
   const populatedThread = await CommunityThread.findById(thread._id).populate(

@@ -33,7 +33,35 @@ Do not run the reset command against real customer data.
 
 ## Best Render Free Workflow
 
-Render free web services do not support shell access or one-off jobs. The simplest reliable workflow is to run the seed command from your local machine while pointing `MONGO_URI` at the same MongoDB database used by Render.
+Render free web services do not support shell access or one-off jobs. FarmConnect supports two demo-data workflows.
+
+### Option 1: Protected API Seed Endpoint
+
+After the latest backend is deployed, call the protected endpoint with either `x-seed-secret` or `x-admin-secret`.
+
+Non-destructive seed:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "https://farmconnect-api-0oui.onrender.com/api/admin/seed" `
+  -Headers @{ "x-admin-secret" = "<render-admin-secret>" }
+```
+
+Clean reset and seed for a presentation database:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "https://farmconnect-api-0oui.onrender.com/api/admin/seed?reset=true" `
+  -Headers @{ "x-admin-secret" = "<render-admin-secret>" }
+```
+
+Use reset only when the Render database is a demo/staging database.
+
+### Option 2: Local Seed Script Against Render MongoDB
+
+The other reliable workflow is to run the seed command from your local machine while pointing `MONGO_URI` at the same MongoDB database used by Render.
 
 1. Open Render dashboard.
 2. Open the `farmconnect-api` service.

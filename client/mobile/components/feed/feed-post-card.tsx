@@ -73,7 +73,7 @@ export const FeedPostCard = memo(function FeedPostCard({
   return (
     <Animated.View
       entering={FadeInDown.delay(Math.min(index, 5) * 35).duration(320)}
-      style={[styles.postShell, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+      style={styles.postShell}>
       <View style={styles.storyRail}>
         <View style={[styles.storyTypePill, { backgroundColor: `${palette.tint}14` }]}>
           <Text style={[styles.storyTypeText, { color: palette.tint }]}>{postLabel}</Text>
@@ -210,7 +210,7 @@ export const FeedPostCard = memo(function FeedPostCard({
 });
 
 const styles = StyleSheet.create({
-  postShell: { gap: 12, padding: 14, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth },
+  postShell: { gap: 11, paddingHorizontal: 2, paddingVertical: 14, borderRadius: 0, borderWidth: 0 },
   storyRail: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   storyMetaActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   storyTypePill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   postMeta: { fontFamily: Fonts.sans, fontSize: 12 },
   postCopy: { gap: 9 },
   linkedListingCard: {
-    borderRadius: 18,
+    borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -243,10 +243,10 @@ const styles = StyleSheet.create({
   },
   linkedListingName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
   linkedListingMeta: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
-  postHeadline: { fontFamily: Fonts.rounded, fontSize: 21, fontWeight: '800', lineHeight: 27 },
+  postHeadline: { fontFamily: Fonts.rounded, fontSize: 20, fontWeight: '800', lineHeight: 26 },
   postBody: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 23 },
   readMoreText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
-  mediaWrap: { maxHeight: 360, overflow: 'hidden', borderRadius: 20 },
+  mediaWrap: { maxHeight: 260, overflow: 'hidden', borderRadius: 16 },
   postFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',

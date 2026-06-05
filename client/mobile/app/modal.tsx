@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -31,10 +31,11 @@ const maxUploadFileSizeMb = 40;
 const maxUploadFileSizeBytes = maxUploadFileSizeMb * 1024 * 1024;
 
 export default function ComposerModal() {
+  const params = useLocalSearchParams<{ mode?: ComposerMode }>();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const { token, user } = useSession();
-  const [mode, setMode] = useState<ComposerMode>('post');
+  const [mode, setMode] = useState<ComposerMode>(params.mode === 'listing' ? 'listing' : 'post');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<UploadableAsset[]>([]);
   const [submissionStage, setSubmissionStage] = useState<'idle' | 'preparing' | 'uploading' | 'publishing'>('idle');

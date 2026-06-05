@@ -108,15 +108,15 @@ export const createOrder = asyncHandler(async (req, res) => {
   if (String(product.seller._id) !== String(req.user._id)) {
     await createNotification({
       userId: product.seller._id,
-      title: "New marketplace order",
-      body: `${req.user.name} placed an order for ${product.name}.`,
+      title: "New marketplace request",
+      body: `${req.user.name} requested ${product.name}. Confirm stock, contact details, and direct payment outside FarmConnect V1.`,
       type: "order",
     });
 
     await createNotification({
       userId: req.user._id,
-      title: "Order placed",
-      body: `Your request for ${product.name} is pending seller confirmation.`,
+      title: "Order request sent",
+      body: `Your request for ${product.name} is pending seller confirmation. Use the verified seller contact to coordinate payment directly.`,
       type: "order",
     });
   }
@@ -127,7 +127,7 @@ export const createOrder = asyncHandler(async (req, res) => {
   ]);
 
   res.status(201).json({
-    message: "Order created successfully.",
+    message: "Order request created. Coordinate payment directly with the verified seller contact.",
     item: populatedOrder,
   });
 });

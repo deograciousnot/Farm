@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -43,6 +44,9 @@ export default function OrderDetailScreen() {
   const isBuyer = Boolean(order && currentUserId && (order.buyer._id ?? order.buyer.id) === currentUserId);
   const isSeller = Boolean(order && currentUserId && (order.seller._id ?? order.seller.id) === currentUserId);
   const counterparty = order ? (isBuyer ? order.seller : order.buyer) : null;
+  const sellerPhone = order?.seller.phone?.trim();
+  const sellerIsVerified = order?.seller.verificationStatus === 'verified' || order?.seller.verificationStatus === 'top-rated';
+  const counterpartyPhone = counterparty?.phone?.trim();
 
   const loadOrder = useCallback(async () => {
     if (!token || !id) {
@@ -165,8 +169,9 @@ export default function OrderDetailScreen() {
                 <StatusPill label={order.status.replace('-', ' ')} tone={order.status === 'delivered' ? 'success' : 'warning'} />
               </View>
               <View style={[styles.totalCard, { backgroundColor: palette.surface }]}>
-                <Text style={[styles.totalLabel, { color: palette.muted }]}>Total</Text>
+                <Text style={[styles.totalLabel, { color: palette.muted }]}>Estimated order value</Text>
                 <Text style={[styles.totalValue, { color: palette.text }]}>{formatCurrency(order.totalAmount)}</Text>
+                <Text style={[styles.totalHint, { color: palette.muted }]}>Payment is coordinated outside FarmConnect V1</Text>
               </View>
             </View>
 
@@ -214,6 +219,37 @@ export default function OrderDetailScreen() {
               {counterparty ? (
                 <Text style={[styles.contextLine, { color: palette.muted }]}>
                   You are viewing this as the {isBuyer ? 'buyer' : 'seller'}.
+                </Text>
+              ) : null}
+            </View>
+
+            <View style={[styles.sectionCard, { backgroundColor: `${palette.tint}10`, borderColor: `${palette.tint}35` }]}>
+              <View style={styles.sectionTitleRow}>
+                <Feather name="message-circle" size={17} color={palette.tint} />
+                <Text style={[styles.sectionTitle, { color: palette.text }]}>Order coordination space</Text>
+              </View>
+              <Text style={[styles.contextLine, { color: palette.muted }]}>
+                Version 1 tracks the agreement and fulfilment status here. Buyer and seller confirm payment directly using verified contact details.
+              </Text>
+              <View style={[styles.contactCard, { backgroundColor: palette.surface }]}>
+                <View style={styles.contactCopy}>
+                  <Text style={[styles.infoLabel, { color: palette.muted }]}>Verified seller phone</Text>
+                  <Text style={[styles.contactValue, { color: palette.text }]}>
+                    {sellerIsVerified && sellerPhone ? sellerPhone : 'Seller phone pending verification'}
+                  </Text>
+                </View>
+                {sellerIsVerified && sellerPhone ? (
+                  <Pressable
+                    onPress={() => void Linking.openURL(`tel:${sellerPhone.replace(/\s/g, '')}`)}
+                    style={[styles.callButton, { backgroundColor: palette.tint }]}>
+                    <Feather name="phone" size={15} color="#ffffff" />
+                    <Text style={styles.callButtonText}>Call seller</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              {counterpartyPhone && (!sellerPhone || counterpartyPhone !== sellerPhone) ? (
+                <Text style={[styles.contextLine, { color: palette.muted }]}>
+                  Counterparty contact on record: {counterpartyPhone}
                 </Text>
               ) : null}
             </View>
@@ -418,7 +454,9 @@ const styles = StyleSheet.create({
   totalCard: { borderRadius: 18, padding: 14, gap: 4 },
   totalLabel: { fontFamily: Fonts.sans, fontSize: 12 },
   totalValue: { fontFamily: Fonts.rounded, fontSize: 22, fontWeight: '800' },
+  totalHint: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 17 },
   sectionCard: { borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 12 },
+  sectionTitleRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   sectionTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '800' },
   timeline: { gap: 12 },
   timelineRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
@@ -433,6 +471,11 @@ const styles = StyleSheet.create({
   partyName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '800' },
   partyMeta: { fontFamily: Fonts.sans, fontSize: 12, textTransform: 'capitalize' },
   contextLine: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
+  contactCard: { borderRadius: 18, padding: 12, flexDirection: 'row', gap: 10, alignItems: 'center' },
+  contactCopy: { flex: 1, gap: 4 },
+  contactValue: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '800' },
+  callButton: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', gap: 7, alignItems: 'center' },
+  callButtonText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '800' },
   infoRow: { gap: 4 },
   infoLabel: { fontFamily: Fonts.sans, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
   infoValue: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
