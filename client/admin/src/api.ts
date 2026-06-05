@@ -1,6 +1,20 @@
 import type { AdminNotification, CommunityThread, FeedPost, OverviewResponse, Paginated, Report } from "./types";
 
-const API_BASE_URL = `${(import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "")}/api`;
+function resolveApiBaseUrl() {
+  const rawBaseUrl = (import.meta.env.VITE_API_URL || "http://localhost:8000").trim().replace(/\/$/, "");
+
+  if (rawBaseUrl.endsWith("/api")) {
+    return rawBaseUrl;
+  }
+
+  if (rawBaseUrl.endsWith("/ap")) {
+    return `${rawBaseUrl.slice(0, -3)}/api`;
+  }
+
+  return `${rawBaseUrl}/api`;
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 type RequestOptions = {
   secret: string;
