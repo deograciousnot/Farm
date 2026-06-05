@@ -294,18 +294,26 @@ function Reports({
 
 function FeedModeration({
   posts,
+  total,
+  hasMore,
+  isLoading,
   sort,
   status,
   onSort,
   onStatus,
+  onLoadMore,
   onPin,
   onModerate,
 }: {
   posts: FeedPost[];
+  total: number;
+  hasMore: boolean;
+  isLoading: boolean;
   sort: string;
   status: string;
   onSort: (value: string) => void;
   onStatus: (value: string) => void;
+  onLoadMore: () => void;
   onPin: (post: FeedPost) => void;
   onModerate: (post: FeedPost, status: "active" | "removed") => void;
 }) {
@@ -314,7 +322,10 @@ function FeedModeration({
       <div className="card-head with-controls">
         <div>
           <h2>Feed moderation</h2>
-          <p>Pin important posts, review top content, and take down unsafe posts.</p>
+          <p>
+            Showing {posts.length.toLocaleString("en-KE")} of {total.toLocaleString("en-KE")} posts. Pin useful content or take
+            down unsafe posts.
+          </p>
         </div>
         <div className="control-row">
           <select value={sort} onChange={(event) => onSort(event.target.value)}>
@@ -367,6 +378,15 @@ function FeedModeration({
             </div>
           </article>
         ))}
+        {!posts.length ? <p className="empty">No feed posts match this filter.</p> : null}
+        {hasMore ? (
+          <button className="load-more-button" onClick={onLoadMore} disabled={isLoading}>
+            {isLoading ? <Loader2 className="spin" size={16} /> : null}
+            Load more posts
+          </button>
+        ) : posts.length ? (
+          <p className="empty">All matching posts are visible.</p>
+        ) : null}
       </div>
     </section>
   );
@@ -454,6 +474,9 @@ function App() {
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [feedPage, setFeedPage] = useState(1);
+  const [feedTotal, setFeedTotal] = useState(0);
+  const [feedHasMore, setFeedHasMore] = useState(false);
   const [threads, setThreads] = useState<CommunityThread[]>([]);
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [feedSort, setFeedSort] = useState("newest");
@@ -475,7 +498,7 @@ function App() {
     []
   );
 
-  async function loadData() {
+  async function loadData(nextFeedPage = 1, appendFeed = false) {
     if (!secret) return;
     setIsLoading(true);
     setError("");
@@ -484,13 +507,16 @@ function App() {
       const [overviewData, reportsData, feedData, threadData, notificationData] = await Promise.all([
         api.getOverview(secret),
         api.getReports(secret),
-        api.getFeed(secret, { sort: feedSort, status: feedStatus }),
+        api.getFeed(secret, { page: nextFeedPage, sort: feedSort, status: feedStatus }),
         api.getThreads(secret, { sort: threadSortState, status: threadStatus }),
         api.getNotifications(secret, notificationType),
       ]);
       setOverview(overviewData);
       setReports(reportsData.items);
-      setPosts(feedData.items);
+      setPosts((current) => (appendFeed ? [...current, ...feedData.items] : feedData.items));
+      setFeedPage(feedData.pagination.page);
+      setFeedTotal(feedData.pagination.total);
+      setFeedHasMore(feedData.pagination.hasMore);
       setThreads(threadData.items);
       setNotifications(notificationData.items);
     } catch (loadError) {
@@ -501,14 +527,14 @@ function App() {
   }
 
   useEffect(() => {
-    void loadData();
+    void loadData(1, false);
   }, [secret, feedSort, feedStatus, threadSortState, threadStatus, notificationType]);
 
   async function act(action: () => Promise<unknown>) {
     setError("");
     try {
       await action();
-      await loadData();
+      await loadData(1, false);
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Action failed.");
     }
@@ -587,10 +613,20 @@ function App() {
         {tab === "feed" ? (
           <FeedModeration
             posts={posts}
+            total={feedTotal}
+            hasMore={feedHasMore}
+            isLoading={isLoading}
             sort={feedSort}
             status={feedStatus}
-            onSort={setFeedSort}
-            onStatus={setFeedStatus}
+            onSort={(value) => {
+              setFeedPage(1);
+              setFeedSort(value);
+            }}
+            onStatus={(value) => {
+              setFeedPage(1);
+              setFeedStatus(value);
+            }}
+            onLoadMore={() => void loadData(feedPage + 1, true)}
             onPin={(post) => void act(() => api.pinPost(secret, post._id, !post.isPinned))}
             onModerate={(post, status) =>
               void act(() =>

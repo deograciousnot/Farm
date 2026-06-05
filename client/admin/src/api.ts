@@ -55,11 +55,12 @@ export const api = {
       body: { status },
     });
   },
-  getFeed(secret: string, params: { sort?: string; status?: string }) {
+  getFeed(secret: string, params: { page?: number; sort?: string; status?: string }) {
     const query = new URLSearchParams({
+      page: String(params.page ?? 1),
       sort: params.sort ?? "newest",
       status: params.status ?? "all",
-      limit: "30",
+      limit: "50",
     });
     return request<Paginated<FeedPost>>(`/admin/feed?${query.toString()}`, { secret });
   },
