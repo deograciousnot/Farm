@@ -6,6 +6,7 @@ import { StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/ui/app-text';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { IconButton } from '@/components/ui/icon-button';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Broadcast, BroadcastCategory } from '@/lib/types';
@@ -51,13 +52,29 @@ export function PublisherRow({ broadcast, size = 'sm' }: { broadcast: Broadcast;
   );
 }
 
-export const BroadcastCard = memo(function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
+type BroadcastCardProps = {
+  broadcast: Broadcast;
+  /** Shows a close button that hides the update from Home. */
+  onDismiss?: (broadcast: Broadcast) => void;
+  /** Marks updates the member hasn't opened yet. */
+  showUnread?: boolean;
+};
+
+export const BroadcastCard = memo(function BroadcastCard({ broadcast, onDismiss, showUnread = false }: BroadcastCardProps) {
   const category = broadcastCategories[broadcast.category] ?? broadcastCategories.advisory;
 
   return (
     <Card tone="surface" onPress={() => router.push({ pathname: '/broadcast/[id]', params: { id: broadcast._id } })} style={styles.card}>
-      <PublisherRow broadcast={broadcast} />
-      <Badge label={category.label} tone={category.tone} icon={category.icon} />
+      <View style={styles.topRow}>
+        <View style={styles.flex}>
+          <PublisherRow broadcast={broadcast} />
+        </View>
+        {onDismiss ? <IconButton icon="x" label="Hide from Home" variant="plain" size={32} color="textSubtle" onPress={() => onDismiss(broadcast)} /> : null}
+      </View>
+      <View style={styles.badges}>
+        <Badge label={category.label} tone={category.tone} icon={category.icon} />
+        {showUnread && broadcast.isRead === false ? <Badge label="New" tone="primary" /> : null}
+      </View>
       <AppText variant="subhead" numberOfLines={2}>
         {broadcast.title}
       </AppText>
@@ -70,6 +87,9 @@ export const BroadcastCard = memo(function BroadcastCard({ broadcast }: { broadc
 
 const styles = StyleSheet.create({
   card: { gap: Spacing.xs },
+  topRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.xs },
+  flex: { flex: 1 },
+  badges: { flexDirection: 'row', gap: 6 },
   publisher: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   publisherIcon: { borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
   publisherCopy: { flex: 1, gap: 1 },

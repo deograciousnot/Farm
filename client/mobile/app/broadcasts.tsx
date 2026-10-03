@@ -11,7 +11,7 @@ import { useTheme } from '@/hooks/use-theme';
 /** Every live official update for this member's county and role. */
 export default function BroadcastsScreen() {
   const { colors } = useTheme();
-  const broadcasts = useBroadcasts();
+  const broadcasts = useBroadcasts('all');
   const { refreshing, onRefresh } = usePullToRefresh(broadcasts.refetch);
 
   return (
@@ -20,7 +20,7 @@ export default function BroadcastsScreen() {
       <FlatList
         data={broadcasts.data ?? []}
         keyExtractor={(item) => item._id}
-        renderItem={({ item }) => <BroadcastCard broadcast={item} />}
+        renderItem={({ item }) => <BroadcastCard broadcast={item} showUnread />}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
         ListEmptyComponent={

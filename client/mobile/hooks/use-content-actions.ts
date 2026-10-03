@@ -5,7 +5,8 @@ import { Alert } from 'react-native';
 
 import { patchPostInCache, queryKeys } from '@/hooks/queries';
 import { api, getErrorMessage } from '@/lib/api';
-import type { FeedPost } from '@/lib/types';
+import type { Broadcast, FeedPost } from '@/lib/types';
+import { usePreferences } from '@/providers/preferences-provider';
 import { useSession } from '@/providers/session-provider';
 import { useToast } from '@/providers/toast-provider';
 import { getUserId } from '@/utils/user';
@@ -188,4 +189,35 @@ export function usePostActions() {
   );
 
   return { toggleLike, toggleSave, toggleFollowAuthor };
+}
+
+/** Hide an official update from Home. It stays in the Official updates list. */
+export function useDismissBroadcast() {
+  const queryClient = useQueryClient();
+  const { token } = useSession();
+  const { dismissedBroadcasts, setPreference } = usePreferences();
+  const { showToast } = useToast();
+
+  return useCallback(
+    async (broadcast: Broadcast) => {
+      const homeKey = queryKeys.broadcasts('home');
+      const previous = queryClient.getQueryData<Broadcast[]>(homeKey);
+      queryClient.setQueryData<Broadcast[]>(homeKey, (items) => items?.filter((item) => item._id !== broadcast._id));
+      showToast('Hidden from Home. Find it any time under Official updates.', 'info');
+
+      if (!token) {
+        setPreference('dismissedBroadcasts', [...new Set([...dismissedBroadcasts, broadcast._id])].slice(-100));
+        return;
+      }
+
+      try {
+        await api.dismissBroadcast(token, broadcast._id);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.broadcasts('all') });
+      } catch (error) {
+        queryClient.setQueryData(homeKey, previous);
+        showToast(getErrorMessage(error), 'error');
+      }
+    },
+    [dismissedBroadcasts, queryClient, setPreference, showToast, token]
+  );
 }

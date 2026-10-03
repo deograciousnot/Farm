@@ -83,13 +83,27 @@ export function NotificationsSheet({ visible, onClose, notifications, unreadCoun
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Notifications" subtitle={unreadCount ? `${unreadCount} unread` : 'All caught up'} tall>
-      {unreadCount ? (
-        <Pressable accessibilityRole="button" onPress={() => void markAllRead()} disabled={isMarkingAll} style={styles.markAll}>
-          <AppText variant="label" color={isMarkingAll ? 'textSubtle' : 'primary'}>
-            Mark all as read
+      <View style={styles.links}>
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => {
+            onClose();
+            router.push('/broadcasts');
+          }}
+          style={styles.officialLink}>
+          <Feather name="shield" size={14} color={colors.primary} />
+          <AppText variant="label" color="primary">
+            Official updates
           </AppText>
         </Pressable>
-      ) : null}
+        {unreadCount ? (
+          <Pressable accessibilityRole="button" onPress={() => void markAllRead()} disabled={isMarkingAll}>
+            <AppText variant="label" color={isMarkingAll ? 'textSubtle' : 'primary'}>
+              Mark all as read
+            </AppText>
+          </Pressable>
+        ) : null}
+      </View>
       <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
         {notifications.length ? (
           notifications.map((item) => {
@@ -133,7 +147,8 @@ export function NotificationsSheet({ visible, onClose, notifications, unreadCoun
 }
 
 const styles = StyleSheet.create({
-  markAll: { alignSelf: 'flex-start' },
+  links: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  officialLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   list: { flex: 1 },
   item: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, borderRadius: Radius.md, marginBottom: Spacing.xxs },
   icon: { width: 34, height: 34, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center' },

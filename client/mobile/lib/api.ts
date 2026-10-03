@@ -307,8 +307,11 @@ export const api = {
       formData,
     });
   },
-  getBroadcasts(token?: string | null) {
-    return request<{ items: Broadcast[] }>('/broadcasts', { token });
+  getBroadcasts(token?: string | null, scope?: 'home') {
+    return request<{ items: Broadcast[] }>(`/broadcasts${scope ? `?scope=${scope}` : ''}`, { token });
+  },
+  dismissBroadcast(token: string, id: string) {
+    return request<{ message: string }>(`/broadcasts/${id}/dismiss`, { method: 'POST', token });
   },
   getBroadcast(id: string, token?: string | null) {
     return request<{ item: Broadcast }>(`/broadcasts/${id}`, { token });

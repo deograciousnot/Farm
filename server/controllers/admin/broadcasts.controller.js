@@ -169,7 +169,7 @@ export const listBroadcasts = asyncHandler(async (req, res) => {
   ]);
 
   const views = await BroadcastView.aggregate([
-    { $match: { broadcast: { $in: broadcasts.map((item) => item._id) } } },
+    { $match: { broadcast: { $in: broadcasts.map((item) => item._id) }, viewedAt: { $ne: null } } },
     { $group: { _id: "$broadcast", count: { $sum: 1 } } },
   ]);
   const viewsById = new Map(views.map((row) => [String(row._id), row.count]));

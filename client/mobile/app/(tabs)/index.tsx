@@ -16,7 +16,7 @@ import { ListSkeleton } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/state-views';
 import { ScreenPadding, Spacing } from '@/constants/theme';
 import { useBroadcasts, useCommunity, useFeed, usePullToRefresh, useRefreshOnFocus } from '@/hooks/queries';
-import { usePostActions, useReportContent } from '@/hooks/use-content-actions';
+import { useDismissBroadcast, usePostActions, useReportContent } from '@/hooks/use-content-actions';
 import { useTheme } from '@/hooks/use-theme';
 import type { CommunityThread, FeedPost } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
@@ -37,7 +37,8 @@ export default function HomeScreen() {
 
   const feed = useFeed(filter);
   const community = useCommunity();
-  const broadcasts = useBroadcasts();
+  const broadcasts = useBroadcasts('home');
+  const dismissBroadcast = useDismissBroadcast();
   const { toggleLike, toggleSave, toggleFollowAuthor } = usePostActions();
   const reportContent = useReportContent();
 
@@ -67,11 +68,11 @@ export default function HomeScreen() {
       <ChipGroup options={filters} value={filter} onChange={setFilter} bleed />
       {filter === 'All' && broadcasts.data?.length ? (
         <View style={styles.official}>
-          <BroadcastCard broadcast={broadcasts.data[0]} />
+          <BroadcastCard broadcast={broadcasts.data[0]} onDismiss={dismissBroadcast} />
           {broadcasts.data.length > 1 ? (
             <Pressable accessibilityRole="link" onPress={() => router.push('/broadcasts')} hitSlop={8} style={styles.seeAll}>
               <AppText variant="label" color="primary">
-                See all {broadcasts.data.length} official updates →
+                {broadcasts.data.length - 1} more official {broadcasts.data.length === 2 ? 'update' : 'updates'} →
               </AppText>
             </Pressable>
           ) : null}

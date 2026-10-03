@@ -41,12 +41,17 @@ export default function ProfileScreen() {
         </View>
 
         {!token ? (
-          <EmptyState
-            icon="user"
-            title="Make yourself known"
-            body="Sign in to share what you grow, ask questions, follow farmers, and build a trusted name."
-            action={{ label: 'Sign in or create account', onPress: () => router.push('/auth?mode=login') }}
-          />
+          <>
+            <EmptyState
+              icon="user"
+              title="Make yourself known"
+              body="Sign in to share what you grow, ask questions, follow farmers, and build a trusted name."
+              action={{ label: 'Sign in or create account', onPress: () => router.push('/auth?mode=login') }}
+            />
+            <Card padded={false} style={styles.notificationsCard}>
+              <ListRow icon="shield" title="Official updates" subtitle="Advisories and alerts from verified organisations" onPress={() => router.push('/broadcasts')} />
+            </Card>
+          </>
         ) : profile.isPending ? (
           <ListSkeleton count={2} />
         ) : profile.isError ? (
@@ -72,6 +77,7 @@ export default function ProfileScreen() {
                   </View>
                 }
               />
+              <ListRow icon="shield" title="Official updates" subtitle="Advisories and alerts for your area" onPress={() => router.push('/broadcasts')} />
             </Card>
           </ProfileView>
         )}

@@ -1,5 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 
 import { broadcastCategories, describeAudience, PublisherRow } from '@/components/broadcasts/broadcast-card';
@@ -11,13 +13,21 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { ListSkeleton } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/state-views';
 import { ScreenPadding, Spacing } from '@/constants/theme';
-import { useBroadcast } from '@/hooks/queries';
+import { queryKeys, useBroadcast } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function BroadcastScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const broadcast = useBroadcast(id);
   const { colors } = useTheme();
+  const queryClient = useQueryClient();
+
+  // Opening an update marks it read; refresh the lists so the "New" badge clears.
+  useEffect(() => {
+    if (broadcast.isSuccess) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.broadcastsRoot });
+    }
+  }, [broadcast.isSuccess, queryClient]);
 
   return (
     <View style={styles.screen}>

@@ -47,7 +47,8 @@ export const registerUser = asyncHandler(async (req, res) => {
     throw new AppError("An account with that email already exists.", 409);
   }
 
-  let avatarUrl = `https://i.pravatar.cc/150?u=${encodeURIComponent(email.toLowerCase())}`;
+  // No stock photo: the apps show the person's initials until they upload a picture.
+  let avatarUrl = "";
 
   if (req.file) {
     const uploadedAvatar = await uploadBufferToCloudinary(req.file, {

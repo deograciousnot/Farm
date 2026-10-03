@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 
 import { api } from '@/lib/api';
 import type { FeedPost } from '@/lib/types';
+import { usePreferences } from '@/providers/preferences-provider';
 import { useSession } from '@/providers/session-provider';
 
 // The cache is cleared whenever the signed-in identity changes (see session provider),
@@ -22,7 +23,8 @@ export const queryKeys = {
   ordersRoot: ['orders'] as const,
   order: (id: string) => ['order', id] as const,
   myProfile: ['profile', 'me'] as const,
-  broadcasts: ['broadcasts'] as const,
+  broadcasts: (scope: 'home' | 'all') => ['broadcasts', scope] as const,
+  broadcastsRoot: ['broadcasts'] as const,
   broadcast: (id: string) => ['broadcast', id] as const,
   profile: (id: string) => ['profile', id] as const,
 };
@@ -137,14 +139,18 @@ export function usePublicProfile(id: string | undefined) {
   });
 }
 
-export function useBroadcasts() {
+/** `home`: recent and not dismissed (shown on Home). `all`: every live update for this member. */
+export function useBroadcasts(scope: 'home' | 'all' = 'all') {
   const { token, isLoading } = useSession();
+  const { dismissedBroadcasts } = usePreferences();
 
   return useQuery({
-    queryKey: queryKeys.broadcasts,
-    queryFn: async () => (await api.getBroadcasts(token)).items,
+    queryKey: queryKeys.broadcasts(scope),
+    queryFn: async () => (await api.getBroadcasts(token, scope === 'home' ? 'home' : undefined)).items,
     enabled: !isLoading,
     staleTime: 5 * 60_000,
+    // Guests dismiss on this device only.
+    select: (items) => (scope === 'home' && !token ? items.filter((item) => !dismissedBroadcasts.includes(item._id)) : items),
   });
 }
 

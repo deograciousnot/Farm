@@ -212,6 +212,9 @@ export type Broadcast = {
   link?: { label: string; url: string };
   publishedAt: string;
   expiresAt?: string | null;
+  /** Per-member state; absent for guests. */
+  isRead?: boolean;
+  isDismissed?: boolean;
   organization: {
     _id: string;
     name: string;

@@ -9,7 +9,7 @@ import {
 } from "../controllers/community.controller.js";
 import { createComment, getCommentsForPost, toggleLikedPost, toggleSavedPost } from "../controllers/comments.controller.js";
 import { createFeedPost, deleteFeedPost, getFeed, getFeedPostById } from "../controllers/feed.controller.js";
-import { getBroadcast, listBroadcasts } from "../controllers/broadcasts.controller.js";
+import { dismissBroadcast, getBroadcast, listBroadcasts } from "../controllers/broadcasts.controller.js";
 import { createReport } from "../controllers/reports.controller.js";
 import { completeOrderWithRemark, createOrder, getOrderById, getOrders, updateOrderStatus } from "../controllers/orders.controller.js";
 import {
@@ -41,6 +41,7 @@ apiRouter.use("/marketplace", marketplaceRouter);
 apiRouter.post("/reports", requireAuth, createReport);
 apiRouter.get("/broadcasts", attachUserIfPresent, listBroadcasts);
 apiRouter.get("/broadcasts/:id", attachUserIfPresent, getBroadcast);
+apiRouter.post("/broadcasts/:id/dismiss", requireAuth, dismissBroadcast);
 apiRouter.get("/feed", attachUserIfPresent, getFeed);
 apiRouter.post("/feed", requireAuth, upload.array("media", 4), createFeedPost);
 apiRouter.get("/feed/:postId", attachUserIfPresent, getFeedPostById);
