@@ -1,185 +1,94 @@
 import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors, Fonts } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AppText } from '@/components/ui/app-text';
+import { Button } from '@/components/ui/button';
+import { Radius, ScreenPadding, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/providers/session-provider';
 
-const features = [
+const promises = [
   {
-    icon: 'home',
-    title: 'Farm feed',
-    body: 'Share field updates, market signals, photos, and short videos.',
-    accent: 'tint',
+    icon: 'users',
+    title: 'Learn from farmers across the country',
+    body: 'Ask growers in other regions what worked for them, and share what works for you.',
   },
   {
-    icon: 'shopping-bag',
-    title: 'Marketplace',
-    body: 'Find produce, compare sellers, and trade with more context.',
-    accent: 'accent',
-  },
-  {
-    icon: 'message-circle',
-    title: 'Community',
-    body: 'Ask questions, join discussions, and learn from real experience.',
-    accent: 'accentSecondary',
+    icon: 'trending-up',
+    title: 'Find better markets',
+    body: 'See what is selling, where, and for how much — then trade directly.',
   },
   {
     icon: 'shield',
-    title: 'Trust profiles',
-    body: 'Build reputation through activity, listings, followers, and reviews.',
-    accent: 'success',
+    title: 'Build a name people trust',
+    body: 'Helpful answers, honest listings, and completed orders grow your trust score.',
   },
 ] as const;
 
 export default function GetStartedScreen() {
-  const scheme = useColorScheme() ?? 'light';
-  const palette = Colors[scheme];
-  const { width } = useWindowDimensions();
-  const { markIntroSeen } = useSession();
-  const [activeIndex, setActiveIndex] = useState(0);
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const cardWidth = Math.min(width - 70, 330);
-  const sideInset = Math.max(22, (width - cardWidth) / 2);
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { markIntroSeen, continueAsGuest } = useSession();
 
-  function handleGetStarted() {
+  function goToAuth(mode: 'signup' | 'login') {
     markIntroSeen();
-    router.replace('/auth?mode=login');
+    router.replace(`/auth?mode=${mode}`);
+  }
+
+  function browseAsGuest() {
+    continueAsGuest();
+    router.replace('/(tabs)');
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
-      <View style={styles.screen}>
-        <View style={styles.brandBlock}>
-          <View style={[styles.brandMark, { backgroundColor: palette.backgroundSecondary }]}>
-            <Feather name="sunrise" size={22} color={palette.tint} />
-          </View>
-          <Text style={[styles.brand, { color: palette.tint }]}>FarmConnect</Text>
-          <Text style={[styles.title, { color: palette.text }]}>Fresh. Local. Connected.</Text>
+    <ScrollView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.xxl, paddingBottom: insets.bottom + Spacing.lg }]}>
+      <Animated.View entering={FadeInDown.duration(400)} style={styles.brand}>
+        <View style={[styles.logo, { backgroundColor: colors.primary }]}>
+          <Feather name="sunrise" size={28} color={colors.onPrimary} />
         </View>
+        <AppText variant="overline" color="primary">
+          FarmConnect
+        </AppText>
+        <AppText variant="display">Farmers learning from farmers.</AppText>
+      </Animated.View>
 
-        <View style={styles.carouselWrap}>
-          <Animated.ScrollView
-            horizontal
-            pagingEnabled={false}
-            decelerationRate="fast"
-            snapToInterval={cardWidth + 14}
-            snapToAlignment="start"
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: sideInset, gap: 14 }}
-            onMomentumScrollEnd={(event) => {
-              const nextIndex = Math.round(event.nativeEvent.contentOffset.x / (cardWidth + 14));
-              setActiveIndex(Math.max(0, Math.min(features.length - 1, nextIndex)));
-            }}
-            onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-              useNativeDriver: true,
-            })}
-            scrollEventThrottle={16}>
-            {features.map((feature, index) => {
-              const inputRange = [
-                (index - 1) * (cardWidth + 14),
-                index * (cardWidth + 14),
-                (index + 1) * (cardWidth + 14),
-              ];
-              const scale = scrollX.interpolate({
-                inputRange,
-                outputRange: [0.92, 1, 0.92],
-                extrapolate: 'clamp',
-              });
-              const opacity = scrollX.interpolate({
-                inputRange,
-                outputRange: [0.68, 1, 0.68],
-                extrapolate: 'clamp',
-              });
-              const accentColor = palette[feature.accent];
-
-              return (
-                <Animated.View
-                  key={feature.title}
-                  style={[
-                    styles.featureCard,
-                    {
-                      width: cardWidth,
-                      backgroundColor: scheme === 'dark' ? `${palette.surfaceRaised}EE` : `${palette.surfaceRaised}F2`,
-                      opacity,
-                      transform: [{ scale }],
-                    },
-                  ]}>
-                  <View style={[styles.cardGlow, { backgroundColor: `${accentColor}22` }]} />
-                  <View style={[styles.featureIcon, { backgroundColor: `${accentColor}18` }]}>
-                    <Feather name={feature.icon} size={24} color={accentColor} />
-                  </View>
-                  <Text style={[styles.featureTitle, { color: palette.text }]}>{feature.title}</Text>
-                  <Text style={[styles.featureBody, { color: palette.muted }]}>{feature.body}</Text>
-                </Animated.View>
-              );
-            })}
-          </Animated.ScrollView>
-
-          <View style={styles.dots}>
-            {features.map((feature, index) => (
-              <View
-                key={feature.title}
-                style={[
-                  styles.dot,
-                  {
-                    width: activeIndex === index ? 24 : 7,
-                    backgroundColor: activeIndex === index ? palette.tint : palette.border,
-                  },
-                ]}
-              />
-            ))}
-          </View>
-        </View>
-
-        <Pressable onPress={handleGetStarted} style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
-          <Text style={styles.primaryButtonText}>Get started</Text>
-        </Pressable>
+      <View style={styles.promises}>
+        {promises.map((promise, index) => (
+          <Animated.View key={promise.title} entering={FadeInDown.delay(120 + index * 90).duration(400)} style={styles.promise}>
+            <View style={[styles.promiseIcon, { backgroundColor: colors.primarySoft }]}>
+              <Feather name={promise.icon} size={20} color={colors.primary} />
+            </View>
+            <View style={styles.promiseCopy}>
+              <AppText variant="subhead">{promise.title}</AppText>
+              <AppText variant="callout" color="textMuted">
+                {promise.body}
+              </AppText>
+            </View>
+          </Animated.View>
+        ))}
       </View>
-    </SafeAreaView>
+
+      <View style={styles.actions}>
+        <Button label="Create an account" onPress={() => goToAuth('signup')} fullWidth />
+        <Button label="I already have an account" variant="secondary" onPress={() => goToAuth('login')} fullWidth />
+        <Button label="Look around first" variant="ghost" onPress={browseAsGuest} fullWidth />
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  screen: { flex: 1, paddingVertical: 22, justifyContent: 'center', gap: 28 },
-  brandBlock: { alignItems: 'center', gap: 8, paddingHorizontal: 24 },
-  brandMark: { width: 54, height: 54, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  brand: {
-    fontFamily: Fonts.rounded,
-    fontSize: 13,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  title: { fontFamily: Fonts.rounded, fontSize: 31, fontWeight: '800', lineHeight: 37, textAlign: 'center' },
-  carouselWrap: { gap: 14 },
-  featureCard: {
-    minHeight: 280,
-    borderRadius: 30,
-    padding: 22,
-    justifyContent: 'flex-end',
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 255, 255, 0.42)',
-  },
-  cardGlow: { position: 'absolute', width: 190, height: 190, borderRadius: 999, right: -46, top: -58 },
-  featureIcon: { width: 58, height: 58, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
-  featureTitle: { fontFamily: Fonts.rounded, fontSize: 26, fontWeight: '800', lineHeight: 31 },
-  featureBody: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 22, marginTop: 8 },
-  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 7 },
-  dot: { height: 7, borderRadius: 999 },
-  primaryButton: {
-    width: '100%',
-    maxWidth: 360,
-    alignSelf: 'center',
-    minHeight: 52,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonText: { color: '#FFFFFF', fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '800' },
+  content: { flexGrow: 1, paddingHorizontal: ScreenPadding + Spacing.xs, gap: Spacing.xxl, justifyContent: 'space-between' },
+  brand: { gap: Spacing.sm },
+  logo: { width: 56, height: 56, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs },
+  promises: { gap: Spacing.lg },
+  promise: { flexDirection: 'row', gap: Spacing.md },
+  promiseIcon: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  promiseCopy: { flex: 1, gap: 2 },
+  actions: { gap: Spacing.xs },
 });

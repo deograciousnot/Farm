@@ -1,269 +1,168 @@
-import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
 import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { FeedMedia } from '@/components/feed-media';
-import { SocialAvatar } from '@/components/social-avatar';
-import { Fonts } from '@/constants/theme';
-import type { Comment, FeedPost } from '@/lib/types';
-import { FeedPalette, formatRelativeTime } from '@/utils/feed-utils';
+import { FeedMedia } from '@/components/feed/feed-media';
+import { LinkedListingCard } from '@/components/feed/linked-listing-card';
+import { PostAuthorRow } from '@/components/feed/post-author-row';
+import { AppText } from '@/components/ui/app-text';
+import { Badge } from '@/components/ui/badge';
+import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import type { FeedPost } from '@/lib/types';
+import { formatRelativeTime } from '@/utils/format';
 
-type MediaBlock = NonNullable<FeedPost['bodyBlocks']>[number] & { type: 'image' | 'video'; url: string };
+const PREVIEW_LENGTH = 280;
 
 type FeedPostCardProps = {
   post: FeedPost;
-  index: number;
-  palette: FeedPalette;
-  isFocused: boolean;
-  isVisible: boolean;
-  playbackPositions: Record<string, number>;
-  processingPostId: string | null;
-  token?: string | null;
-  onOpenAuthor: (post: FeedPost) => void;
-  onOpenPost: (postId: string) => void;
-  onOpenLinkedProduct: (productId: string) => void;
-  onToggleLike: (postId: string) => void;
-  onOpenComments: (post: FeedPost) => void;
-  onToggleSave: (postId: string) => void;
+  onToggleLike: (post: FeedPost) => void;
+  onToggleSave: (post: FeedPost) => void;
   onToggleFollow: (post: FeedPost) => void;
-  onReportPost: (post: FeedPost) => void;
-  onPlaybackTimeChange: (mediaUrl: string, currentTime: number) => void;
+  onOpenComments: (post: FeedPost) => void;
+  onReport: (post: FeedPost) => void;
 };
 
-export const FeedPostCard = memo(function FeedPostCard({
-  post,
-  index,
-  palette,
-  isFocused,
-  isVisible,
-  playbackPositions,
-  processingPostId,
-  token,
-  onOpenAuthor,
-  onOpenPost,
-  onOpenLinkedProduct,
-  onToggleLike,
-  onOpenComments,
-  onToggleSave,
-  onToggleFollow,
-  onReportPost,
-  onPlaybackTimeChange,
-}: FeedPostCardProps) {
-  const linkedProduct = post.linkedProduct;
-  const postLabel = post.isSponsored ? 'Market offer' : post.tag || 'Field note';
-  const textFromBlocks =
+export function getPostText(post: FeedPost) {
+  return (
     post.bodyBlocks
       ?.filter((block) => block.type === 'paragraph')
       .map((block) => block.text)
-      .join('\n\n') || post.body;
-  const bodyPreview = textFromBlocks.length > 360 ? `${textFromBlocks.slice(0, 360).trim()}...` : textFromBlocks;
-  const paragraphs = bodyPreview
-    .split(/\n{2,}/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const inlineMedia = post.bodyBlocks?.find(
-    (block): block is MediaBlock => (block.type === 'image' || block.type === 'video') && 'url' in block
+      .join('\n\n') || post.body
   );
-  const previewMedia = inlineMedia
-    ? [{ type: inlineMedia.type, url: inlineMedia.url, thumbnailUrl: inlineMedia.thumbnailUrl }]
-    : post.media;
+}
+
+export function getPostMedia(post: FeedPost) {
+  const inline = post.bodyBlocks?.filter(
+    (block): block is Extract<NonNullable<FeedPost['bodyBlocks']>[number], { url: string }> => block.type !== 'paragraph'
+  );
+
+  return inline?.length ? inline.map(({ type, url, thumbnailUrl }) => ({ type, url, thumbnailUrl })) : (post.media ?? []);
+}
+
+export const FeedPostCard = memo(function FeedPostCard({
+  post,
+  onToggleLike,
+  onToggleSave,
+  onToggleFollow,
+  onOpenComments,
+  onReport,
+}: FeedPostCardProps) {
+  const { colors } = useTheme();
+  const text = getPostText(post);
+  const isTruncated = text.length > PREVIEW_LENGTH;
+  const preview = isTruncated ? `${text.slice(0, PREVIEW_LENGTH).trimEnd()}…` : text;
+  const media = getPostMedia(post);
+  const latestComment = post.recentComments[0];
+
+  function openPost() {
+    router.push({ pathname: '/post/[id]', params: { id: post._id } });
+  }
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(Math.min(index, 5) * 35).duration(320)}
-      style={styles.postShell}>
-      <View style={styles.storyRail}>
-        <View style={[styles.storyTypePill, { backgroundColor: `${palette.tint}14` }]}>
-          <Text style={[styles.storyTypeText, { color: palette.tint }]}>{postLabel}</Text>
-        </View>
-        <View style={styles.storyMetaActions}>
-          <Text style={[styles.storyTime, { color: palette.muted }]}>{formatRelativeTime(post.createdAt)}</Text>
-          <Pressable onPress={() => onReportPost(post)} hitSlop={8} style={styles.moreButton}>
-            <Feather name="more-horizontal" size={18} color={palette.muted} />
-          </Pressable>
-        </View>
-      </View>
+    <View style={styles.card}>
+      <PostAuthorRow
+        post={post}
+        meta={formatRelativeTime(post.createdAt)}
+        onToggleFollow={() => onToggleFollow(post)}
+        onMore={() => onReport(post)}
+      />
 
-      <View style={styles.postTopRow}>
-        <Pressable onPress={() => onOpenAuthor(post)} style={styles.postIdentity}>
-          <SocialAvatar name={post.author.name} imageUrl={post.author.avatarUrl} size={38} />
-          <View style={styles.postIdentityText}>
-            <View style={styles.postNameRow}>
-              <Text style={[styles.postAuthor, { color: palette.text }]}>{post.author.name}</Text>
-              {post.author.verificationStatus === 'top-rated' ? (
-                <Ionicons name="checkmark-circle" size={14} color={palette.tint} />
-              ) : null}
-            </View>
-            <Text style={[styles.postMeta, { color: palette.muted }]}>
-              {post.author.role} | {post.location}
-            </Text>
-          </View>
-        </Pressable>
-      </View>
-
-      <Pressable onPress={() => onOpenPost(post._id)} style={styles.postCopy}>
-        <Text style={[styles.postHeadline, { color: palette.text }]}>{post.headline}</Text>
-        {paragraphs.slice(0, 2).map((paragraph, paragraphIndex) => (
-          <Text key={`${post._id}-p-${paragraphIndex}`} style={[styles.postBody, { color: palette.text }]}>
-            {paragraph}
-          </Text>
-        ))}
-        {textFromBlocks.length > 360 ? <Text style={[styles.readMoreText, { color: palette.tint }]}>Read full note</Text> : null}
+      <Pressable onPress={openPost} style={styles.copy} accessibilityRole="link" accessibilityHint="Opens the full post">
+        <Badge label={post.isSponsored ? 'Market offer' : post.tag || 'Field note'} tone={post.isSponsored ? 'accent' : 'primary'} />
+        <AppText variant="headline">{post.headline}</AppText>
+        <AppText variant="body" color="textMuted">
+          {preview}
+        </AppText>
+        {isTruncated ? (
+          <AppText variant="label" color="primary">
+            Read more
+          </AppText>
+        ) : null}
       </Pressable>
 
-      {linkedProduct ? (
-        <Pressable
-          onPress={() => onOpenLinkedProduct(linkedProduct._id)}
-          style={[styles.linkedListingCard, { backgroundColor: palette.surface }]}>
-          <View style={styles.linkedListingCopy}>
-            <Text style={[styles.linkedListingLabel, { color: palette.tint }]}>Tagged listing</Text>
-            <Text style={[styles.linkedListingName, { color: palette.text }]}>{linkedProduct.name}</Text>
-            <Text style={[styles.linkedListingMeta, { color: palette.muted }]}>
-              KES {linkedProduct.price} / {linkedProduct.unit} | {linkedProduct.location}
-            </Text>
-          </View>
-          <Feather name="arrow-up-right" size={16} color={palette.muted} />
-        </Pressable>
-      ) : null}
+      {media.length ? <FeedMedia media={media} onOpen={openPost} /> : null}
 
-      {previewMedia?.length ? (
-        <View style={styles.mediaWrap}>
-          <FeedMedia
-            media={previewMedia}
-            onToggleLike={() => onToggleLike(post._id)}
-            onOpenPost={() => onOpenPost(post._id)}
-            allowPlayback={isFocused && isVisible}
-            playbackPositions={playbackPositions}
-            onPlaybackTimeChange={onPlaybackTimeChange}
-          />
-        </View>
-      ) : null}
+      {post.linkedProduct ? <LinkedListingCard product={post.linkedProduct} /> : null}
 
-      <View style={[styles.postFooter, { borderTopColor: palette.border }]}>
-        <View style={styles.postActionsLeft}>
-          <Pressable onPress={() => onToggleLike(post._id)} hitSlop={8} style={styles.iconMetric}>
-            <Ionicons
-              name={post.hasLiked ? 'heart' : 'heart-outline'}
-              size={22}
-              color={post.hasLiked ? palette.accent : palette.text}
-            />
-            <Text style={[styles.iconMetricText, { color: post.hasLiked ? palette.accent : palette.text }]}>
-              {post.likesCount}
-            </Text>
-          </Pressable>
-
-          <Pressable onPress={() => onOpenComments(post)} hitSlop={8} style={styles.iconMetric}>
-            <Ionicons name="chatbubble-outline" size={20} color={palette.text} />
-            <Text style={[styles.iconMetricText, { color: palette.text }]}>{post.commentsCount}</Text>
-          </Pressable>
-        </View>
-
-        <Pressable onPress={() => onToggleSave(post._id)} hitSlop={8} style={styles.iconMetric}>
-          <Ionicons
-            name={post.hasSaved ? 'bookmark' : 'bookmark-outline'}
-            size={20}
-            color={post.hasSaved ? palette.accent : palette.text}
-          />
-        </Pressable>
+      <View style={styles.actions}>
+        <ActionButton
+          icon={post.hasLiked ? 'heart' : 'heart-outline'}
+          label={String(post.likesCount)}
+          color={post.hasLiked ? colors.like : colors.textMuted}
+          accessibilityLabel={post.hasLiked ? 'Unlike' : 'Like'}
+          onPress={() => onToggleLike(post)}
+        />
+        <ActionButton
+          icon="chatbubble-outline"
+          label={String(post.commentsCount)}
+          color={colors.textMuted}
+          accessibilityLabel="Comments"
+          onPress={() => onOpenComments(post)}
+        />
+        <View style={styles.spacer} />
+        <ActionButton
+          icon={post.hasSaved ? 'bookmark' : 'bookmark-outline'}
+          color={post.hasSaved ? colors.primary : colors.textMuted}
+          accessibilityLabel={post.hasSaved ? 'Remove from saved' : 'Save'}
+          onPress={() => onToggleSave(post)}
+        />
       </View>
 
-      {!post.isOwner && post.canFollowAuthor ? (
-        <Pressable
-          onPress={() => onToggleFollow(post)}
-          style={[
-            styles.followButton,
-            { backgroundColor: post.isFollowingAuthor ? palette.surface : `${palette.tint}12` },
-          ]}>
-          <Text style={[styles.followButtonText, { color: post.isFollowingAuthor ? palette.text : palette.tint }]}>
-            {processingPostId === post._id ? 'Updating...' : post.isFollowingAuthor ? 'Following' : 'Follow for insights'}
-          </Text>
+      {latestComment ? (
+        <Pressable onPress={() => onOpenComments(post)} style={styles.commentPreview}>
+          <AppText variant="callout" color="textMuted" numberOfLines={2}>
+            <AppText variant="label">{latestComment.author.name} </AppText>
+            {latestComment.body}
+          </AppText>
+          {post.commentsCount > 1 ? (
+            <AppText variant="caption" color="textSubtle">
+              View all {post.commentsCount} comments
+            </AppText>
+          ) : null}
         </Pressable>
       ) : null}
-
-      {post.recentComments.length > 0 ? (
-        <Pressable onPress={() => onOpenComments(post)} style={styles.commentsPreview}>
-          <Text style={[styles.viewCommentsText, { color: palette.muted }]}>
-            View {post.commentsCount > 1 ? `all ${post.commentsCount} comments` : 'comment'}
-          </Text>
-          {post.recentComments.slice(0, 1).map((comment: Comment) => (
-            <View key={comment._id} style={styles.commentRow}>
-              <Text numberOfLines={2} style={[styles.commentText, { color: palette.muted }]}>
-                <Text style={[styles.commentAuthor, { color: palette.text }]}>{comment.author.name} </Text>
-                {comment.body}
-              </Text>
-            </View>
-          ))}
-        </Pressable>
-      ) : token ? (
-        <Pressable onPress={() => onOpenComments(post)}>
-          <Text style={[styles.viewCommentsText, { color: palette.muted }]}>Be the first to comment</Text>
-        </Pressable>
-      ) : (
-        <Text style={[styles.guestActionHint, { color: palette.muted }]}>
-          Sign in to comment, save, follow people, and personalize your feed.
-        </Text>
-      )}
-    </Animated.View>
+    </View>
   );
 });
 
+function ActionButton({
+  icon,
+  label,
+  color,
+  accessibilityLabel,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label?: string;
+  color: string;
+  accessibilityLabel: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+      <Ionicons name={icon} size={21} color={color} />
+      {label ? (
+        <AppText variant="label" style={{ color }}>
+          {label}
+        </AppText>
+      ) : null}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  postShell: { gap: 11, paddingHorizontal: 2, paddingVertical: 14, borderRadius: 0, borderWidth: 0 },
-  storyRail: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
-  storyMetaActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  storyTypePill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  storyTypeText: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '800', textTransform: 'capitalize' },
-  storyTime: { fontFamily: Fonts.sans, fontSize: 12 },
-  moreButton: { width: 28, height: 28, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  postTopRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' },
-  postIdentity: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  postIdentityText: { flex: 1, gap: 2 },
-  postNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
-  postAuthor: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
-  postMeta: { fontFamily: Fonts.sans, fontSize: 12 },
-  postCopy: { gap: 9 },
-  linkedListingCard: {
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  linkedListingCopy: { flex: 1, gap: 2 },
-  linkedListingLabel: {
-    fontFamily: Fonts.rounded,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.9,
-  },
-  linkedListingName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
-  linkedListingMeta: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
-  postHeadline: { fontFamily: Fonts.rounded, fontSize: 20, fontWeight: '800', lineHeight: 26 },
-  postBody: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 23 },
-  readMoreText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
-  mediaWrap: { maxHeight: 260, overflow: 'hidden', borderRadius: 16 },
-  postFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-    paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  postActionsLeft: { flexDirection: 'row', alignItems: 'center', gap: 18 },
-  iconMetric: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 24 },
-  iconMetricText: { fontFamily: Fonts.sans, fontSize: 12, fontWeight: '700' },
-  followButton: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
-  followButtonText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  commentsPreview: { gap: 6 },
-  viewCommentsText: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
-  commentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  commentText: { flex: 1, fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
-  commentAuthor: { fontFamily: Fonts.rounded, fontWeight: '700' },
-  guestActionHint: { fontFamily: Fonts.sans, fontSize: 11, lineHeight: 16, marginTop: -2 },
+  card: { gap: Spacing.sm, paddingVertical: Spacing.lg },
+  copy: { gap: Spacing.xs },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
+  action: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
+  pressed: { opacity: 0.6 },
+  spacer: { flex: 1 },
+  commentPreview: { gap: Spacing.xxs },
 });

@@ -3,6 +3,7 @@ import { createContext, PropsWithChildren, useContext, useEffect, useState } fro
 import { router } from 'expo-router';
 
 import { api } from '@/lib/api';
+import { queryClient, setStaleSessionListener } from '@/lib/query-client';
 import type { ApiUser, RegisterInput } from '@/lib/types';
 
 type SessionMode = 'signed-out' | 'guest' | 'authenticated';
@@ -111,12 +112,18 @@ export function SessionProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
+  useEffect(() => {
+    setStaleSessionListener(() => void clearDeletedAccount());
+    return () => setStaleSessionListener(null);
+  });
+
   function markIntroSeen() {
     setHasSeenIntro(true);
     void AsyncStorage.setItem(STORAGE_KEYS.hasSeenIntro, 'true');
   }
 
   function continueAsGuest() {
+    queryClient.clear();
     setHasSeenIntro(true);
     setMode('guest');
     setToken(null);
@@ -128,6 +135,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }
 
   async function persistSession(nextToken: string, nextUser: ApiUser) {
+    queryClient.clear();
     setHasSeenIntro(true);
     setMode('authenticated');
     setToken(nextToken);
@@ -161,6 +169,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }
 
   async function logout() {
+    queryClient.clear();
     setMode('signed-out');
     setToken(null);
     setUser(null);
@@ -169,6 +178,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }
 
   async function logoutToGuest() {
+    queryClient.clear();
     setMode('guest');
     setToken(null);
     setUser(null);
@@ -181,6 +191,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }
 
   async function clearDeletedAccount() {
+    queryClient.clear();
     setMode('signed-out');
     setToken(null);
     setUser(null);

@@ -1,515 +1,257 @@
 import Feather from '@expo/vector-icons/Feather';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useQueryClient } from '@tanstack/react-query';
+import { useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
+import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
 
-import { SocialAvatar } from '@/components/social-avatar';
-import { StatusPill } from '@/components/status-pill';
-import { Colors, Fonts } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { api } from '@/lib/api';
+import { ReviewSheet } from '@/components/orders/review-sheet';
+import { AppText } from '@/components/ui/app-text';
+import { OrderStatusBadge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { ListRow } from '@/components/ui/list-row';
+import { ScreenHeader } from '@/components/ui/screen-header';
+import { Section } from '@/components/ui/section';
+import { ListSkeleton } from '@/components/ui/skeleton';
+import { EmptyState, ErrorState } from '@/components/ui/state-views';
+import { Radius, ScreenPadding, Spacing } from '@/constants/theme';
+import { queryKeys, useOrder } from '@/hooks/queries';
+import { useTheme } from '@/hooks/use-theme';
+import { api, getErrorMessage } from '@/lib/api';
 import type { Order, SellerRemark } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
+import { useToast } from '@/providers/toast-provider';
 import { formatCurrency } from '@/utils/format';
+import { describeUser, getUserId, openProfile } from '@/utils/user';
 
-const statusSteps = ['pending', 'accepted', 'in-transit', 'delivered'] as const;
+const steps = [
+  { status: 'pending', title: 'Requested', body: 'The buyer sent the request.' },
+  { status: 'accepted', title: 'Accepted', body: 'The seller confirmed stock and delivery.' },
+  { status: 'in-transit', title: 'On the way', body: 'The order has been dispatched.' },
+  { status: 'delivered', title: 'Delivered', body: 'The buyer confirmed delivery and reviewed the seller.' },
+] as const;
+
+type StatusUpdate = 'accepted' | 'in-transit' | 'cancelled';
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const scheme = useColorScheme() ?? 'light';
-  const palette = Colors[scheme];
-  const { token, user } = useSession();
-  const [isLoading, setIsLoading] = useState(true);
-  const [order, setOrder] = useState<Order | null>(null);
-  const [remark, setRemark] = useState<SellerRemark | null>(null);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [isReviewOpen, setIsReviewOpen] = useState(false);
-  const [remarkDraft, setRemarkDraft] = useState('');
-  const [ratingDraft, setRatingDraft] = useState(5);
-  const [isCompletingOrder, setIsCompletingOrder] = useState(false);
-
-  const currentUserId = user?._id ?? user?.id;
-  const isBuyer = Boolean(order && currentUserId && (order.buyer._id ?? order.buyer.id) === currentUserId);
-  const isSeller = Boolean(order && currentUserId && (order.seller._id ?? order.seller.id) === currentUserId);
-  const counterparty = order ? (isBuyer ? order.seller : order.buyer) : null;
-  const sellerPhone = order?.seller.phone?.trim();
-  const sellerIsVerified = order?.seller.verificationStatus === 'verified' || order?.seller.verificationStatus === 'top-rated';
-  const counterpartyPhone = counterparty?.phone?.trim();
-
-  const loadOrder = useCallback(async () => {
-    if (!token || !id) {
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const response = await api.getOrderById(token, id);
-      setOrder(response.item);
-      setRemark(response.remark);
-    } catch (error) {
-      Alert.alert('Order not found', error instanceof Error ? error.message : 'Something went wrong.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [id, token]);
-
-  useEffect(() => {
-    void loadOrder();
-  }, [loadOrder]);
-
-  const timeline = useMemo(() => {
-    if (!order) {
-      return [];
-    }
-
-    const activeIndex = order.status === 'cancelled' ? -1 : statusSteps.indexOf(order.status as never);
-
-    return statusSteps.map((status, index) => ({
-      status,
-      complete: activeIndex >= index,
-      active: activeIndex === index,
-    }));
-  }, [order]);
-
-  async function handleStatusUpdate(status: 'accepted' | 'in-transit' | 'cancelled') {
-    if (!token || !order) {
-      return;
-    }
-
-    setIsUpdatingStatus(true);
-
-    try {
-      const response = await api.updateOrderStatus(token, order._id, status);
-      setOrder(response.item);
-      setRemark(response.remark);
-      Alert.alert('Order updated', response.message);
-    } catch (error) {
-      Alert.alert('Update failed', error instanceof Error ? error.message : 'Something went wrong.');
-    } finally {
-      setIsUpdatingStatus(false);
-    }
-  }
-
-  async function handleCompleteOrder() {
-    if (!token || !order) {
-      return;
-    }
-
-    const body = remarkDraft.trim();
-
-    if (!body) {
-      Alert.alert('Remark needed', 'Leave a short note about the seller before completing the order.');
-      return;
-    }
-
-    setIsCompletingOrder(true);
-
-    try {
-      const response = await api.completeOrderWithRemark(token, order._id, {
-        rating: ratingDraft,
-        body,
-      });
-      setOrder(response.item);
-      setRemark(response.remark);
-      setIsReviewOpen(false);
-      setRemarkDraft('');
-      Alert.alert('Order completed', response.message);
-    } catch (error) {
-      Alert.alert('Could not complete order', error instanceof Error ? error.message : 'Something went wrong.');
-    } finally {
-      setIsCompletingOrder(false);
-    }
-  }
-
-  const canAccept = isSeller && order?.status === 'pending';
-  const canDispatch = isSeller && order?.status === 'accepted';
-  const canBuyerCancel = isBuyer && order?.status === 'pending';
-  const canSellerCancel = isSeller && order && !['delivered', 'cancelled'].includes(order.status);
-  const canComplete = isBuyer && order && !remark && !['delivered', 'cancelled'].includes(order.status);
+  const order = useOrder(id);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} style={[styles.iconButton, { backgroundColor: palette.surface }]}>
-            <Feather name="arrow-left" size={18} color={palette.text} />
-          </Pressable>
-          <Text style={[styles.topTitle, { color: palette.text }]}>Order detail</Text>
-          <View style={styles.iconButtonSpacer} />
+    <View style={styles.screen}>
+      <ScreenHeader title={id ? `Order #${id.slice(-6).toUpperCase()}` : 'Order'} />
+      {order.isPending ? (
+        <View style={styles.content}>
+          <ListSkeleton count={2} />
         </View>
-
-        {isLoading ? (
-          <View style={styles.loadingShell}>
-            <ActivityIndicator color={palette.tint} />
-          </View>
-        ) : order ? (
-          <>
-            <View style={[styles.heroCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
-              <View style={styles.heroHeader}>
-                <View style={styles.heroTitleWrap}>
-                  <Text style={[styles.eyebrow, { color: palette.tint }]}>Order {order._id.slice(-6)}</Text>
-                  <Text style={[styles.heroTitle, { color: palette.text }]}>
-                    {order.items[0]?.quantity} {order.items[0]?.unit} of {order.items[0]?.name}
-                  </Text>
-                </View>
-                <StatusPill label={order.status.replace('-', ' ')} tone={order.status === 'delivered' ? 'success' : 'warning'} />
-              </View>
-              <View style={[styles.totalCard, { backgroundColor: palette.surface }]}>
-                <Text style={[styles.totalLabel, { color: palette.muted }]}>Estimated order value</Text>
-                <Text style={[styles.totalValue, { color: palette.text }]}>{formatCurrency(order.totalAmount)}</Text>
-                <Text style={[styles.totalHint, { color: palette.muted }]}>Payment is coordinated outside FarmConnect</Text>
-              </View>
-            </View>
-
-            <View style={[styles.sectionCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Timeline</Text>
-              {order.status === 'cancelled' ? (
-                <View style={[styles.cancelledRow, { backgroundColor: `${palette.accent}14` }]}>
-                  <Feather name="x-circle" size={16} color={palette.accent} />
-                  <Text style={[styles.cancelledText, { color: palette.accent }]}>This order was cancelled.</Text>
-                </View>
-              ) : (
-                <View style={styles.timeline}>
-                  {timeline.map((step) => (
-                    <View key={step.status} style={styles.timelineRow}>
-                      <View
-                        style={[
-                          styles.timelineDot,
-                          { backgroundColor: step.complete ? palette.tint : palette.surface, borderColor: step.complete ? palette.tint : palette.border },
-                        ]}
-                      />
-                      <View style={styles.timelineTextWrap}>
-                        <Text style={[styles.timelineTitle, { color: step.active ? palette.text : palette.muted }]}>
-                          {step.status.replace('-', ' ')}
-                        </Text>
-                        <Text style={[styles.timelineBody, { color: palette.muted }]}>
-                          {step.status === 'pending'
-                            ? 'Buyer placed the order.'
-                            : step.status === 'accepted'
-                              ? 'Seller confirms stock and delivery.'
-                              : step.status === 'in-transit'
-                                ? 'Dispatch or delivery is underway.'
-                                : 'Buyer completes the order with a seller remark.'}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            <View style={[styles.sectionCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>People</Text>
-              <PartyRow label="Buyer" person={order.buyer} palette={palette} />
-              <PartyRow label="Seller" person={order.seller} palette={palette} />
-              {counterparty ? (
-                <Text style={[styles.contextLine, { color: palette.muted }]}>
-                  You are viewing this as the {isBuyer ? 'buyer' : 'seller'}.
-                </Text>
-              ) : null}
-            </View>
-
-            <View style={[styles.sectionCard, { backgroundColor: `${palette.tint}10`, borderColor: `${palette.tint}35` }]}>
-              <View style={styles.sectionTitleRow}>
-                <Feather name="message-circle" size={17} color={palette.tint} />
-                <Text style={[styles.sectionTitle, { color: palette.text }]}>Order coordination space</Text>
-              </View>
-              <Text style={[styles.contextLine, { color: palette.muted }]}>
-                FarmConnect tracks the agreement and fulfilment status here. Buyer and seller confirm payment directly using verified contact details.
-              </Text>
-              <View style={[styles.contactCard, { backgroundColor: palette.surface }]}>
-                <View style={styles.contactCopy}>
-                  <Text style={[styles.infoLabel, { color: palette.muted }]}>Verified seller phone</Text>
-                  <Text style={[styles.contactValue, { color: palette.text }]}>
-                    {sellerIsVerified && sellerPhone ? sellerPhone : 'Seller phone pending verification'}
-                  </Text>
-                </View>
-                {sellerIsVerified && sellerPhone ? (
-                  <Pressable
-                    onPress={() => void Linking.openURL(`tel:${sellerPhone.replace(/\s/g, '')}`)}
-                    style={[styles.callButton, { backgroundColor: palette.tint }]}>
-                    <Feather name="phone" size={15} color="#ffffff" />
-                    <Text style={styles.callButtonText}>Call seller</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-              {counterpartyPhone && (!sellerPhone || counterpartyPhone !== sellerPhone) ? (
-                <Text style={[styles.contextLine, { color: palette.muted }]}>
-                  Counterparty contact on record: {counterpartyPhone}
-                </Text>
-              ) : null}
-            </View>
-
-            <View style={[styles.sectionCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Delivery context</Text>
-              <InfoRow label="Location" value={order.deliveryLocation || 'Not provided'} palette={palette} />
-              <InfoRow label="Contact" value={order.deliveryContact || 'Not provided'} palette={palette} />
-              <InfoRow label="ETA" value={order.etaLabel || 'Confirming'} palette={palette} />
-              {order.note ? <InfoRow label="Note" value={order.note} palette={palette} /> : null}
-            </View>
-
-            <View style={[styles.sectionCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Actions</Text>
-              <View style={styles.actionGrid}>
-                {canAccept ? (
-                  <OrderAction label="Accept order" icon="check" palette={palette} onPress={() => void handleStatusUpdate('accepted')} disabled={isUpdatingStatus} />
-                ) : null}
-                {canDispatch ? (
-                  <OrderAction label="Mark in transit" icon="truck" palette={palette} onPress={() => void handleStatusUpdate('in-transit')} disabled={isUpdatingStatus} />
-                ) : null}
-                {canComplete ? (
-                  <OrderAction
-                    label="Complete + remark"
-                    icon="star"
-                    palette={palette}
-                    onPress={() => {
-                      setRatingDraft(5);
-                      setRemarkDraft('');
-                      setIsReviewOpen(true);
-                    }}
-                    disabled={isCompletingOrder}
-                  />
-                ) : null}
-                {canBuyerCancel || canSellerCancel ? (
-                  <OrderAction label="Cancel order" icon="x" palette={palette} tone="danger" onPress={() => void handleStatusUpdate('cancelled')} disabled={isUpdatingStatus} />
-                ) : null}
-                {!canAccept && !canDispatch && !canComplete && !canBuyerCancel && !canSellerCancel ? (
-                  <Text style={[styles.contextLine, { color: palette.muted }]}>No actions are available for this order right now.</Text>
-                ) : null}
-              </View>
-            </View>
-
-            <View style={[styles.sectionCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
-              <Text style={[styles.sectionTitle, { color: palette.text }]}>Seller remark</Text>
-              {remark ? (
-                <View style={[styles.remarkCard, { backgroundColor: palette.surface }]}>
-                  <View style={styles.remarkTop}>
-                    <SocialAvatar name={remark.buyer.name} imageUrl={remark.buyer.avatarUrl} size={36} />
-                    <View style={styles.remarkCopy}>
-                      <Text style={[styles.remarkName, { color: palette.text }]}>{remark.buyer.name}</Text>
-                      <Text style={[styles.remarkMeta, { color: palette.muted }]}>Buyer remark - {remark.rating}/5</Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.remarkBody, { color: palette.text }]}>{remark.body}</Text>
-                </View>
-              ) : (
-                <Text style={[styles.contextLine, { color: palette.muted }]}>
-                  Buyer remarks appear here after completion.
-                </Text>
-              )}
-            </View>
-          </>
-        ) : (
-          <View style={styles.loadingShell}>
-            <Text style={[styles.contextLine, { color: palette.muted }]}>Order not found.</Text>
-          </View>
-        )}
-      </ScrollView>
-
-      <Modal visible={isReviewOpen} animationType="fade" transparent onRequestClose={() => setIsReviewOpen(false)}>
-        <View style={styles.modalRoot}>
-          <Pressable style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.28)' }]} onPress={() => setIsReviewOpen(false)} />
-          <View style={[styles.reviewPanel, { backgroundColor: palette.surfaceRaised, borderColor: palette.border }]}>
-            <Text style={[styles.reviewTitle, { color: palette.text }]}>Complete order</Text>
-            <Text style={[styles.reviewCopy, { color: palette.muted }]}>Leave a public seller remark that future buyers can see.</Text>
-            <View style={styles.ratingRow}>
-              {[1, 2, 3, 4, 5].map((value) => (
-                <Pressable
-                  key={value}
-                  onPress={() => setRatingDraft(value)}
-                  style={[styles.ratingButton, { backgroundColor: value <= ratingDraft ? palette.tint : palette.surface }]}>
-                  <Text style={[styles.ratingText, { color: value <= ratingDraft ? '#ffffff' : palette.text }]}>{value}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <TextInput
-              value={remarkDraft}
-              onChangeText={setRemarkDraft}
-              placeholder="How was quality, timing, packaging, and communication?"
-              placeholderTextColor={palette.muted}
-              multiline
-              style={[styles.reviewInput, { backgroundColor: palette.surface, color: palette.text, borderColor: palette.border }]}
-            />
-            <View style={styles.reviewActions}>
-              <Pressable onPress={() => setIsReviewOpen(false)} style={[styles.reviewSecondary, { backgroundColor: palette.surface }]}>
-                <Text style={[styles.reviewActionText, { color: palette.text }]}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => void handleCompleteOrder()}
-                disabled={isCompletingOrder}
-                style={[styles.reviewPrimary, { backgroundColor: palette.tint, opacity: isCompletingOrder ? 0.65 : 1 }]}>
-                <Text style={styles.reviewPrimaryText}>{isCompletingOrder ? 'Saving...' : 'Complete'}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
-  );
-}
-
-function PartyRow({
-  label,
-  person,
-  palette,
-}: {
-  label: string;
-  person: Order['buyer'];
-  palette: (typeof Colors)['light'] | (typeof Colors)['dark'];
-}) {
-  const personId = person._id ?? person.id;
-
-  return (
-    <Pressable
-      onPress={() => {
-        if (personId) {
-          router.push({ pathname: '/profile/[id]', params: { id: personId } });
-        }
-      }}
-      style={[styles.partyRow, { backgroundColor: palette.surface }]}>
-      <SocialAvatar name={person.name} imageUrl={person.avatarUrl} size={42} />
-      <View style={styles.partyCopy}>
-        <Text style={[styles.partyName, { color: palette.text }]}>{person.name}</Text>
-        <Text style={[styles.partyMeta, { color: palette.muted }]}>
-          {label} - {person.role} - {person.location}
-        </Text>
-      </View>
-      <Feather name="chevron-right" size={18} color={palette.muted} />
-    </Pressable>
-  );
-}
-
-function InfoRow({
-  label,
-  value,
-  palette,
-}: {
-  label: string;
-  value: string;
-  palette: (typeof Colors)['light'] | (typeof Colors)['dark'];
-}) {
-  return (
-    <View style={styles.infoRow}>
-      <Text style={[styles.infoLabel, { color: palette.muted }]}>{label}</Text>
-      <Text style={[styles.infoValue, { color: palette.text }]}>{value}</Text>
+      ) : order.isError ? (
+        <ErrorState error={order.error} onRetry={() => void order.refetch()} retrying={order.isFetching} />
+      ) : !order.data?.item ? (
+        <EmptyState icon="file-text" title="Order not found" />
+      ) : (
+        <OrderBody order={order.data.item} remark={order.data.remark} />
+      )}
     </View>
   );
 }
 
-function OrderAction({
-  label,
-  icon,
-  palette,
-  onPress,
-  disabled,
-  tone = 'default',
-}: {
-  label: string;
-  icon: keyof typeof Feather.glyphMap;
-  palette: (typeof Colors)['light'] | (typeof Colors)['dark'];
-  onPress: () => void;
-  disabled?: boolean;
-  tone?: 'default' | 'danger';
-}) {
-  const color = tone === 'danger' ? palette.accent : palette.tint;
+function OrderBody({ order, remark }: { order: Order; remark: SellerRemark | null }) {
+  const { colors } = useTheme();
+  const { token, user } = useSession();
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const [pendingStatus, setPendingStatus] = useState<StatusUpdate | null>(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+
+  const viewerId = getUserId(user);
+  const isBuyer = viewerId === getUserId(order.buyer);
+  const isSeller = viewerId === getUserId(order.seller);
+  const isClosed = order.status === 'delivered' || order.status === 'cancelled';
+  const item = order.items[0];
+  const sellerPhone = order.seller.phone?.trim();
+  const sellerIsVerified = order.seller.verificationStatus === 'verified' || order.seller.verificationStatus === 'top-rated';
+  const activeStep = steps.findIndex((step) => step.status === order.status);
+
+  async function updateStatus(status: StatusUpdate) {
+    if (!token) {
+      return;
+    }
+
+    setPendingStatus(status);
+
+    try {
+      const response = await api.updateOrderStatus(token, order._id, status);
+      queryClient.setQueryData(queryKeys.order(order._id), { item: response.item, remark: response.remark });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.ordersRoot });
+      showToast(response.message);
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
+    } finally {
+      setPendingStatus(null);
+    }
+  }
+
+  function confirmCancel() {
+    Alert.alert('Cancel this order?', `${isBuyer ? order.seller.name : order.buyer.name} will be notified. This can't be undone.`, [
+      { text: 'Keep order', style: 'cancel' },
+      { text: 'Cancel order', style: 'destructive', onPress: () => void updateStatus('cancelled') },
+    ]);
+  }
 
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={[styles.orderAction, { backgroundColor: `${color}16`, opacity: disabled ? 0.65 : 1 }]}>
-      <Feather name={icon} size={16} color={color} />
-      <Text style={[styles.orderActionText, { color }]}>{label}</Text>
-    </Pressable>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <Card>
+        <View style={styles.summaryTop}>
+          <AppText variant="headline" style={styles.flex}>
+            {item ? `${item.quantity} ${item.unit} ${item.name}` : 'Order'}
+          </AppText>
+          <OrderStatusBadge status={order.status} />
+        </View>
+        <AppText variant="title">{formatCurrency(order.totalAmount)}</AppText>
+        <AppText variant="caption" color="textMuted">
+          {item ? `${formatCurrency(item.unitPrice)} per ${item.unit} · ` : ''}Paid directly to the seller, not in the app
+        </AppText>
+      </Card>
+
+      {!isClosed && (isBuyer || isSeller) ? (
+        <View style={styles.actions}>
+          {isSeller && order.status === 'pending' ? (
+            <Button label="Accept order" icon="check" onPress={() => void updateStatus('accepted')} loading={pendingStatus === 'accepted'} fullWidth />
+          ) : null}
+          {isSeller && order.status === 'accepted' ? (
+            <Button label="Mark as dispatched" icon="truck" onPress={() => void updateStatus('in-transit')} loading={pendingStatus === 'in-transit'} fullWidth />
+          ) : null}
+          {isBuyer && !remark ? <Button label="Confirm delivery" icon="check-circle" onPress={() => setIsReviewOpen(true)} fullWidth /> : null}
+          {isSeller || order.status === 'pending' ? (
+            <Button label="Cancel order" variant="danger" onPress={confirmCancel} loading={pendingStatus === 'cancelled'} fullWidth />
+          ) : null}
+        </View>
+      ) : null}
+
+      <Section title="Progress">
+        {order.status === 'cancelled' ? (
+          <Card tone="dangerSoft" style={styles.cancelled}>
+            <Feather name="x-circle" size={18} color={colors.danger} />
+            <AppText variant="label" color="danger">
+              This order was cancelled.
+            </AppText>
+          </Card>
+        ) : (
+          <View>
+            {steps.map((step, index) => {
+              const isDone = index <= activeStep;
+              const isLast = index === steps.length - 1;
+
+              return (
+                <View key={step.status} style={styles.step}>
+                  <View style={styles.stepRail}>
+                    <View style={[styles.stepDot, { backgroundColor: isDone ? colors.primary : colors.surface, borderColor: isDone ? colors.primary : colors.border }]}>
+                      {isDone ? <Ionicons name="checkmark" size={12} color={colors.onPrimary} /> : null}
+                    </View>
+                    {!isLast ? <View style={[styles.stepLine, { backgroundColor: index < activeStep ? colors.primary : colors.border }]} /> : null}
+                  </View>
+                  <View style={styles.stepCopy}>
+                    <AppText variant="label" color={isDone ? 'text' : 'textMuted'}>
+                      {step.title}
+                    </AppText>
+                    <AppText variant="caption" color="textMuted">
+                      {step.body}
+                    </AppText>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </Section>
+
+      <Section title="People">
+        <Card padded={false} style={styles.listCard}>
+          {[
+            { label: 'Seller', person: order.seller },
+            { label: 'Buyer', person: order.buyer },
+          ].map(({ label, person }) => (
+            <ListRow
+              key={label}
+              avatar={{ name: person.name, imageUrl: person.avatarUrl }}
+              title={getUserId(person) === viewerId ? `${person.name} (you)` : person.name}
+              subtitle={describeUser({ role: label, location: person.location })}
+              onPress={() => openProfile(person)}
+            />
+          ))}
+        </Card>
+        {sellerIsVerified && sellerPhone && !isSeller ? (
+          <Button
+            label={`Call ${order.seller.name.split(' ')[0]}`}
+            icon="phone"
+            variant="secondary"
+            onPress={() => void Linking.openURL(`tel:${sellerPhone.replace(/\s/g, '')}`)}
+          />
+        ) : null}
+      </Section>
+
+      <Section title="Delivery">
+        <Card style={styles.details}>
+          <DetailRow icon="map-pin" label="Deliver to" value={order.deliveryLocation || 'Not provided'} />
+          <DetailRow icon="phone" label="Buyer contact" value={order.deliveryContact || 'Not provided'} />
+          <DetailRow icon="clock" label="Expected" value={order.etaLabel || 'Being confirmed'} />
+          {order.note ? <DetailRow icon="message-square" label="Note" value={order.note} /> : null}
+        </Card>
+      </Section>
+
+      {remark ? (
+        <Section title="Buyer's review">
+          <Card>
+            <View style={styles.stars}>
+              {[1, 2, 3, 4, 5].map((value) => (
+                <Ionicons key={value} name={value <= remark.rating ? 'star' : 'star-outline'} size={16} color={colors.accent} />
+              ))}
+            </View>
+            <AppText variant="callout">{remark.body}</AppText>
+            <AppText variant="caption" color="textMuted">
+              — {remark.buyer.name}
+            </AppText>
+          </Card>
+        </Section>
+      ) : null}
+
+      <ReviewSheet order={isReviewOpen ? order : null} onClose={() => setIsReviewOpen(false)} />
+    </ScrollView>
+  );
+}
+
+function DetailRow({ icon, label, value }: { icon: keyof typeof Feather.glyphMap; label: string; value: string }) {
+  const { colors } = useTheme();
+
+  return (
+    <View style={styles.detailRow}>
+      <Feather name={icon} size={16} color={colors.textSubtle} style={styles.detailIcon} />
+      <View style={styles.flex}>
+        <AppText variant="caption" color="textMuted">
+          {label}
+        </AppText>
+        <AppText variant="callout">{value}</AppText>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  content: { padding: 16, gap: 14, paddingBottom: 34 },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconButton: { width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  iconButtonSpacer: { width: 40 },
-  topTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '800' },
-  loadingShell: { minHeight: 220, alignItems: 'center', justifyContent: 'center' },
-  heroCard: { borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, padding: 18, gap: 14 },
-  heroHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' },
-  heroTitleWrap: { flex: 1, gap: 4 },
-  eyebrow: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.2 },
-  heroTitle: { fontFamily: Fonts.rounded, fontSize: 25, fontWeight: '800', lineHeight: 31 },
-  totalCard: { borderRadius: 18, padding: 14, gap: 4 },
-  totalLabel: { fontFamily: Fonts.sans, fontSize: 12 },
-  totalValue: { fontFamily: Fonts.rounded, fontSize: 22, fontWeight: '800' },
-  totalHint: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 17 },
-  sectionCard: { borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 12 },
-  sectionTitleRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  sectionTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '800' },
-  timeline: { gap: 12 },
-  timelineRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  timelineDot: { width: 15, height: 15, borderRadius: 999, borderWidth: 2, marginTop: 2 },
-  timelineTextWrap: { flex: 1, gap: 3 },
-  timelineTitle: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '800', textTransform: 'capitalize' },
-  timelineBody: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  cancelledRow: { borderRadius: 16, padding: 12, flexDirection: 'row', gap: 9, alignItems: 'center' },
-  cancelledText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
-  partyRow: { borderRadius: 18, padding: 12, flexDirection: 'row', gap: 11, alignItems: 'center' },
-  partyCopy: { flex: 1, gap: 3 },
-  partyName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '800' },
-  partyMeta: { fontFamily: Fonts.sans, fontSize: 12, textTransform: 'capitalize' },
-  contextLine: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  contactCard: { borderRadius: 18, padding: 12, flexDirection: 'row', gap: 10, alignItems: 'center' },
-  contactCopy: { flex: 1, gap: 4 },
-  contactValue: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '800' },
-  callButton: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', gap: 7, alignItems: 'center' },
-  callButtonText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '800' },
-  infoRow: { gap: 4 },
-  infoLabel: { fontFamily: Fonts.sans, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
-  infoValue: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
-  actionGrid: { gap: 10 },
-  orderAction: { borderRadius: 16, paddingHorizontal: 13, paddingVertical: 12, flexDirection: 'row', gap: 9, alignItems: 'center' },
-  orderActionText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
-  remarkCard: { borderRadius: 18, padding: 14, gap: 10 },
-  remarkTop: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  remarkCopy: { flex: 1, gap: 2 },
-  remarkName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '800' },
-  remarkMeta: { fontFamily: Fonts.sans, fontSize: 12 },
-  remarkBody: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
-  modalRoot: { flex: 1, justifyContent: 'flex-end' },
-  modalOverlay: { ...StyleSheet.absoluteFillObject },
-  reviewPanel: { margin: 14, borderRadius: 28, borderWidth: StyleSheet.hairlineWidth, padding: 18, gap: 12 },
-  reviewTitle: { fontFamily: Fonts.rounded, fontSize: 22, fontWeight: '800' },
-  reviewCopy: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
-  ratingRow: { flexDirection: 'row', gap: 8 },
-  ratingButton: { width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  ratingText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '800' },
-  reviewInput: {
-    minHeight: 104,
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    textAlignVertical: 'top',
-    fontFamily: Fonts.sans,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  reviewActions: { flexDirection: 'row', gap: 10 },
-  reviewSecondary: { flex: 1, borderRadius: 16, alignItems: 'center', paddingVertical: 13 },
-  reviewPrimary: { flex: 1, borderRadius: 16, alignItems: 'center', paddingVertical: 13 },
-  reviewActionText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
-  reviewPrimaryText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
+  screen: { flex: 1 },
+  content: { paddingHorizontal: ScreenPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.xxl, gap: Spacing.lg },
+  flex: { flex: 1 },
+  summaryTop: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  actions: { gap: Spacing.xs },
+  cancelled: { flexDirection: 'row', alignItems: 'center' },
+  step: { flexDirection: 'row', gap: Spacing.sm },
+  stepRail: { alignItems: 'center', width: 22 },
+  stepDot: { width: 22, height: 22, borderRadius: Radius.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  stepLine: { width: 2, flex: 1, minHeight: 18, marginVertical: 2 },
+  stepCopy: { flex: 1, gap: 2, paddingBottom: Spacing.md },
+  listCard: { paddingHorizontal: Spacing.sm, gap: 0 },
+  details: { gap: Spacing.md },
+  detailRow: { flexDirection: 'row', gap: Spacing.sm },
+  detailIcon: { marginTop: 2 },
+  stars: { flexDirection: 'row', gap: 2 },
 });

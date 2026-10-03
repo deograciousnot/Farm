@@ -52,13 +52,12 @@ export type FeedPost = {
     unit: string;
     location: string;
   } | null;
-  media?: Array<{
+  media?: {
     type: 'image' | 'video';
     url: string;
     thumbnailUrl?: string;
-  }>;
-  bodyBlocks?: Array<
-    | {
+  }[];
+  bodyBlocks?: (| {
         type: 'paragraph';
         text: string;
       }
@@ -67,8 +66,7 @@ export type FeedPost = {
         url: string;
         thumbnailUrl?: string;
         mediaIndex?: number;
-      }
-  >;
+      })[];
 };
 
 export type Product = {
@@ -148,7 +146,9 @@ export type NotificationItem = {
   _id: string;
   title: string;
   body: string;
-  type: 'order' | 'community' | 'system' | 'like' | 'comment' | 'reply';
+  type: 'order' | 'community' | 'system' | 'like' | 'comment' | 'reply' | 'broadcast';
+  /** In-app route to open on tap, e.g. "/broadcast/<id>". */
+  link?: string;
   isRead: boolean;
   createdAt: string;
 };
@@ -198,4 +198,26 @@ export type UploadableAsset = {
   type: string;
   name?: string;
   fileSize?: number;
+};
+
+export type BroadcastCategory = 'advisory' | 'pest-alert' | 'weather' | 'market' | 'program' | 'training';
+
+export type Broadcast = {
+  _id: string;
+  title: string;
+  body: string;
+  category: BroadcastCategory;
+  counties: string[];
+  roles: ('farmer' | 'buyer' | 'hobbyist')[];
+  link?: { label: string; url: string };
+  publishedAt: string;
+  expiresAt?: string | null;
+  organization: {
+    _id: string;
+    name: string;
+    type: string;
+    logoUrl?: string;
+    website?: string;
+    description?: string;
+  };
 };

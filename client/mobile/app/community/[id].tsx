@@ -1,400 +1,206 @@
-import Feather from '@expo/vector-icons/Feather';
+import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SocialAvatar } from '@/components/social-avatar';
-import { Colors, Fonts } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { api } from '@/lib/api';
+import { AppText } from '@/components/ui/app-text';
+import { Avatar } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { IconButton } from '@/components/ui/icon-button';
+import { ListRow } from '@/components/ui/list-row';
+import { MessageComposer } from '@/components/ui/message-composer';
+import { MoreButton } from '@/components/ui/more-button';
+import { ScreenHeader } from '@/components/ui/screen-header';
+import { Section } from '@/components/ui/section';
+import { ListSkeleton } from '@/components/ui/skeleton';
+import { EmptyState, ErrorState } from '@/components/ui/state-views';
+import { Radius, ScreenPadding, Spacing } from '@/constants/theme';
+import { queryKeys, useThread, useThreadReplies } from '@/hooks/queries';
+import { useReportContent, useRequireSignIn } from '@/hooks/use-content-actions';
+import { useTheme } from '@/hooks/use-theme';
+import { api, getErrorMessage } from '@/lib/api';
 import type { CommunityThread, ThreadReply } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
+import { useToast } from '@/providers/toast-provider';
+import { formatRelativeTime, pluralize } from '@/utils/format';
+import { describeUser, openProfile } from '@/utils/user';
 
 export default function CommunityThreadScreen() {
-  const scheme = useColorScheme() ?? 'light';
-  const palette = Colors[scheme];
-  const params = useLocalSearchParams<{ id?: string }>();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const thread = useThread(id);
+  const reportContent = useReportContent();
+
+  return (
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScreenHeader
+        title="Discussion"
+        right={
+          thread.data ? (
+            <IconButton
+              icon="flag"
+              label="Report discussion"
+              onPress={() => reportContent({ targetType: 'thread', targetId: thread.data._id, label: 'discussion', note: thread.data.title })}
+            />
+          ) : null
+        }
+      />
+      {thread.isPending ? (
+        <View style={styles.content}>
+          <ListSkeleton count={2} />
+        </View>
+      ) : thread.isError ? (
+        <ErrorState error={thread.error} onRetry={() => void thread.refetch()} retrying={thread.isFetching} />
+      ) : !thread.data ? (
+        <EmptyState icon="message-circle" title="Discussion not found" body="It may have been removed." />
+      ) : (
+        <ThreadBody thread={thread.data} />
+      )}
+    </KeyboardAvoidingView>
+  );
+}
+
+function ThreadBody({ thread }: { thread: CommunityThread }) {
+  const replies = useThreadReplies(thread._id);
+  const reportContent = useReportContent();
+
+  return (
+    <>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={styles.question}>
+          <View style={styles.badges}>
+            <Badge label={thread.category} tone="primary" />
+            {thread.isPinned ? <Badge label="Pinned" tone="accent" icon="bookmark" /> : null}
+          </View>
+          <AppText variant="title">{thread.title}</AppText>
+          <AppText variant="body">{thread.body}</AppText>
+          {thread.media?.length ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.media}>
+              {thread.media.map((item, index) => (
+                <Image key={`${item.url}-${index}`} source={{ uri: item.thumbnailUrl || item.url }} contentFit="cover" transition={150} style={styles.mediaImage} />
+              ))}
+            </ScrollView>
+          ) : null}
+          <AppText variant="caption" color="textMuted">
+            {pluralize(thread.viewsCount, 'view')} · asked {formatRelativeTime(thread.createdAt)}
+          </AppText>
+        </View>
+
+        <Card padded={false} style={styles.authorCard}>
+          <ListRow
+            avatar={{ name: thread.author.name, imageUrl: thread.author.avatarUrl }}
+            title={thread.author.name}
+            subtitle={`Asked by · ${describeUser(thread.author)}`}
+            onPress={() => openProfile(thread.author)}
+          />
+        </Card>
+
+        <Section title={pluralize(replies.data?.length ?? thread.repliesCount, 'answer')}>
+          {replies.isPending ? (
+            <ListSkeleton count={2} />
+          ) : replies.isError ? (
+            <ErrorState error={replies.error} onRetry={() => void replies.refetch()} retrying={replies.isFetching} />
+          ) : replies.data.length ? (
+            replies.data.map((reply) => (
+              <ReplyItem
+                key={reply._id}
+                reply={reply}
+                onReport={() => reportContent({ targetType: 'reply', targetId: reply._id, label: 'answer', note: reply.body.slice(0, 180) })}
+              />
+            ))
+          ) : (
+            <EmptyState icon="message-circle" title="No answers yet" body="If you've dealt with this before, your experience could save someone's harvest." />
+          )}
+        </Section>
+      </ScrollView>
+      <ReplyComposer threadId={thread._id} />
+    </>
+  );
+}
+
+function ReplyItem({ reply, onReport }: { reply: ThreadReply; onReport: () => void }) {
+  return (
+    <Card>
+      <View style={styles.replyHeader}>
+        <Pressable accessibilityRole="button" onPress={() => openProfile(reply.author)} style={styles.replyAuthor}>
+          <Avatar name={reply.author.name} imageUrl={reply.author.avatarUrl} size={32} />
+          <View style={styles.flex}>
+            <AppText variant="label" numberOfLines={1}>
+              {reply.author.name}
+            </AppText>
+            <AppText variant="caption" color="textMuted" numberOfLines={1}>
+              {describeUser(reply.author, formatRelativeTime(reply.createdAt))}
+            </AppText>
+          </View>
+        </Pressable>
+        <MoreButton label="Report answer" onPress={onReport} />
+      </View>
+      <AppText variant="callout">{reply.body}</AppText>
+    </Card>
+  );
+}
+
+function ReplyComposer({ threadId }: { threadId: string }) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { token } = useSession();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isReplyLoading, setIsReplyLoading] = useState(true);
-  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
-  const [thread, setThread] = useState<CommunityThread | null>(null);
-  const [replies, setReplies] = useState<ThreadReply[]>([]);
-  const [replyDraft, setReplyDraft] = useState('');
+  const requireSignIn = useRequireSignIn();
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
 
-  useEffect(() => {
-    let isMounted = true;
+  async function send(body: string) {
+    const authToken = requireSignIn('Sign in to answer and help other farmers.');
 
-    async function loadThread() {
-      if (!params.id) {
-        setIsLoading(false);
-        setIsReplyLoading(false);
-        return;
-      }
-
-      try {
-        const [threadResponse, repliesResponse] = await Promise.all([
-          api.getThreadById(params.id),
-          api.getThreadReplies(params.id),
-        ]);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setThread(threadResponse.item);
-        setReplies(repliesResponse.items);
-      } catch (error) {
-        console.warn('Failed to load thread.', error);
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-          setIsReplyLoading(false);
-        }
-      }
+    if (!authToken) {
+      return false;
     }
-
-    void loadThread();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [params.id]);
-
-  async function handleReplySubmit() {
-    if (!token || !params.id || !replyDraft.trim()) {
-      if (!token) {
-        Alert.alert('Sign in required', 'Please sign in to join this discussion.');
-      }
-
-      return;
-    }
-
-    setIsSubmittingReply(true);
 
     try {
-      const response = await api.createThreadReply(token, params.id, replyDraft.trim());
-      setReplies((current) => [response.item, ...current]);
-      setThread((current) => (current ? { ...current, repliesCount: response.repliesCount } : current));
-      setReplyDraft('');
+      const response = await api.createThreadReply(authToken, threadId, body);
+      queryClient.setQueryData<ThreadReply[]>(queryKeys.threadReplies(threadId), (current) => [response.item, ...(current ?? [])]);
+      queryClient.setQueryData<CommunityThread>(queryKeys.thread(threadId), (current) =>
+        current ? { ...current, repliesCount: response.repliesCount } : current
+      );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.community });
+      showToast('Answer posted');
+      return true;
     } catch (error) {
-      Alert.alert('Reply failed', error instanceof Error ? error.message : 'Something went wrong.');
-    } finally {
-      setIsSubmittingReply(false);
+      showToast(getErrorMessage(error), 'error');
+      return false;
     }
-  }
-
-  const reportContent = useCallback(
-    (target: { targetType: 'thread' | 'reply'; targetId: string; label: string; note: string }) => {
-      if (!token) {
-        Alert.alert('Sign in required', 'Please sign in before reporting content.');
-        return;
-      }
-
-      Alert.alert(`Report ${target.label}?`, 'Send this content to FarmConnect moderation for review.', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Report',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.reportContent(token, {
-                targetType: target.targetType,
-                targetId: target.targetId,
-                reason: `User reported ${target.label}`,
-                note: target.note,
-              });
-              Alert.alert('Report sent', 'Thanks. The moderation team will review it.');
-            } catch (error) {
-              Alert.alert('Report failed', error instanceof Error ? error.message : 'Something went wrong.');
-            }
-          },
-        },
-      ]);
-    },
-    [token]
-  );
-
-  function formatRelativeDate(value?: string) {
-    if (!value) {
-      return 'Now';
-    }
-
-    const date = new Date(value);
-    const diffInHours = Math.max(0, (Date.now() - date.getTime()) / (1000 * 60 * 60));
-
-    if (diffInHours < 1) {
-      return 'Just now';
-    }
-
-    if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}h ago`;
-    }
-
-    return `${Math.floor(diffInHours / 24)}d ago`;
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} style={[styles.backButton, { backgroundColor: palette.surfaceRaised }]}>
-            <Feather name="arrow-left" size={18} color={palette.text} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: palette.text }]}>Thread</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        {isLoading ? (
-          <View style={styles.loadingShell}>
-            <ActivityIndicator color={palette.tint} />
-          </View>
-        ) : thread ? (
-          <View style={[styles.threadCard, { backgroundColor: palette.surfaceRaised }]}>
-            <View style={styles.metaRow}>
-              <View style={[styles.categoryPill, { backgroundColor: `${palette.tint}12` }]}>
-                <Text style={[styles.categoryText, { color: palette.tint }]}>{thread.category}</Text>
-              </View>
-              <View style={styles.metaActions}>
-                <Text style={[styles.metaText, { color: palette.muted }]}>{thread.viewsCount} views</Text>
-                <Pressable
-                  onPress={() =>
-                    reportContent({
-                      targetType: 'thread',
-                      targetId: thread._id,
-                      label: 'thread',
-                      note: thread.title,
-                    })
-                  }
-                  hitSlop={8}
-                  style={styles.moreButton}>
-                  <Feather name="more-horizontal" size={18} color={palette.muted} />
-                </Pressable>
-              </View>
-            </View>
-
-            <Text style={[styles.title, { color: palette.text }]}>{thread.title}</Text>
-            <Text style={[styles.body, { color: palette.muted }]}>{thread.body}</Text>
-
-            {thread.media?.length ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.threadMediaRow}>
-                {thread.media.map((item, index) => (
-                  <Image
-                    key={`${item.url}-${index}`}
-                    source={{ uri: item.thumbnailUrl || item.url }}
-                    contentFit="cover"
-                    style={styles.threadImage}
-                  />
-                ))}
-              </ScrollView>
-            ) : null}
-
-            <Pressable
-              onPress={() => {
-                const authorId = thread.author._id ?? thread.author.id;
-
-                if (authorId) {
-                  router.push({ pathname: '/profile/[id]', params: { id: authorId } });
-                }
-              }}
-              style={[styles.authorCard, { backgroundColor: palette.surface }]}>
-              <SocialAvatar name={thread.author.name} imageUrl={thread.author.avatarUrl} size={42} />
-              <View style={styles.authorText}>
-                <Text style={[styles.authorName, { color: palette.text }]}>{thread.author.name}</Text>
-                <Text style={[styles.authorMeta, { color: palette.muted }]}>
-                  {thread.author.role} - {thread.author.location}
-                </Text>
-              </View>
-              <Feather name="chevron-right" size={18} color={palette.muted} />
-            </Pressable>
-
-            <View style={styles.metricsRow}>
-              <View style={styles.metric}>
-                <Feather name="message-square" size={16} color={palette.text} />
-                <Text style={[styles.metricText, { color: palette.text }]}>{thread.repliesCount} replies</Text>
-              </View>
-              <View style={styles.metric}>
-                <Feather name="eye" size={16} color={palette.text} />
-                <Text style={[styles.metricText, { color: palette.text }]}>{thread.viewsCount} views</Text>
-              </View>
-            </View>
-          </View>
-        ) : (
-          <View style={[styles.emptyCard, { backgroundColor: palette.surfaceRaised }]}>
-            <Text style={[styles.emptyTitle, { color: palette.text }]}>Thread not found</Text>
-          </View>
-        )}
-
-        <View style={[styles.replyComposer, { backgroundColor: palette.surfaceRaised }]}>
-          <View style={styles.replyComposerHeader}>
-            <Text style={[styles.replyComposerTitle, { color: palette.text }]}>Join the discussion</Text>
-            <Text style={[styles.replyComposerNote, { color: palette.muted }]}>
-              {token ? 'Share something useful, short, and specific.' : 'Sign in to reply.'}
-            </Text>
-          </View>
-          <TextInput
-            value={replyDraft}
-            onChangeText={setReplyDraft}
-            editable={Boolean(token) && !isSubmittingReply}
-            placeholder="Add your take, advice, or follow-up question..."
-            placeholderTextColor={palette.muted}
-            multiline
-            style={[styles.replyInput, { color: palette.text, backgroundColor: palette.surface }]}
-          />
-          <View style={styles.replyComposerFooter}>
-            <Text style={[styles.replyCountText, { color: palette.muted }]}>{replies.length} visible replies</Text>
-            <Pressable
-              onPress={handleReplySubmit}
-              disabled={!token || isSubmittingReply || !replyDraft.trim()}
-              style={[
-                styles.replyButton,
-                {
-                  backgroundColor:
-                    !token || isSubmittingReply || !replyDraft.trim() ? palette.surface : palette.tint,
-                },
-              ]}>
-              <Text
-                style={[
-                  styles.replyButtonText,
-                  { color: !token || isSubmittingReply || !replyDraft.trim() ? palette.muted : '#ffffff' },
-                ]}>
-                {isSubmittingReply ? 'Posting...' : 'Reply'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.repliesSection}>
-          <View style={styles.repliesHeader}>
-            <Text style={[styles.repliesTitle, { color: palette.text }]}>Replies</Text>
-            <Text style={[styles.repliesSubtitle, { color: palette.muted }]}>
-              Practical answers read better than noise.
-            </Text>
-          </View>
-
-          {isReplyLoading ? (
-            <View style={styles.loadingShell}>
-              <ActivityIndicator color={palette.tint} />
-            </View>
-          ) : replies.length ? (
-            replies.map((reply) => (
-              <View key={reply._id} style={[styles.replyCard, { backgroundColor: palette.surfaceRaised }]}>
-                <View style={styles.replyTopRow}>
-                  <Pressable
-                    onPress={() => {
-                      const authorId = reply.author._id ?? reply.author.id;
-
-                      if (authorId) {
-                        router.push({ pathname: '/profile/[id]', params: { id: authorId } });
-                      }
-                    }}
-                    style={styles.replyAuthorRow}>
-                    <SocialAvatar name={reply.author.name} imageUrl={reply.author.avatarUrl} size={38} />
-                    <View style={styles.replyAuthorText}>
-                      <Text style={[styles.replyAuthorName, { color: palette.text }]}>{reply.author.name}</Text>
-                      <Text style={[styles.replyMeta, { color: palette.muted }]}>
-                        {reply.author.role} · {reply.author.location} · {formatRelativeDate(reply.createdAt)}
-                      </Text>
-                    </View>
-                  </Pressable>
-                  <Pressable
-                    onPress={() =>
-                      reportContent({
-                        targetType: 'reply',
-                        targetId: reply._id,
-                        label: 'reply',
-                        note: reply.body.slice(0, 180),
-                      })
-                    }
-                    hitSlop={8}
-                    style={styles.moreButton}>
-                    <Feather name="more-horizontal" size={18} color={palette.muted} />
-                  </Pressable>
-                </View>
-                <Text style={[styles.replyBody, { color: palette.text }]}>{reply.body}</Text>
-              </View>
-            ))
-          ) : (
-            <View style={[styles.emptyCard, { backgroundColor: palette.surfaceRaised }]}>
-              <Text style={[styles.emptyTitle, { color: palette.text }]}>No replies yet</Text>
-              <Text style={[styles.emptyBody, { color: palette.muted }]}>
-                Be the first person to answer and get this thread moving.
-              </Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <View
+      style={[
+        styles.composerBar,
+        { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, Spacing.sm) },
+      ]}>
+      <MessageComposer
+        placeholder="Share what worked for you…"
+        guestLabel={token ? undefined : 'Sign in to answer'}
+        onGuestPress={() => requireSignIn('Sign in to answer and help other farmers.')}
+        onSend={send}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  content: { padding: 16, gap: 14, paddingBottom: 28 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  backButton: { width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: Fonts.rounded, fontSize: 20, fontWeight: '700' },
-  headerSpacer: { width: 40 },
-  loadingShell: { paddingVertical: 40, alignItems: 'center' },
-  threadCard: { borderRadius: 26, padding: 18, gap: 14 },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  metaActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  moreButton: { width: 30, height: 30, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  categoryPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  categoryText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  metaText: { fontFamily: Fonts.sans, fontSize: 12 },
-  title: { fontFamily: Fonts.rounded, fontSize: 24, fontWeight: '700', lineHeight: 30 },
-  body: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 23 },
-  threadMediaRow: { gap: 10 },
-  threadImage: { width: 220, height: 170, borderRadius: 18 },
-  authorCard: { borderRadius: 18, padding: 12, flexDirection: 'row', gap: 12, alignItems: 'center' },
-  authorText: { flex: 1 },
-  authorName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
-  authorMeta: { fontFamily: Fonts.sans, fontSize: 12, marginTop: 2 },
-  metricsRow: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' },
-  metric: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  metricText: { fontFamily: Fonts.sans, fontSize: 13, fontWeight: '700' },
-  emptyCard: { borderRadius: 22, padding: 18 },
-  emptyTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '700' },
-  emptyBody: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21, marginTop: 6 },
-  replyComposer: { borderRadius: 24, padding: 16, gap: 12 },
-  replyComposerHeader: { gap: 4 },
-  replyComposerTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '700' },
-  replyComposerNote: { fontFamily: Fonts.sans, fontSize: 13 },
-  replyInput: {
-    minHeight: 110,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    textAlignVertical: 'top',
-    fontFamily: Fonts.sans,
-    fontSize: 14,
-    lineHeight: 21,
+  screen: { flex: 1 },
+  flex: { flex: 1 },
+  content: { paddingHorizontal: ScreenPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.xl, gap: Spacing.lg },
+  question: { gap: Spacing.sm },
+  badges: { flexDirection: 'row', gap: 6 },
+  media: { gap: Spacing.xs },
+  mediaImage: { width: 220, height: 165, borderRadius: Radius.lg },
+  authorCard: { paddingHorizontal: Spacing.sm },
+  replyHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  replyAuthor: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  composerBar: {
+    paddingHorizontal: ScreenPadding,
+    paddingTop: Spacing.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  replyComposerFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  replyCountText: { fontFamily: Fonts.sans, fontSize: 12 },
-  replyButton: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 11 },
-  replyButtonText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
-  repliesSection: { gap: 12 },
-  repliesHeader: { gap: 4 },
-  repliesTitle: { fontFamily: Fonts.rounded, fontSize: 20, fontWeight: '700' },
-  repliesSubtitle: { fontFamily: Fonts.sans, fontSize: 13 },
-  replyCard: { borderRadius: 22, padding: 16, gap: 12 },
-  replyTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  replyAuthorRow: { flexDirection: 'row', gap: 10, alignItems: 'center', flex: 1 },
-  replyAuthorText: { flex: 1 },
-  replyAuthorName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
-  replyMeta: { fontFamily: Fonts.sans, fontSize: 12, marginTop: 2 },
-  replyBody: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
 });

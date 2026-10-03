@@ -1,465 +1,257 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, Share, StyleSheet, View } from 'react-native';
 
-import { SocialAvatar } from '@/components/social-avatar';
-import { Colors, Fonts } from '@/constants/theme';
+import { AppText } from '@/components/ui/app-text';
+import { Avatar } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { ListRow } from '@/components/ui/list-row';
+import { Section } from '@/components/ui/section';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { EmptyState } from '@/components/ui/state-views';
+import { Radius, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import type { FeedPost, Product, ProfileResponse } from '@/lib/types';
+import { formatCurrency, formatRelativeTime } from '@/utils/format';
+import { describeUser, openProfile } from '@/utils/user';
 
 type ProfileTab = 'posts' | 'listings' | 'followers' | 'following';
 
 type ProfileViewProps = {
-  palette: (typeof Colors)['light'] | (typeof Colors)['dark'];
-  profileData: ProfileResponse;
-  activeTab: ProfileTab;
-  onChangeTab: (tab: ProfileTab) => void;
-  onEditProfile?: () => void;
-  onShareProfile?: () => void;
-  onLogoutMenu?: () => void;
+  data: ProfileResponse;
   onToggleFollow?: () => void;
-  onDeletePost?: (postId: string) => void;
-  processingPostId?: string | null;
-  processingFollow?: boolean;
-  showNotifications?: boolean;
-  notificationsSlot?: React.ReactNode;
+  isFollowPending?: boolean;
+  /** Rendered between the header and the tabs, e.g. a notifications row. */
+  children?: React.ReactNode;
 };
 
-export function ProfileView({
-  palette,
-  profileData,
-  activeTab,
-  onChangeTab,
-  onEditProfile,
-  onShareProfile,
-  onLogoutMenu,
-  onToggleFollow,
-  onDeletePost,
-  processingPostId,
-  processingFollow,
-  showNotifications,
-  notificationsSlot,
-}: ProfileViewProps) {
-  const { profile, metrics, socialGraph } = profileData;
+export function shareProfile(profile: ProfileResponse['profile']) {
+  const location = profile.location ? ` in ${profile.location}` : '';
+  void Share.share({ message: `Connect with ${profile.name}${location} on FarmConnect — farmers learning from farmers.` });
+}
 
-  const tabs: { key: ProfileTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { key: 'posts', label: 'Posts', icon: 'grid-outline' },
-    { key: 'listings', label: 'Listings', icon: 'basket-outline' },
-    { key: 'followers', label: 'Followers', icon: 'people-outline' },
-    { key: 'following', label: 'Following', icon: 'repeat-outline' },
-  ];
+export function ProfileView({ data, onToggleFollow, isFollowPending, children }: ProfileViewProps) {
+  const { colors } = useTheme();
+  const { profile, metrics, socialGraph, remarks } = data;
+  const isFarmer = profile.role === 'farmer' || data.listings.length > 0;
+  const [tab, setTab] = useState<ProfileTab>('posts');
+  const isVerified = profile.verificationStatus === 'verified' || profile.verificationStatus === 'top-rated';
+  const followers = profile.followersCount ?? socialGraph.followers.length;
+  const following = profile.followingCount ?? socialGraph.following.length;
+  const averageRating = remarks.received.length
+    ? remarks.received.reduce((sum, remark) => sum + remark.rating, 0) / remarks.received.length
+    : null;
+
+  const tabs = [
+    { value: 'posts', label: 'Posts' },
+    ...(isFarmer ? [{ value: 'listings' as const, label: 'Listings' }] : []),
+    { value: 'followers', label: 'Followers' },
+    { value: 'following', label: 'Following' },
+  ] as { value: ProfileTab; label: string }[];
 
   return (
-    <>
-      <View style={[styles.hero, { backgroundColor: palette.backgroundSecondary }]}>
-        <View style={[styles.heroGlowLarge, { backgroundColor: `${palette.tint}16` }]} />
-        <View style={[styles.heroGlowSmall, { backgroundColor: `${palette.accent}15` }]} />
-
-        <View style={styles.topRow}>
-          <View style={styles.identityRow}>
-            <SocialAvatar name={profile.name} imageUrl={profile.avatarUrl} size={88} />
-            <View style={styles.identityText}>
-              <Text style={[styles.profileName, { color: palette.text }]}>{profile.name}</Text>
-              <Text style={[styles.profileHandle, { color: palette.muted }]}>@{profile.name.toLowerCase().replace(/\s+/g, '')}</Text>
-              <Text style={[styles.profileMeta, { color: palette.muted }]}>
-                {profile.role} - {profile.location}
-              </Text>
-            </View>
+    <View style={styles.wrap}>
+      <View style={styles.identity}>
+        <Avatar name={profile.name} imageUrl={profile.avatarUrl} size={72} />
+        <View style={styles.identityCopy}>
+          <View style={styles.nameRow}>
+            <AppText variant="title" numberOfLines={2} style={styles.name}>
+              {profile.name}
+            </AppText>
+            {isVerified ? <Ionicons name="checkmark-circle" size={20} color={colors.primary} accessibilityLabel="Verified" /> : null}
           </View>
-
-          {onLogoutMenu ? (
-            <Pressable onPress={onLogoutMenu} hitSlop={8} style={[styles.topIconButton, { backgroundColor: palette.surface }]}>
-              <Feather name="menu" size={18} color={palette.text} />
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={styles.statsRow}>
-          <StatBlock label="Posts" value={metrics.posts} palette={palette} onPress={() => onChangeTab('posts')} />
-          <StatBlock
-            label="Followers"
-            value={profile.followersCount ?? socialGraph.followers.length}
-            palette={palette}
-            onPress={() => onChangeTab('followers')}
-          />
-          <StatBlock
-            label="Following"
-            value={profile.followingCount ?? socialGraph.following.length}
-            palette={palette}
-            onPress={() => onChangeTab('following')}
-          />
-        </View>
-
-        <Text style={[styles.bio, { color: palette.text }]}>
-          {profile.bio || 'Building a trusted presence in the FarmConnect community.'}
-        </Text>
-
-        <View style={styles.trustRow}>
-          <Text style={[styles.trustPill, { color: palette.success, backgroundColor: `${palette.success}14` }]}>
-            Trust {profile.trustScore?.toFixed(1) ?? '0.0'}
-          </Text>
-          <Text style={[styles.trustPill, { color: palette.tint, backgroundColor: `${palette.tint}14` }]}>
-            {profile.verificationStatus || 'active'}
-          </Text>
-        </View>
-
-        <View style={styles.actionRow}>
-          {socialGraph.isOwner ? (
-            <>
-              <Pressable onPress={onEditProfile} style={[styles.actionButton, { backgroundColor: palette.surface }]}>
-                <Text style={[styles.actionButtonText, { color: palette.text }]}>Edit profile</Text>
-              </Pressable>
-              <Pressable onPress={onShareProfile} style={[styles.actionButton, { backgroundColor: palette.surface }]}>
-                <Text style={[styles.actionButtonText, { color: palette.text }]}>Share profile</Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Pressable
-                onPress={onToggleFollow}
-                style={[styles.actionButton, { backgroundColor: socialGraph.isFollowing ? palette.surface : palette.tint }]}>
-                <Text style={[styles.actionButtonText, { color: socialGraph.isFollowing ? palette.text : '#ffffff' }]}>
-                  {processingFollow ? 'Updating...' : socialGraph.isFollowing ? 'Following' : 'Follow'}
-                </Text>
-              </Pressable>
-              <Pressable onPress={onShareProfile} style={[styles.actionButton, { backgroundColor: palette.surface }]}>
-                <Text style={[styles.actionButtonText, { color: palette.text }]}>Share profile</Text>
-              </Pressable>
-            </>
-          )}
-        </View>
-
-        <View style={styles.tabRow}>
-          {tabs.map((tab) => (
-            <Pressable
-              key={tab.key}
-              onPress={() => onChangeTab(tab.key)}
-              style={[
-                styles.tabButton,
-                { borderBottomColor: activeTab === tab.key ? palette.text : 'transparent' },
-              ]}>
-              <Ionicons name={tab.icon} size={18} color={activeTab === tab.key ? palette.text : palette.muted} />
-              <Text style={[styles.tabLabel, { color: activeTab === tab.key ? palette.text : palette.muted }]}>{tab.label}</Text>
-            </Pressable>
-          ))}
+          <AppText variant="callout" color="textMuted">
+            {describeUser(profile)}
+          </AppText>
         </View>
       </View>
 
-      {profileData.remarks.received.length ? (
-        <View style={styles.remarksSection}>
-          <View style={styles.remarksHeader}>
-            <Text style={[styles.sectionTitle, { color: palette.text }]}>Seller remarks</Text>
-            <Text style={[styles.remarksCount, { color: palette.muted }]}>
-              {profileData.remarks.received.length} recent
-            </Text>
+      {profile.bio ? <AppText variant="body">{profile.bio}</AppText> : null}
+
+      <View style={[styles.stats, { borderColor: colors.border }]}>
+        <Stat value={metrics.posts} label="Posts" onPress={() => setTab('posts')} />
+        <Stat value={followers} label="Followers" onPress={() => setTab('followers')} />
+        <Stat value={following} label="Following" onPress={() => setTab('following')} />
+        <Stat value={profile.trustScore?.toFixed(1) ?? '0.0'} label="Trust" icon="shield" />
+      </View>
+
+      <View style={styles.actions}>
+        {socialGraph.isOwner ? (
+          <Button label="Edit profile" variant="secondary" icon="edit-2" onPress={() => router.push('/profile/edit')} style={styles.flex} />
+        ) : (
+          <Button
+            label={socialGraph.isFollowing ? 'Following' : 'Follow'}
+            variant={socialGraph.isFollowing ? 'secondary' : 'primary'}
+            icon={socialGraph.isFollowing ? 'user-check' : 'user-plus'}
+            onPress={onToggleFollow}
+            loading={isFollowPending}
+            style={styles.flex}
+          />
+        )}
+        <Button label="Share" variant="secondary" icon="share-2" onPress={() => shareProfile(profile)} style={styles.flex} />
+      </View>
+
+      {children}
+
+      {remarks.received.length ? (
+        <Section title="Reviews from buyers">
+          <View style={styles.ratingSummary}>
+            <Ionicons name="star" size={18} color={colors.accent} />
+            <AppText variant="subhead">{averageRating?.toFixed(1)}</AppText>
+            <AppText variant="callout" color="textMuted">
+              from {remarks.received.length} {remarks.received.length === 1 ? 'order' : 'orders'}
+            </AppText>
           </View>
-          <View style={styles.listSection}>
-            {profileData.remarks.received.slice(0, 4).map((remark) => (
-              <RemarkRow key={remark._id} remark={remark} palette={palette} mode="received" />
-            ))}
-          </View>
-        </View>
+          {remarks.received.slice(0, 3).map((remark) => (
+            <Card key={remark._id}>
+              <View style={styles.remarkHeader}>
+                <Avatar name={remark.buyer.name} imageUrl={remark.buyer.avatarUrl} size={28} />
+                <AppText variant="label" style={styles.flex} numberOfLines={1}>
+                  {remark.buyer.name}
+                </AppText>
+                <View style={styles.stars}>
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <Ionicons key={value} name={value <= remark.rating ? 'star' : 'star-outline'} size={12} color={colors.accent} />
+                  ))}
+                </View>
+              </View>
+              <AppText variant="callout">{remark.body}</AppText>
+            </Card>
+          ))}
+        </Section>
       ) : null}
 
-      <View style={styles.contentSection}>
-        {activeTab === 'posts'
-          ? profileData.posts.length
-            ? (
-              <View style={styles.listSection}>
-                {profileData.posts.map((post) => (
-                  <PostRow
-                    key={post._id}
-                    post={post}
-                    palette={palette}
-                    canDelete={socialGraph.isOwner}
-                    isDeleting={processingPostId === post._id}
-                    onDelete={onDeletePost}
-                  />
-                ))}
-              </View>
-            )
-            : <EmptyBlock title="No posts yet" body="When posts land, they'll appear here in a cleaner profile archive." palette={palette} />
-          : null}
+      <SegmentedControl options={tabs} value={tab} onChange={setTab} />
 
-        {activeTab === 'listings'
-          ? profileData.listings.length
-            ? (
-              <View style={styles.listSection}>
-                {profileData.listings.map((listing) => (
-                  <ListingRow key={listing._id} listing={listing} palette={palette} />
-                ))}
-              </View>
-            )
-            : <EmptyBlock title="No listings yet" body="Marketplace items from this profile will show up here." palette={palette} />
-          : null}
-
-        {activeTab === 'followers'
-          ? profileData.socialGraph.followers.length
-            ? (
-              <View style={styles.listSection}>
-                {profileData.socialGraph.followers.map((user) => (
-                  <UserRow key={user._id ?? user.id ?? user.name} user={user} palette={palette} />
-                ))}
-              </View>
-            )
-            : <EmptyBlock title="No followers yet" body="Followers will appear here as this profile grows." palette={palette} />
-          : null}
-
-        {activeTab === 'following'
-          ? profileData.socialGraph.following.length
-            ? (
-              <View style={styles.listSection}>
-                {profileData.socialGraph.following.map((user) => (
-                  <UserRow key={user._id ?? user.id ?? user.name} user={user} palette={palette} />
-                ))}
-              </View>
-            )
-            : <EmptyBlock title="Not following anyone yet" body="Accounts followed from the feed or profile will be listed here." palette={palette} />
-          : null}
+      <View style={styles.tabContent}>
+        {tab === 'posts' ? (
+          data.posts.length ? (
+            data.posts.map((post) => <PostRow key={post._id} post={post} />)
+          ) : (
+            <EmptyState icon="feather" title="No posts yet" body={socialGraph.isOwner ? 'Share a field note — your experience could help another farmer.' : undefined} />
+          )
+        ) : null}
+        {tab === 'listings' ? (
+          data.listings.length ? (
+            data.listings.map((listing) => <ListingRow key={listing._id} listing={listing} />)
+          ) : (
+            <EmptyState icon="shopping-bag" title="No listings yet" />
+          )
+        ) : null}
+        {tab === 'followers' || tab === 'following' ? (
+          (tab === 'followers' ? socialGraph.followers : socialGraph.following).length ? (
+            (tab === 'followers' ? socialGraph.followers : socialGraph.following).map((person) => (
+              <ListRow
+                key={person._id ?? person.id ?? person.name}
+                avatar={{ name: person.name, imageUrl: person.avatarUrl }}
+                title={person.name}
+                subtitle={describeUser(person)}
+                onPress={() => openProfile(person)}
+              />
+            ))
+          ) : (
+            <EmptyState icon="users" title={tab === 'followers' ? 'No followers yet' : 'Not following anyone yet'} />
+          )
+        ) : null}
       </View>
-
-      {showNotifications ? notificationsSlot : null}
-    </>
-  );
-}
-
-export function RemarkRow({
-  remark,
-  palette,
-  mode,
-}: {
-  remark: ProfileResponse['remarks']['received'][number];
-  palette: (typeof Colors)['light'] | (typeof Colors)['dark'];
-  mode: 'received' | 'given';
-}) {
-  const person = mode === 'received' ? remark.buyer : remark.seller;
-  const personId = person._id ?? person.id;
-
-  return (
-    <Pressable
-      onPress={() => {
-        if (personId) {
-          router.push({ pathname: '/profile/[id]', params: { id: personId } });
-        }
-      }}
-      style={[styles.remarkRow, { backgroundColor: palette.surface }]}>
-      <View style={styles.remarkTop}>
-        <SocialAvatar name={person.name} imageUrl={person.avatarUrl} size={38} />
-        <View style={styles.remarkPersonCopy}>
-          <Text style={[styles.remarkPersonName, { color: palette.text }]}>{person.name}</Text>
-          <Text style={[styles.remarkMeta, { color: palette.muted }]}>
-            {mode === 'received' ? 'Buyer remark' : 'Seller reviewed'} - {remark.rating}/5
-          </Text>
-        </View>
-        <View style={[styles.ratingPill, { backgroundColor: `${palette.tint}16` }]}>
-          <Text style={[styles.ratingPillText, { color: palette.tint }]}>{remark.rating}.0</Text>
-        </View>
-      </View>
-      <Text style={[styles.remarkBody, { color: palette.text }]}>{remark.body}</Text>
-    </Pressable>
-  );
-}
-
-function StatBlock({
-  label,
-  value,
-  palette,
-  onPress,
-}: {
-  label: string;
-  value: number;
-  palette: (typeof Colors)['light'] | (typeof Colors)['dark'];
-  onPress?: () => void;
-}) {
-  return (
-    <Pressable onPress={onPress} style={styles.statBlock}>
-      <Text style={[styles.statValue, { color: palette.text }]}>{value}</Text>
-      <Text style={[styles.statLabel, { color: palette.muted }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function EmptyBlock({
-  title,
-  body,
-  palette,
-}: {
-  title: string;
-  body: string;
-  palette: (typeof Colors)['light'] | (typeof Colors)['dark'];
-}) {
-  return (
-    <View style={[styles.emptyBlock, { backgroundColor: palette.surface }]}>
-      <Text style={[styles.emptyTitle, { color: palette.text }]}>{title}</Text>
-      <Text style={[styles.emptyBody, { color: palette.muted }]}>{body}</Text>
     </View>
   );
 }
 
-function PostRow({
-  post,
-  palette,
-  canDelete,
-  isDeleting,
-  onDelete,
-}: {
-  post: FeedPost;
-  palette: (typeof Colors)['light'] | (typeof Colors)['dark'];
-  canDelete?: boolean;
-  isDeleting?: boolean;
-  onDelete?: (postId: string) => void;
-}) {
+function Stat({ value, label, icon, onPress }: { value: number | string; label: string; icon?: keyof typeof Feather.glyphMap; onPress?: () => void }) {
+  const { colors } = useTheme();
+
+  return (
+    <Pressable accessibilityRole={onPress ? 'button' : undefined} onPress={onPress} disabled={!onPress} style={styles.stat}>
+      <View style={styles.statValue}>
+        {icon ? <Feather name={icon} size={14} color={colors.primary} /> : null}
+        <AppText variant="headline">{value}</AppText>
+      </View>
+      <AppText variant="caption" color="textMuted">
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
+
+function PostRow({ post }: { post: FeedPost }) {
+  const { colors } = useTheme();
   const cover = post.media?.[0];
+  const coverUri = cover ? (cover.type === 'video' ? cover.thumbnailUrl : cover.url) : undefined;
 
   return (
-    <Pressable onPress={() => router.push({ pathname: '/post/[id]', params: { id: post._id } })} style={[styles.cardRow, { backgroundColor: palette.surface }]}>
-      <View style={styles.cardCopy}>
-        <Text numberOfLines={2} style={[styles.cardTitle, { color: palette.text }]}>{post.headline}</Text>
-        <Text numberOfLines={2} style={[styles.cardBody, { color: palette.muted }]}>{post.body}</Text>
-        <Text style={[styles.cardMeta, { color: palette.muted }]}>
-          {post.likesCount} likes - {post.commentsCount} comments
-        </Text>
+    <Card onPress={() => router.push({ pathname: '/post/[id]', params: { id: post._id } })} style={styles.row}>
+      <View style={styles.flex}>
+        <AppText variant="label" numberOfLines={2}>
+          {post.headline}
+        </AppText>
+        <AppText variant="caption" color="textMuted">
+          {formatRelativeTime(post.createdAt)} · {post.likesCount} likes · {post.commentsCount} comments
+        </AppText>
       </View>
-
-      <View style={[styles.cardThumb, { backgroundColor: palette.backgroundSecondary }]}>
-        {cover ? (
-          <>
-            <SocialAvatar name={post.author.name} imageUrl={cover.type === 'image' ? cover.url : post.author.avatarUrl} size={62} />
-            {cover.type === 'video' ? (
-              <View style={[styles.videoBadge, { backgroundColor: 'rgba(0,0,0,0.45)' }]}>
-                <Ionicons name="play" size={12} color="#ffffff" />
-              </View>
-            ) : null}
-          </>
-        ) : (
-          <Ionicons name="document-text-outline" size={20} color={palette.muted} />
-        )}
-      </View>
-
-      {canDelete && onDelete ? (
-        <Pressable onPress={() => onDelete(post._id)} hitSlop={8} style={styles.deleteButton}>
-          <Feather name={isDeleting ? 'loader' : 'trash-2'} size={16} color={palette.muted} />
-        </Pressable>
-      ) : null}
-    </Pressable>
+      {coverUri ? (
+        <Image source={{ uri: coverUri }} contentFit="cover" style={styles.thumb} />
+      ) : (
+        <View style={[styles.thumb, styles.thumbPlaceholder, { backgroundColor: colors.surfaceMuted }]}>
+          <Feather name="file-text" size={18} color={colors.textSubtle} />
+        </View>
+      )}
+    </Card>
   );
 }
 
-function ListingRow({
-  listing,
-  palette,
-}: {
-  listing: Product;
-  palette: (typeof Colors)['light'] | (typeof Colors)['dark'];
-}) {
-  return (
-    <Pressable onPress={() => router.push({ pathname: '/product/[id]', params: { id: listing._id } })} style={[styles.cardRow, { backgroundColor: palette.surface }]}>
-      <View style={styles.cardCopy}>
-        <Text numberOfLines={2} style={[styles.cardTitle, { color: palette.text }]}>{listing.name}</Text>
-        <Text numberOfLines={2} style={[styles.cardBody, { color: palette.muted }]}>{listing.description}</Text>
-        <Text style={[styles.cardMeta, { color: palette.tint }]}>KES {listing.price} / {listing.unit}</Text>
-      </View>
-      <View style={[styles.cardThumb, { backgroundColor: palette.backgroundSecondary }]}>
-        <Ionicons name="basket-outline" size={20} color={palette.text} />
-      </View>
-    </Pressable>
-  );
-}
-
-function UserRow({
-  user,
-  palette,
-}: {
-  user: ProfileResponse['socialGraph']['followers'][number];
-  palette: (typeof Colors)['light'] | (typeof Colors)['dark'];
-}) {
-  const userId = user._id ?? user.id;
+function ListingRow({ listing }: { listing: Product }) {
+  const { colors } = useTheme();
+  const image = listing.mediaUrls?.[0];
 
   return (
-    <Pressable
-      onPress={() => {
-        if (userId) {
-          router.push({ pathname: '/profile/[id]', params: { id: userId } });
-        }
-      }}
-      style={[styles.userRow, { backgroundColor: palette.surface }]}>
-      <SocialAvatar name={user.name} imageUrl={user.avatarUrl} size={46} />
-      <View style={styles.userCopy}>
-        <Text style={[styles.userName, { color: palette.text }]}>{user.name}</Text>
-        <Text style={[styles.userMeta, { color: palette.muted }]}>{user.role} - {user.location}</Text>
+    <Card onPress={() => router.push({ pathname: '/product/[id]', params: { id: listing._id } })} style={styles.row}>
+      {image ? (
+        <Image source={{ uri: image }} contentFit="cover" style={styles.thumb} />
+      ) : (
+        <View style={[styles.thumb, styles.thumbPlaceholder, { backgroundColor: colors.surfaceMuted }]}>
+          <Feather name="package" size={18} color={colors.textSubtle} />
+        </View>
+      )}
+      <View style={styles.flex}>
+        <AppText variant="label" numberOfLines={1}>
+          {listing.name}
+        </AppText>
+        <AppText variant="caption" color="textMuted">
+          {formatCurrency(listing.price)} / {listing.unit} · {listing.stock} in stock
+        </AppText>
       </View>
-      <Feather name="chevron-right" size={18} color={palette.muted} />
-    </Pressable>
+      {listing.stock <= 0 ? <Badge label="Sold out" tone="danger" /> : null}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: { borderRadius: 30, padding: 18, gap: 14, overflow: 'hidden' },
-  heroGlowLarge: { position: 'absolute', width: 180, height: 180, borderRadius: 999, right: -40, top: -56 },
-  heroGlowSmall: { position: 'absolute', width: 120, height: 120, borderRadius: 999, left: -18, bottom: -30 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' },
-  identityRow: { flexDirection: 'row', gap: 14, flex: 1 },
-  identityText: { flex: 1, paddingTop: 4 },
-  topIconButton: { width: 38, height: 38, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  profileName: { fontFamily: Fonts.rounded, fontSize: 28, fontWeight: '700' },
-  profileHandle: { fontFamily: Fonts.sans, fontSize: 13, marginTop: 2 },
-  profileMeta: { fontFamily: Fonts.sans, fontSize: 13, marginTop: 4, textTransform: 'capitalize' },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  statBlock: { flex: 1, gap: 4 },
-  statValue: { fontFamily: Fonts.rounded, fontSize: 24, fontWeight: '700' },
-  statLabel: { fontFamily: Fonts.sans, fontSize: 12 },
-  bio: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 21 },
-  trustRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  trustPill: {
-    overflow: 'hidden',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    fontFamily: Fonts.rounded,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'capitalize',
+  wrap: { gap: Spacing.lg },
+  flex: { flex: 1 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  identityCopy: { flex: 1, gap: 2 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  name: { flexShrink: 1 },
+  stats: {
+    flexDirection: 'row',
+    paddingVertical: Spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  actionRow: { flexDirection: 'row', gap: 10 },
-  actionButton: { flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  actionButtonText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
-  tabRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, paddingTop: 4 },
-  tabButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingBottom: 10,
-    borderBottomWidth: 2,
-  },
-  tabLabel: { fontFamily: Fonts.rounded, fontSize: 11, fontWeight: '700' },
-  contentSection: { gap: 12 },
-  sectionTitle: { fontFamily: Fonts.rounded, fontSize: 18, fontWeight: '800' },
-  remarksSection: { gap: 10 },
-  remarksHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'center' },
-  remarksCount: { fontFamily: Fonts.sans, fontSize: 12 },
-  listSection: { gap: 10 },
-  emptyBlock: { borderRadius: 22, padding: 18, gap: 8 },
-  emptyTitle: { fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '700' },
-  emptyBody: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 20 },
-  cardRow: { borderRadius: 22, padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center', position: 'relative' },
-  cardCopy: { flex: 1, gap: 5 },
-  cardTitle: { fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '700', lineHeight: 20 },
-  cardBody: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  cardMeta: { fontFamily: Fonts.sans, fontSize: 12 },
-  cardThumb: { width: 62, height: 62, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  videoBadge: { position: 'absolute', bottom: 6, right: 6, borderRadius: 999, padding: 4 },
-  deleteButton: { position: 'absolute', top: 12, right: 12 },
-  userRow: { borderRadius: 20, padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center' },
-  userCopy: { flex: 1, gap: 3 },
-  userName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
-  userMeta: { fontFamily: Fonts.sans, fontSize: 12, textTransform: 'capitalize' },
-  remarkRow: { borderRadius: 20, padding: 14, gap: 10 },
-  remarkTop: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  remarkPersonCopy: { flex: 1, gap: 2 },
-  remarkPersonName: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '800' },
-  remarkMeta: { fontFamily: Fonts.sans, fontSize: 12 },
-  ratingPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  ratingPillText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '800' },
-  remarkBody: { fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20 },
+  stat: { flex: 1, alignItems: 'center', gap: 2 },
+  statValue: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  actions: { flexDirection: 'row', gap: Spacing.xs },
+  ratingSummary: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  remarkHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  stars: { flexDirection: 'row', gap: 1 },
+  tabContent: { gap: Spacing.sm },
+  row: { flexDirection: 'row', alignItems: 'center', padding: Spacing.sm },
+  thumb: { width: 56, height: 56, borderRadius: Radius.md },
+  thumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
 });

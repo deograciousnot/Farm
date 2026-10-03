@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 import type {
+  Broadcast,
   Comment,
   CommunityThread,
   FeedHighlight,
@@ -74,41 +75,71 @@ function getApiBaseUrl() {
 
 const API_BASE_URL = `${getApiBaseUrl()}/api`;
 
-async function request<T>(path: string, options: RequestOptions = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method ?? 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+// The free Render instance can take ~30s to wake up, so allow for a cold start.
+const REQUEST_TIMEOUT_MS = 45_000;
+const UPLOAD_TIMEOUT_MS = 180_000;
 
-  const data = (await response.json()) as T & { message?: string };
+const OFFLINE_MESSAGE = "Can't reach FarmConnect right now. Check your connection and try again.";
 
-  if (!response.ok) {
-    throw new ApiRequestError(data.message || 'Request failed.', response.status);
+async function send<T>(path: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, { ...init, signal: controller.signal });
+  } catch (error) {
+    const timedOut = error instanceof Error && error.name === 'AbortError';
+    throw new ApiRequestError(timedOut ? 'FarmConnect is taking too long to respond. Please try again.' : OFFLINE_MESSAGE, 0);
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  let data: (T & { message?: string }) | null = null;
+
+  try {
+    data = (await response.json()) as T & { message?: string };
+  } catch {
+    // Non-JSON bodies come from proxies or a sleeping server, not from the API itself.
+  }
+
+  if (!response.ok || !data) {
+    const fallback = response.status >= 500 || !data ? 'FarmConnect is having trouble right now. Please try again shortly.' : 'Request failed.';
+    throw new ApiRequestError(data?.message || fallback, response.status);
   }
 
   return data;
 }
 
-async function requestFormData<T>(path: string, options: { token?: string | null; formData: FormData; method?: 'POST' | 'PATCH' }) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method ?? 'POST',
-    headers: {
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+function request<T>(path: string, options: RequestOptions = {}) {
+  return send<T>(
+    path,
+    {
+      method: options.method ?? 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
     },
-    body: options.formData,
-  });
+    REQUEST_TIMEOUT_MS
+  );
+}
 
-  const data = (await response.json()) as T & { message?: string };
+function requestFormData<T>(path: string, options: { token?: string | null; formData: FormData; method?: 'POST' | 'PATCH' }) {
+  return send<T>(
+    path,
+    {
+      method: options.method ?? 'POST',
+      headers: options.token ? { Authorization: `Bearer ${options.token}` } : {},
+      body: options.formData,
+    },
+    UPLOAD_TIMEOUT_MS
+  );
+}
 
-  if (!response.ok) {
-    throw new ApiRequestError(data.message || 'Request failed.', response.status);
-  }
-
-  return data;
+export function getErrorMessage(error: unknown, fallback = 'Something went wrong. Please try again.') {
+  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 function appendMediaAssets(formData: FormData, media: UploadableAsset[]) {
@@ -275,6 +306,12 @@ export const api = {
       token,
       formData,
     });
+  },
+  getBroadcasts(token?: string | null) {
+    return request<{ items: Broadcast[] }>('/broadcasts', { token });
+  },
+  getBroadcast(id: string, token?: string | null) {
+    return request<{ item: Broadcast }>(`/broadcasts/${id}`, { token });
   },
   getMarketplaceOverview() {
     return request<{

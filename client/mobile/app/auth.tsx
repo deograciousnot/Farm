@@ -1,107 +1,151 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect } from '@react-navigation/native';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Alert, BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors, Fonts } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { LocationFields } from '@/components/location/location-fields';
+import { AppText } from '@/components/ui/app-text';
+import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { TextField } from '@/components/ui/text-field';
+import { joinLocation } from '@/constants/counties';
+import { Radius, ScreenPadding, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { getErrorMessage } from '@/lib/api';
 import { useSession } from '@/providers/session-provider';
 
 const roles = [
-  { id: 'farmer', label: 'Farmer' },
-  { id: 'buyer', label: 'Buyer' },
-  { id: 'hobbyist', label: 'Hobbyist' },
+  { value: 'farmer', label: 'Farmer' },
+  { value: 'buyer', label: 'Buyer' },
+  { value: 'hobbyist', label: 'Hobbyist' },
 ] as const;
+
+type Role = (typeof roles)[number]['value'];
 
 const defaultInterests = ['Market tea', 'Buyer demand'];
 
 export default function AuthScreen() {
-  const scheme = useColorScheme() ?? 'light';
-  const palette = Colors[scheme];
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ mode?: string }>();
-  const initialMode = params.mode === 'signup' ? 'signup' : 'login';
   const { token, isLoading, register, login, continueAsGuest, markIntroSeen } = useSession();
 
-  const [currentMode, setCurrentMode] = useState<'login' | 'signup'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'signup'>(params.mode === 'signup' ? 'signup' : 'login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [location, setLocation] = useState('');
-  const [selectedRole, setSelectedRole] = useState<(typeof roles)[number]['id']>('buyer');
+  const [county, setCounty] = useState('');
+  const [town, setTown] = useState('');
+  const [role, setRole] = useState<Role>('farmer');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSignup = mode === 'signup';
+
+  const switchMode = useCallback((next: 'login' | 'signup') => {
+    setMode(next);
+    setError('');
+  }, []);
+
+  // Follow ?mode= changes (and params that arrive after the first render on web).
+  useEffect(() => {
+    if (params.mode === 'signup' || params.mode === 'login') {
+      switchMode(params.mode);
+    }
+  }, [params.mode, switchMode]);
+
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/get-started');
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (currentMode === 'signup') {
+        if (mode === 'signup') {
           switchMode('login');
-          return true;
+        } else {
+          goBack();
         }
-
-        router.replace('/get-started');
         return true;
       });
 
       return () => subscription.remove();
-    }, [currentMode])
+    }, [goBack, mode, switchMode])
   );
 
   if (!isLoading && token) {
     return <Redirect href="/(tabs)" />;
   }
 
-  function switchMode(nextMode: 'login' | 'signup') {
-    setCurrentMode(nextMode);
-    setSubmitError('');
+  function validate() {
+    if (!email.trim() || !password) {
+      return 'Enter your email and password.';
+    }
+
+    if (isSignup) {
+      if (!name.trim()) {
+        return 'Tell us your name or farm name.';
+      }
+      if (password.length < 6) {
+        return 'Use at least 6 characters for your password.';
+      }
+      if (password !== confirmPassword) {
+        return "Passwords don't match.";
+      }
+      if (!county) {
+        return 'Choose your county so we can show you nearby farmers, prices, and advice.';
+      }
+      if (!acceptedTerms) {
+        return 'Please accept the terms to continue.';
+      }
+    }
+
+    return '';
   }
 
-  async function handleSubmit() {
-    setSubmitError('');
+  async function submit() {
+    const problem = validate();
+    setError(problem);
 
-    if (currentMode === 'signup') {
-      if (password !== confirmPassword) {
-        setSubmitError('Passwords do not match.');
-        return;
-      }
-
-      if (!acceptedTerms) {
-        setSubmitError('Please accept the terms and conditions.');
-        return;
-      }
+    if (problem) {
+      return;
     }
 
     setIsSubmitting(true);
     markIntroSeen();
 
     try {
-      if (currentMode === 'login') {
-        await login(email.trim(), password);
-      } else {
+      if (isSignup) {
         await register({
           name: name.trim(),
           email: email.trim(),
           password,
-          location: location.trim() || 'Unknown',
-          role: selectedRole,
+          location: joinLocation(town, county),
+          role,
           interests: defaultInterests,
         });
+      } else {
+        await login(email.trim(), password);
       }
 
       router.replace('/(tabs)');
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Authentication failed.');
+    } catch (submitError) {
+      setError(getErrorMessage(submitError, 'Could not sign you in.'));
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  function handleGuest() {
-    markIntroSeen();
+  function browseAsGuest() {
     continueAsGuest();
     router.replace('/(tabs)');
   }
@@ -113,176 +157,133 @@ export default function AuthScreen() {
     );
   }
 
-  const isSignup = currentMode === 'signup';
+  const passwordToggle = (
+    <Pressable accessibilityLabel={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword((value) => !value)} hitSlop={8}>
+      <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={colors.textSubtle} />
+    </Pressable>
+  );
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.replace('/get-started')} style={[styles.iconButton, { backgroundColor: palette.surface }]}>
-            <Feather name="arrow-left" size={18} color={palette.text} />
-          </Pressable>
-          <Text style={[styles.brand, { color: palette.tint }]}>FarmConnect</Text>
-        </View>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.xs, paddingBottom: insets.bottom + Spacing.lg }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        <IconButton icon="arrow-left" label="Go back" onPress={goBack} />
 
-        <View style={styles.titleBlock}>
-          <Text style={[styles.title, { color: palette.text }]}>{isSignup ? 'Create account' : 'Log in'}</Text>
-          <Text style={[styles.subtitle, { color: palette.muted }]}>
-            {isSignup ? 'Start with the basics. You can complete your profile later.' : 'Welcome back.'}
-          </Text>
+        <View style={styles.heading}>
+          <AppText variant="display">{isSignup ? 'Join FarmConnect' : 'Welcome back'}</AppText>
+          <AppText variant="callout" color="textMuted">
+            {isSignup ? 'It takes a minute. You can fill in your profile later.' : 'Sign in to pick up where you left off.'}
+          </AppText>
         </View>
 
         <View style={styles.form}>
           {isSignup ? (
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="Name or business name"
-              placeholderTextColor={palette.muted}
-              style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
-            />
+            <>
+              <View style={styles.group}>
+                <AppText variant="label">I am a</AppText>
+                <SegmentedControl options={roles} value={role} onChange={setRole} />
+              </View>
+              <TextField label="Name" value={name} onChangeText={setName} placeholder="Your name or farm name" autoComplete="name" />
+            </>
           ) : null}
-
-          <TextInput
+          <TextField
+            label="Email"
             value={email}
             onChangeText={setEmail}
-            placeholder="Email"
+            placeholder="you@example.com"
             autoCapitalize="none"
+            autoComplete="email"
             keyboardType="email-address"
-            placeholderTextColor={palette.muted}
-            style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
           />
-
-          <TextInput
+          <TextField
+            label="Password"
             value={password}
             onChangeText={setPassword}
-            placeholder="Password"
-            secureTextEntry
-            placeholderTextColor={palette.muted}
-            style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
+            placeholder={isSignup ? 'At least 6 characters' : 'Your password'}
+            secureTextEntry={!showPassword}
+            autoComplete={isSignup ? 'new-password' : 'current-password'}
+            trailing={passwordToggle}
+            onSubmitEditing={isSignup ? undefined : () => void submit()}
           />
-
           {isSignup ? (
             <>
-              <TextInput
+              <TextField
+                label="Confirm password"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                placeholder="Confirm password"
-                secureTextEntry
-                placeholderTextColor={palette.muted}
-                style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
+                placeholder="Type it again"
+                secureTextEntry={!showPassword}
+                autoComplete="new-password"
               />
-              <TextInput
-                value={location}
-                onChangeText={setLocation}
-                placeholder="Location"
-                placeholderTextColor={palette.muted}
-                style={[styles.input, { color: palette.text, backgroundColor: palette.surface }]}
+              <LocationFields
+                countyLabel="Where do you farm or buy?"
+                county={county}
+                town={town}
+                onChangeCounty={setCounty}
+                onChangeTown={setTown}
+                hint="We use this for local prices, nearby farmers, and advice for your area."
               />
-              <View style={styles.roleRow}>
-                {roles.map((role) => {
-                  const isSelected = selectedRole === role.id;
-
-                  return (
-                    <Pressable
-                      key={role.id}
-                      onPress={() => setSelectedRole(role.id)}
-                      style={[
-                        styles.roleButton,
-                        { backgroundColor: isSelected ? palette.tint : palette.surface },
-                      ]}>
-                      <Text style={[styles.roleText, { color: isSelected ? '#FFFFFF' : palette.text }]}>{role.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Pressable onPress={() => setAcceptedTerms((current) => !current)} style={styles.termsRow}>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: acceptedTerms }}
+                onPress={() => setAcceptedTerms((value) => !value)}
+                style={styles.terms}>
                 <View
                   style={[
                     styles.checkbox,
-                    {
-                      backgroundColor: acceptedTerms ? palette.tint : palette.surface,
-                      borderColor: acceptedTerms ? palette.tint : palette.border,
-                    },
+                    { borderColor: acceptedTerms ? colors.primary : colors.border, backgroundColor: acceptedTerms ? colors.primary : colors.surface },
                   ]}>
-                  {acceptedTerms ? <Feather name="check" size={14} color="#FFFFFF" /> : null}
+                  {acceptedTerms ? <Feather name="check" size={14} color={colors.onPrimary} /> : null}
                 </View>
-                <Text style={[styles.termsText, { color: palette.muted }]}>
+                <AppText variant="callout" color="textMuted" style={styles.termsText}>
                   I agree to the{' '}
-                  <Text onPress={showTerms} style={{ color: palette.tint, fontWeight: '800' }}>
+                  <AppText variant="label" color="primary" onPress={showTerms}>
                     terms and conditions
-                  </Text>
-                  .
-                </Text>
+                  </AppText>
+                </AppText>
               </Pressable>
             </>
           ) : null}
 
-          {submitError ? <Text style={[styles.error, { color: palette.accent }]}>{submitError}</Text> : null}
+          {error ? (
+            <View style={[styles.error, { backgroundColor: colors.dangerSoft }]}>
+              <Feather name="alert-circle" size={16} color={colors.danger} />
+              <AppText variant="callout" color="danger" style={styles.termsText}>
+                {error}
+              </AppText>
+            </View>
+          ) : null}
 
-          <Pressable disabled={isSubmitting} onPress={handleSubmit} style={[styles.primaryButton, { backgroundColor: palette.tint }]}>
-            <Text style={styles.primaryButtonText}>
-              {isSubmitting ? (isSignup ? 'Creating...' : 'Logging in...') : isSignup ? 'Create account' : 'Log in'}
-            </Text>
-          </Pressable>
+          <Button label={isSignup ? 'Create account' : 'Sign in'} onPress={() => void submit()} loading={isSubmitting} fullWidth />
         </View>
 
-        <View style={styles.links}>
+        <View style={styles.footer}>
           <Pressable onPress={() => switchMode(isSignup ? 'login' : 'signup')} hitSlop={10}>
-            <Text style={[styles.linkText, { color: palette.text }]}>
-              {isSignup ? 'Already have an account? Log in' : "Don't have an account yet? Create one"}
-            </Text>
+            <AppText variant="callout" color="textMuted" align="center">
+              {isSignup ? 'Already have an account? ' : 'New to FarmConnect? '}
+              <AppText variant="label" color="primary">
+                {isSignup ? 'Sign in' : 'Create an account'}
+              </AppText>
+            </AppText>
           </Pressable>
-          <Pressable onPress={handleGuest} style={[styles.guestButton, { backgroundColor: palette.surface }]}>
-            <Text style={[styles.guestButtonText, { color: palette.text }]}>Browse as guest</Text>
-          </Pressable>
+          <Button label="Browse as guest" variant="ghost" onPress={browseAsGuest} />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  content: { flexGrow: 1, padding: 22, justifyContent: 'center', gap: 26 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconButton: { width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  brand: {
-    fontFamily: Fonts.rounded,
-    fontSize: 13,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  titleBlock: { gap: 8 },
-  title: { fontFamily: Fonts.rounded, fontSize: 34, fontWeight: '800', lineHeight: 40 },
-  subtitle: { fontFamily: Fonts.sans, fontSize: 15, lineHeight: 22 },
-  form: { gap: 12 },
-  input: {
-    minHeight: 52,
-    borderRadius: 18,
-    paddingHorizontal: 15,
-    fontFamily: Fonts.sans,
-    fontSize: 15,
-  },
-  roleRow: { flexDirection: 'row', gap: 8 },
-  roleButton: { flex: 1, minHeight: 44, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  roleText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '800' },
-  termsRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingTop: 2 },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  termsText: { flex: 1, fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  error: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 18 },
-  primaryButton: { minHeight: 52, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  primaryButtonText: { color: '#FFFFFF', fontFamily: Fonts.rounded, fontSize: 15, fontWeight: '800' },
-  links: { alignItems: 'center', gap: 14 },
-  linkText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  guestButton: { minHeight: 48, borderRadius: 999, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center' },
-  guestButtonText: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '800' },
+  screen: { flex: 1 },
+  content: { flexGrow: 1, paddingHorizontal: ScreenPadding + Spacing.xs, gap: Spacing.xl },
+  heading: { gap: Spacing.xs },
+  form: { gap: Spacing.md },
+  group: { gap: Spacing.xs },
+  terms: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  checkbox: { width: 22, height: 22, borderRadius: Radius.sm - 2, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  termsText: { flex: 1 },
+  error: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, padding: Spacing.sm, borderRadius: Radius.md },
+  footer: { alignItems: 'center', gap: Spacing.xs, marginTop: 'auto' },
 });

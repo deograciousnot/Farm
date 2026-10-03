@@ -1,544 +1,261 @@
-import Feather from '@expo/vector-icons/Feather';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
+import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  type NativeSyntheticEvent,
-  type TextInputSelectionChangeEventData,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
-import { Colors, Fonts } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { api } from '@/lib/api';
-import type { Product, UploadableAsset } from '@/lib/types';
+import { LocationFields } from '@/components/location/location-fields';
+import { MediaPicker } from '@/components/ui/media-picker';
+import { AppText } from '@/components/ui/app-text';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { ChipGroup } from '@/components/ui/chip';
+import { ScreenHeader } from '@/components/ui/screen-header';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { EmptyState } from '@/components/ui/state-views';
+import { TextField } from '@/components/ui/text-field';
+import { ScreenPadding, Spacing } from '@/constants/theme';
+import { joinLocation, splitLocation } from '@/constants/counties';
+import { LISTING_CATEGORIES, POST_TAGS } from '@/constants/topics';
+import { queryKeys, useMyProfile } from '@/hooks/queries';
+import { useTheme } from '@/hooks/use-theme';
+import { api, getErrorMessage } from '@/lib/api';
+import type { UploadableAsset } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
+import { useToast } from '@/providers/toast-provider';
 
 type ComposerMode = 'post' | 'listing';
 
-const postTags = ['Crop health', 'Market tea', 'Farm inputs', 'Knowledge', 'Community'];
-const listingCategories = ['Vegetables', 'Fruits', 'Grains', 'Farm inputs'];
-const maxUploadFileSizeMb = 40;
-const maxUploadFileSizeBytes = maxUploadFileSizeMb * 1024 * 1024;
+const modes = [
+  { value: 'post', label: 'Field note' },
+  { value: 'listing', label: 'Listing' },
+] as const;
 
-export default function ComposerModal() {
+export default function ComposerScreen() {
   const params = useLocalSearchParams<{ mode?: ComposerMode }>();
-  const scheme = useColorScheme() ?? 'light';
-  const palette = Colors[scheme];
   const { token, user } = useSession();
   const [mode, setMode] = useState<ComposerMode>(params.mode === 'listing' ? 'listing' : 'post');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedMedia, setSelectedMedia] = useState<UploadableAsset[]>([]);
-  const [submissionStage, setSubmissionStage] = useState<'idle' | 'preparing' | 'uploading' | 'publishing'>('idle');
-  const [availableListings, setAvailableListings] = useState<Product[]>([]);
-  const [linkedProductId, setLinkedProductId] = useState('');
+  const isFarmer = user?.role === 'farmer';
 
+  if (!token) {
+    return (
+      <View style={styles.screen}>
+        <ScreenHeader title="Create" closeIcon />
+        <EmptyState
+          icon="lock"
+          title="Sign in to share"
+          body="Posts and listings are tied to your profile so people know who they're learning from."
+          action={{ label: 'Sign in', onPress: () => router.replace('/auth?mode=login') }}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScreenHeader title={mode === 'post' ? 'Share a field note' : 'New listing'} closeIcon />
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {isFarmer ? <SegmentedControl options={modes} value={mode} onChange={setMode} /> : null}
+        {mode === 'listing' && isFarmer ? <ListingForm token={token} defaultLocation={user?.location} /> : <PostForm token={token} defaultLocation={user?.location} canTagListings={isFarmer} />}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+function PostForm({ token, defaultLocation, canTagListings }: { token: string; defaultLocation?: string; canTagListings: boolean }) {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const myProfile = useMyProfile();
   const [headline, setHeadline] = useState('');
   const [body, setBody] = useState('');
-  const [bodySelection, setBodySelection] = useState({ start: 0, end: 0 });
-  const [tag, setTag] = useState(postTags[0]);
-  const [location, setLocation] = useState(user?.location ?? 'Nairobi');
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const [tag, setTag] = useState<string>(POST_TAGS[0]);
+  const initialLocation = splitLocation(defaultLocation);
+  const [county, setCounty] = useState(initialLocation.county);
+  const [town, setTown] = useState(initialLocation.town);
+  const [media, setMedia] = useState<UploadableAsset[]>([]);
+  const [linkedProductId, setLinkedProductId] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const listings = canTagListings ? (myProfile.data?.listings ?? []) : [];
+  const missing = !headline.trim() ? 'Add a headline' : !body.trim() ? 'Write a few lines' : null;
 
-  const [productName, setProductName] = useState('');
-  const [productCategory, setProductCategory] = useState(listingCategories[0]);
-  const [productDescription, setProductDescription] = useState('');
-  const [productUnit, setProductUnit] = useState('kg');
-  const [productPrice, setProductPrice] = useState('');
-  const [productStock, setProductStock] = useState('');
-  const [productLocation, setProductLocation] = useState(user?.location ?? 'Nairobi');
-  const [isOrganic, setIsOrganic] = useState(false);
-
-  const isSeller = user?.role === 'farmer';
-
-  const title = useMemo(() => (mode === 'post' ? 'Share to feed' : 'Create listing'), [mode]);
-  const hasVideo = selectedMedia.some((item) => item.type.toLowerCase().startsWith('video'));
-  const mediaLimit = mode === 'post' ? 4 : 6;
-  const canSubmitPost = headline.trim().length > 0 && body.trim().length > 0;
-  const canSubmitListing =
-    productName.trim().length > 0 &&
-    productDescription.trim().length > 0 &&
-    productPrice.trim().length > 0 &&
-    productStock.trim().length > 0;
-  const canSubmit = mode === 'post' ? canSubmitPost : canSubmitListing;
-  const publishLabel =
-    submissionStage === 'preparing'
-      ? 'Preparing...'
-      : submissionStage === 'uploading'
-        ? 'Uploading media...'
-        : submissionStage === 'publishing'
-          ? 'Publishing...'
-          : 'Publish';
-  const stageCopy =
-    submissionStage === 'uploading'
-      ? `Uploading ${selectedMedia.length} file${selectedMedia.length === 1 ? '' : 's'} to FarmConnect.`
-      : submissionStage === 'publishing'
-        ? 'Finalizing your post and syncing it to the feed.'
-        : selectedMedia.length
-          ? `${selectedMedia.length}/${mediaLimit} selected${hasVideo ? ' - includes video' : ''}`
-          : `Add up to ${mediaLimit} photos or videos.`;
-
-  const loadMyListings = useCallback(async () => {
-    if (!token || !isSeller) {
-      setAvailableListings([]);
-      return;
-    }
-
-    try {
-      const response = await api.getProfile(token);
-      setAvailableListings(response.listings);
-    } catch (error) {
-      console.warn('Failed to load listings for post tagging.', error);
-    }
-  }, [isSeller, token]);
-
-  useEffect(() => {
-    if (mode === 'post') {
-      void loadMyListings();
-      return;
-    }
-
-    setLinkedProductId('');
-  }, [loadMyListings, mode]);
-
-  async function pickMedia(options?: { cropSingleImage?: boolean }) {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Please allow photo access so FarmConnect can upload media.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: options?.cropSingleImage ? ['images'] : ['images', 'videos'],
-      allowsEditing: Boolean(options?.cropSingleImage),
-      aspect: options?.cropSingleImage ? [4, 5] : undefined,
-      allowsMultipleSelection: !options?.cropSingleImage,
-      quality: 0.9,
-      selectionLimit: options?.cropSingleImage ? 1 : mode === 'post' ? 4 : 6,
-    });
-
-    if (result.canceled) {
-      return;
-    }
-
-    const oversizedAssets = result.assets.filter((asset) => asset.fileSize && asset.fileSize > maxUploadFileSizeBytes);
-
-    if (oversizedAssets.length > 0) {
-      Alert.alert(
-        'File too large',
-        `Each photo or video must be ${maxUploadFileSizeMb} MB or smaller. Pick a shorter video or compress it first.`
-      );
-      return;
-    }
-
-    const nextAssets = result.assets.map((asset, index) => ({
-      uri: asset.uri,
-      type: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
-      name: asset.fileName || `farmconnect-media-${Date.now()}-${index}`,
-      fileSize: asset.fileSize,
-    }));
-
-    setSelectedMedia(options?.cropSingleImage ? nextAssets : nextAssets.slice(0, mediaLimit));
+  // Inserts a [[media:N]] marker at the cursor; the server turns these into inline images.
+  function placeMedia(index: number) {
+    const marker = `\n\n[[media:${index + 1}]]\n\n`;
+    setBody(`${body.slice(0, selection.start)}${marker}${body.slice(selection.end)}`);
+    const cursor = selection.start + marker.length;
+    setSelection({ start: cursor, end: cursor });
   }
 
-  function removeMedia(indexToRemove: number) {
-    setSelectedMedia((current) => current.filter((_, index) => index !== indexToRemove));
-  }
-
-  function handleBodySelectionChange(event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) {
-    setBodySelection(event.nativeEvent.selection);
-  }
-
-  function insertMediaMarker(mediaIndex: number) {
-    const marker = `\n\n[[media:${mediaIndex + 1}]]\n\n`;
-    const nextBody = `${body.slice(0, bodySelection.start)}${marker}${body.slice(bodySelection.end)}`;
-    const nextCursor = bodySelection.start + marker.length;
-
-    setBody(nextBody);
-    setBodySelection({ start: nextCursor, end: nextCursor });
-  }
-
-  function handleModeChange(nextMode: ComposerMode) {
-    setMode(nextMode);
-  }
-
-  async function handleSubmit() {
-    if (!token) {
-      Alert.alert('Sign in required', 'Please sign in before creating posts or listings.');
-      return;
-    }
-
-    if (mode === 'listing' && !isSeller) {
-      Alert.alert('Seller access only', 'Only farmer accounts can create marketplace listings right now.');
-      return;
-    }
-
+  async function submit() {
     setIsSubmitting(true);
-    setSubmissionStage('preparing');
 
     try {
-      if (mode === 'post') {
-        setSubmissionStage(selectedMedia.length ? 'uploading' : 'publishing');
-        await api.createFeedPost(token, {
-          headline,
-          body,
-          tag,
-          location,
-          linkedProductId,
-          media: selectedMedia,
-        });
-      } else {
-        setSubmissionStage(selectedMedia.length ? 'uploading' : 'publishing');
-        await api.createProduct(token, {
-          name: productName,
-          category: productCategory,
-          description: productDescription,
-          unit: productUnit,
-          price: productPrice,
-          stock: productStock,
-          location: productLocation,
-          isOrganic,
-          media: selectedMedia,
-        });
-      }
-
-      setSubmissionStage('publishing');
+      await api.createFeedPost(token, { headline: headline.trim(), body, tag, location: joinLocation(town, county), linkedProductId, media });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.feedRoot });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.myProfile });
+      showToast('Posted to the feed');
       router.back();
     } catch (error) {
-      Alert.alert('Upload failed', error instanceof Error ? error.message : 'Something went wrong.');
-    } finally {
+      showToast(getErrorMessage(error), 'error');
       setIsSubmitting(false);
-      setSubmissionStage('idle');
     }
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} hitSlop={8} style={[styles.iconButton, { backgroundColor: palette.surfaceRaised }]}>
-            <Feather name="x" size={20} color={palette.text} />
-          </Pressable>
-          <Text style={[styles.title, { color: palette.text }]}>{title}</Text>
-          <Pressable
-            onPress={handleSubmit}
-            disabled={isSubmitting || !canSubmit}
-            style={[
-              styles.publishButton,
-              { backgroundColor: isSubmitting || canSubmit ? palette.tint : palette.surfaceRaised },
-            ]}>
-            <Text style={[styles.publishButtonText, { color: isSubmitting || canSubmit ? '#ffffff' : palette.muted }]}>
-              {publishLabel}
-            </Text>
-          </Pressable>
+    <>
+      <TextField label="Headline" value={headline} onChangeText={setHeadline} placeholder="e.g. Drip lines halved my water bill" maxLength={120} />
+      <TextField
+        label="What happened?"
+        value={body}
+        onChangeText={setBody}
+        selection={selection}
+        onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
+        placeholder="Share what you tried, what worked, and what you'd do differently…"
+        multiline
+      />
+      <View style={styles.group}>
+        <AppText variant="label">Photos or video</AppText>
+        <MediaPicker
+          value={media}
+          onChange={setMedia}
+          limit={4}
+          allowVideo
+          itemAction={media.length > 1 ? { label: (index) => `Place ${index + 1} here`, onPress: placeMedia } : undefined}
+        />
+        {media.length > 1 ? (
+          <AppText variant="caption" color="textMuted">
+            Put your cursor in the text, then tap “Place” to show that photo at that point.
+          </AppText>
+        ) : null}
+      </View>
+      <View style={styles.group}>
+        <AppText variant="label">Topic</AppText>
+        <ChipGroup options={POST_TAGS} value={tag} onChange={setTag} wrap />
+      </View>
+      <LocationFields countyLabel="Where is this happening?" county={county} town={town} onChangeCounty={setCounty} onChangeTown={setTown} />
+      {listings.length ? (
+        <View style={styles.group}>
+          <AppText variant="label">Link one of your listings (optional)</AppText>
+          <ChipGroup
+            options={['None', ...listings.map((listing) => listing.name)]}
+            value={listings.find((listing) => listing._id === linkedProductId)?.name ?? 'None'}
+            onChange={(name) => setLinkedProductId(listings.find((listing) => listing.name === name)?._id ?? '')}
+            wrap
+          />
         </View>
+      ) : null}
+      <Button label={missing ?? 'Publish'} onPress={() => void submit()} disabled={Boolean(missing)} loading={isSubmitting} fullWidth />
+    </>
+  );
+}
 
-        <View style={[styles.modeTabs, { backgroundColor: palette.surface }]}>
-          <Pressable
-            onPress={() => void handleModeChange('post')}
-            style={[styles.modeTab, { backgroundColor: mode === 'post' ? palette.surfaceRaised : 'transparent' }]}>
-            <Text style={[styles.modeTabText, { color: palette.text }]}>Post</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => void handleModeChange('listing')}
-            style={[styles.modeTab, { backgroundColor: mode === 'listing' ? palette.surfaceRaised : 'transparent' }]}>
-            <Text style={[styles.modeTabText, { color: palette.text }]}>Listing</Text>
-          </Pressable>
+function ListingForm({ token, defaultLocation }: { token: string; defaultLocation?: string }) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState<string>(LISTING_CATEGORIES[0]);
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('');
+  const [unit, setUnit] = useState('kg');
+  const [stock, setStock] = useState('');
+  const initialLocation = splitLocation(defaultLocation);
+  const [county, setCounty] = useState(initialLocation.county);
+  const [town, setTown] = useState(initialLocation.town);
+  const [isOrganic, setIsOrganic] = useState(false);
+  const [media, setMedia] = useState<UploadableAsset[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const missing = !name.trim()
+    ? 'Add a product name'
+    : !price.trim()
+      ? 'Set a price'
+      : !stock.trim()
+        ? 'Add how much you have'
+        : !description.trim()
+          ? 'Add a short description'
+          : !county
+            ? 'Choose the county'
+            : null;
+
+  async function submit() {
+    setIsSubmitting(true);
+
+    try {
+      await api.createProduct(token, {
+        name: name.trim(),
+        category,
+        description: description.trim(),
+        unit: unit.trim() || 'kg',
+        price,
+        stock,
+        location: joinLocation(town, county),
+        isOrganic,
+        media,
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.marketplace });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.myProfile });
+      showToast('Listing published');
+      router.back();
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <View style={styles.group}>
+        <AppText variant="label">Photos</AppText>
+        <MediaPicker value={media} onChange={setMedia} limit={6} />
+      </View>
+      <TextField label="Product" value={name} onChangeText={setName} placeholder="e.g. Grade 1 Hass avocados" />
+      <View style={styles.group}>
+        <AppText variant="label">Category</AppText>
+        <ChipGroup options={LISTING_CATEGORIES} value={category} onChange={setCategory} wrap />
+      </View>
+      <View style={styles.row}>
+        <View style={styles.flex}>
+          <TextField label="Price (KES)" value={price} onChangeText={(text) => setPrice(text.replace(/[^\d.]/g, ''))} placeholder="0" keyboardType="decimal-pad" />
         </View>
-
-        <View style={[styles.mediaCard, { backgroundColor: palette.surfaceRaised }]}>
-          <View style={styles.mediaHeader}>
-            <Text style={[styles.sectionTitle, { color: palette.text }]}>Media</Text>
-            <View style={styles.mediaActions}>
-              <Pressable onPress={() => void pickMedia()} style={[styles.mediaButton, { backgroundColor: palette.surface }]}>
-                <Feather name="image" size={16} color={palette.text} />
-                <Text style={[styles.mediaButtonText, { color: palette.text }]}>Add set</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => void pickMedia({ cropSingleImage: true })}
-                style={[styles.mediaButton, { backgroundColor: palette.surface }]}>
-                <Feather name="crop" size={16} color={palette.text} />
-                <Text style={[styles.mediaButtonText, { color: palette.text }]}>Crop photo</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          {selectedMedia.length ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaPreviewRow}>
-              {selectedMedia.map((item, index) => (
-                <View key={`${item.uri}-${index}`} style={styles.mediaPreviewItem}>
-                  <Image source={{ uri: item.uri }} contentFit="cover" style={styles.mediaPreviewImage} />
-                  {mode === 'post' ? (
-                    <Pressable
-                      onPress={() => insertMediaMarker(index)}
-                      style={[styles.insertMediaButton, { backgroundColor: 'rgba(0,0,0,0.62)' }]}>
-                      <Text style={styles.insertMediaText}>Place {index + 1}</Text>
-                    </Pressable>
-                  ) : null}
-                  <Pressable
-                    onPress={() => removeMedia(index)}
-                    style={[styles.removeMediaButton, { backgroundColor: 'rgba(0,0,0,0.55)' }]}>
-                    <Feather name="x" size={14} color="#ffffff" />
-                  </Pressable>
-                </View>
-              ))}
-            </ScrollView>
-          ) : (
-            <Text style={[styles.helperText, { color: palette.muted }]}>{stageCopy}</Text>
-          )}
-
-          {selectedMedia.length ? <Text style={[styles.helperText, { color: palette.muted }]}>{stageCopy}</Text> : null}
-          <Text style={[styles.helperText, { color: palette.muted }]}>
-            Cropping is available for single-photo picks. Each file can be up to {maxUploadFileSizeMb} MB.
-          </Text>
+        <View style={styles.flex}>
+          <TextField label="Per" value={unit} onChangeText={setUnit} placeholder="kg, crate, litre…" />
         </View>
-
-        {mode === 'post' ? (
-          <View style={[styles.formCard, { backgroundColor: palette.surfaceRaised }]}>
-            <TextInput
-              value={headline}
-              onChangeText={setHeadline}
-              placeholder="Headline"
-              placeholderTextColor={palette.muted}
-              style={[styles.titleInput, { color: palette.text, backgroundColor: palette.surface }]}
-            />
-            <TextInput
-              value={body}
-              onChangeText={setBody}
-              onSelectionChange={handleBodySelectionChange}
-              selection={bodySelection}
-              placeholder="Share what is happening on the farm, in the market, or in your community..."
-              placeholderTextColor={palette.muted}
-              multiline
-              style={[styles.bodyInput, { color: palette.text, backgroundColor: palette.surface }]}
-            />
-            {selectedMedia.length ? (
-              <Text style={[styles.helperText, { color: palette.muted }]}>
-                Tap Place 1, Place 2, and so on to insert selected media between paragraphs. The marker can be moved like normal text.
-              </Text>
-            ) : null}
-            <TextInput
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Location"
-              placeholderTextColor={palette.muted}
-              style={[styles.compactInput, { color: palette.text, backgroundColor: palette.surface }]}
-            />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-              {postTags.map((item) => (
-                <Pressable
-                  key={item}
-                  onPress={() => setTag(item)}
-                  style={[styles.chip, { backgroundColor: tag === item ? `${palette.tint}14` : palette.surface }]}>
-                  <Text style={[styles.chipText, { color: tag === item ? palette.tint : palette.text }]}>{item}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            {isSeller && availableListings.length ? (
-              <View style={styles.linkedListingSection}>
-                <Text style={[styles.linkedListingTitle, { color: palette.text }]}>Tag one of your listings</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                  <Pressable
-                    onPress={() => setLinkedProductId('')}
-                    style={[styles.chip, { backgroundColor: !linkedProductId ? `${palette.tint}14` : palette.surface }]}>
-                    <Text style={[styles.chipText, { color: !linkedProductId ? palette.tint : palette.text }]}>None</Text>
-                  </Pressable>
-                  {availableListings.map((listing) => (
-                    <Pressable
-                      key={listing._id}
-                      onPress={() => setLinkedProductId((current) => (current === listing._id ? '' : listing._id))}
-                      style={[
-                        styles.chip,
-                        { backgroundColor: linkedProductId === listing._id ? `${palette.tint}14` : palette.surface },
-                      ]}>
-                      <Text style={[styles.chipText, { color: linkedProductId === listing._id ? palette.tint : palette.text }]}>
-                        {listing.name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-                <Text style={[styles.helperText, { color: palette.muted }]}>
-                  Tagged listings show up beneath the post and open directly in Marketplace.
-                </Text>
-              </View>
-            ) : null}
-            {!canSubmitPost ? (
-              <Text style={[styles.validationText, { color: palette.muted }]}>
-                A feed post needs both a headline and some context in the body.
-              </Text>
-            ) : null}
-          </View>
-        ) : (
-          <View style={[styles.formCard, { backgroundColor: palette.surfaceRaised }]}>
-            {!isSeller ? (
-              <Text style={[styles.helperText, { color: palette.accent }]}>
-                Only farmer accounts can publish listings. You can still use this composer for feed posts.
-              </Text>
-            ) : null}
-            <TextInput
-              value={productName}
-              onChangeText={setProductName}
-              placeholder="Product name"
-              placeholderTextColor={palette.muted}
-              style={[styles.compactInput, { color: palette.text, backgroundColor: palette.surface }]}
-            />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-              {listingCategories.map((item) => (
-                <Pressable
-                  key={item}
-                  onPress={() => setProductCategory(item)}
-                  style={[
-                    styles.chip,
-                    { backgroundColor: productCategory === item ? `${palette.tint}14` : palette.surface },
-                  ]}>
-                  <Text style={[styles.chipText, { color: productCategory === item ? palette.tint : palette.text }]}>
-                    {item}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            <TextInput
-              value={productDescription}
-              onChangeText={setProductDescription}
-              placeholder="Describe quality, packaging, timing, and anything buyers should know..."
-              placeholderTextColor={palette.muted}
-              multiline
-              style={[styles.bodyInput, { color: palette.text, backgroundColor: palette.surface }]}
-            />
-            <View style={styles.dualRow}>
-              <TextInput
-                value={productPrice}
-                onChangeText={setProductPrice}
-                placeholder="Price"
-                keyboardType="numeric"
-                placeholderTextColor={palette.muted}
-                style={[styles.halfInput, { color: palette.text, backgroundColor: palette.surface }]}
-              />
-              <TextInput
-                value={productStock}
-                onChangeText={setProductStock}
-                placeholder="Stock"
-                keyboardType="numeric"
-                placeholderTextColor={palette.muted}
-                style={[styles.halfInput, { color: palette.text, backgroundColor: palette.surface }]}
-              />
-            </View>
-            <View style={styles.dualRow}>
-              <TextInput
-                value={productUnit}
-                onChangeText={setProductUnit}
-                placeholder="Unit"
-                placeholderTextColor={palette.muted}
-                style={[styles.halfInput, { color: palette.text, backgroundColor: palette.surface }]}
-              />
-              <TextInput
-                value={productLocation}
-                onChangeText={setProductLocation}
-                placeholder="Location"
-                placeholderTextColor={palette.muted}
-                style={[styles.halfInput, { color: palette.text, backgroundColor: palette.surface }]}
-              />
-            </View>
-            <View style={styles.switchRow}>
-              <Text style={[styles.switchLabel, { color: palette.text }]}>Organic produce</Text>
-              <Switch value={isOrganic} onValueChange={setIsOrganic} trackColor={{ true: `${palette.tint}55` }} />
-            </View>
-            {!canSubmitListing ? (
-              <Text style={[styles.validationText, { color: palette.muted }]}>
-                Listings need a name, description, price, and stock before publishing.
-              </Text>
-            ) : null}
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+      <TextField label="Available" value={stock} onChangeText={(text) => setStock(text.replace(/\D/g, ''))} placeholder="0" keyboardType="number-pad" />
+      <LocationFields
+        countyLabel="Where is it?"
+        county={county}
+        town={town}
+        onChangeCounty={setCounty}
+        onChangeTown={setTown}
+        hint="Buyers filter by county, and it keeps regional prices accurate."
+      />
+      <TextField
+        label="Description"
+        value={description}
+        onChangeText={setDescription}
+        placeholder="Quality, variety, harvest date, packaging, delivery options…"
+        multiline
+      />
+      <Card tone="surfaceMuted" style={styles.switchRow}>
+        <View style={styles.flex}>
+          <AppText variant="label">Organic</AppText>
+          <AppText variant="caption" color="textMuted">
+            Grown without synthetic pesticides or fertiliser
+          </AppText>
+        </View>
+        <Switch value={isOrganic} onValueChange={setIsOrganic} trackColor={{ true: colors.primary, false: colors.border }} thumbColor={colors.surface} />
+      </Card>
+      <Button label={missing ?? 'Publish listing'} onPress={() => void submit()} disabled={Boolean(missing)} loading={isSubmitting} fullWidth />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  content: { padding: 16, gap: 14, paddingBottom: 28 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  iconButton: { width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, fontFamily: Fonts.rounded, fontSize: 20, fontWeight: '700', textAlign: 'center' },
-  publishButton: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
-  publishButtonText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  modeTabs: { borderRadius: 999, padding: 4, flexDirection: 'row', gap: 6 },
-  modeTab: { flex: 1, borderRadius: 999, alignItems: 'center', paddingVertical: 11 },
-  modeTabText: { fontFamily: Fonts.rounded, fontSize: 13, fontWeight: '700' },
-  mediaCard: { borderRadius: 24, padding: 14, gap: 12 },
-  mediaHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'center' },
-  mediaActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', flex: 1 },
-  sectionTitle: { fontFamily: Fonts.rounded, fontSize: 16, fontWeight: '700' },
-  mediaButton: {
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
-  mediaButtonText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  mediaPreviewRow: { gap: 10 },
-  mediaPreviewItem: { width: 100, height: 124, borderRadius: 18, overflow: 'hidden' },
-  mediaPreviewImage: { width: '100%', height: '100%' },
-  insertMediaButton: {
-    position: 'absolute',
-    left: 8,
-    bottom: 8,
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-  },
-  insertMediaText: { color: '#ffffff', fontFamily: Fonts.rounded, fontSize: 10, fontWeight: '700' },
-  removeMediaButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 26,
-    height: 26,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  helperText: { fontFamily: Fonts.sans, fontSize: 13, lineHeight: 19 },
-  linkedListingSection: { gap: 8 },
-  linkedListingTitle: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
-  formCard: { borderRadius: 24, padding: 14, gap: 12 },
-  titleInput: {
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontFamily: Fonts.rounded,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  bodyInput: {
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    minHeight: 120,
-    textAlignVertical: 'top',
-    fontFamily: Fonts.sans,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  compactInput: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 13, fontFamily: Fonts.sans, fontSize: 14 },
-  chipRow: { gap: 8 },
-  chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9 },
-  chipText: { fontFamily: Fonts.rounded, fontSize: 12, fontWeight: '700' },
-  dualRow: { flexDirection: 'row', gap: 10 },
-  halfInput: { flex: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 13, fontFamily: Fonts.sans, fontSize: 14 },
-  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  switchLabel: { fontFamily: Fonts.rounded, fontSize: 14, fontWeight: '700' },
-  validationText: { fontFamily: Fonts.sans, fontSize: 12, lineHeight: 18 },
+  screen: { flex: 1 },
+  content: { paddingHorizontal: ScreenPadding, paddingTop: Spacing.xs, paddingBottom: Spacing.xxl, gap: Spacing.lg },
+  group: { gap: Spacing.xs },
+  row: { flexDirection: 'row', gap: Spacing.sm },
+  flex: { flex: 1 },
+  switchRow: { flexDirection: 'row', alignItems: 'center' },
 });
