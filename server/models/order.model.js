@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+import { countyPlugin } from "../utils/regions.js";
+
 const orderItemSchema = new mongoose.Schema(
   {
     product: {
@@ -83,5 +85,7 @@ const orderSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+orderSchema.plugin(countyPlugin, { from: "deliveryLocation" });
 
 export const Order = mongoose.model("Order", orderSchema);

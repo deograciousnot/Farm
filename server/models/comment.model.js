@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+import { moderationFields } from "./moderation-fields.js";
+
 const commentSchema = new mongoose.Schema(
   {
     post: {
@@ -18,6 +20,7 @@ const commentSchema = new mongoose.Schema(
       trim: true,
       maxlength: 320,
     },
+    ...moderationFields,
   },
   {
     timestamps: true,

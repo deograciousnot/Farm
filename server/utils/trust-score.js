@@ -83,20 +83,12 @@ export async function recalculateTrustScoreForUser(userId) {
 
   const nextTrustScore = roundToOneDecimal(clamp(score, 0, 5));
 
+  // "Verified" means a moderator checked who this person is, so only admins grant it.
+  // The score can only move an already-verified seller between verified and top-rated.
   let nextVerificationStatus = user.verificationStatus;
 
-  if (user.role === "farmer") {
-    if (nextTrustScore >= 4.6 && deliveredSales >= 2) {
-      nextVerificationStatus = "top-rated";
-    } else if (nextTrustScore >= 2.8) {
-      nextVerificationStatus = "verified";
-    } else {
-      nextVerificationStatus = "unverified";
-    }
-  } else if (nextTrustScore >= 2.4 && user.phone) {
-    nextVerificationStatus = "verified";
-  } else {
-    nextVerificationStatus = "unverified";
+  if (user.role === "farmer" && user.verificationStatus !== "unverified") {
+    nextVerificationStatus = nextTrustScore >= 4.6 && deliveredSales >= 2 ? "top-rated" : "verified";
   }
 
   user.trustScore = nextTrustScore;

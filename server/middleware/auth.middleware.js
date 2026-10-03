@@ -26,7 +26,7 @@ export const attachUserIfPresent = asyncHandler(async (req, _res, next) => {
     const payload = jwt.verify(token, env.jwtSecret);
     const user = await User.findById(payload.sub);
 
-    if (user && user.accountStatus !== "deleted") {
+    if (user && user.accountStatus === "active") {
       req.user = user;
     }
   } catch (_error) {
@@ -50,9 +50,25 @@ export const requireAuth = asyncHandler(async (req, _res, next) => {
     throw new AppError("User no longer exists.", 401);
   }
 
+  if (user.accountStatus === "suspended") {
+    throw new AppError("This account has been suspended. Contact support@farmconnect.app for help.", 403);
+  }
+
   req.user = user;
   next();
 });
+
+/** Admin dashboard access: a signed-in account with isAdmin set. */
+export const requireAdmin = [
+  requireAuth,
+  (req, _res, next) => {
+    if (!req.user?.isAdmin) {
+      return next(new AppError("Admin access is required.", 403));
+    }
+
+    return next();
+  },
+];
 
 export function requireRole(...allowedRoles) {
   return function roleMiddleware(req, _res, next) {

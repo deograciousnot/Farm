@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 import { Comment } from "../models/comment.model.js";
+import { notRemoved } from "../models/moderation-fields.js";
 import { LikedPost } from "../models/liked-post.model.js";
 import { Post } from "../models/post.model.js";
 import { SavedPost } from "../models/saved-post.model.js";
@@ -25,7 +26,7 @@ export const getCommentsForPost = asyncHandler(async (req, res) => {
     throw new AppError("Invalid post id.", 400);
   }
 
-  const comments = await Comment.find({ post: postId })
+  const comments = await Comment.find({ post: postId, ...notRemoved })
     .populate("author", "name role location avatarUrl verificationStatus")
     .sort({ createdAt: -1 })
     .limit(30);

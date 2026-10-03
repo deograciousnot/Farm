@@ -1,5 +1,6 @@
 import { CommunityThread } from "../models/community-thread.model.js";
 import { ThreadReply } from "../models/thread-reply.model.js";
+import { notRemoved } from "../models/moderation-fields.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { createNotification } from "../utils/notifications.js";
@@ -10,7 +11,7 @@ export const getCommunityOverview = asyncHandler(async (_req, res) => {
   const topThreads = await CommunityThread.find({ moderationStatus: { $ne: "removed" } })
     .populate("author", "name role location avatarUrl")
     .sort({ isPinned: -1, repliesCount: -1, createdAt: -1 })
-    .limit(8);
+    .limit(50);
 
   const categories = ["Pricing", "Crop care", "Trade trust", "Market Prices", "Farm Inputs"];
   const stats = await Promise.all(
@@ -59,7 +60,7 @@ export const getRepliesForThread = asyncHandler(async (req, res) => {
     throw new AppError("Community thread not found.", 404);
   }
 
-  const replies = await ThreadReply.find({ thread: thread._id })
+  const replies = await ThreadReply.find({ thread: thread._id, ...notRemoved })
     .populate("author", "name role location avatarUrl verificationStatus")
     .sort({ createdAt: -1 })
     .limit(50);

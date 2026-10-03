@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+import { countyPlugin } from "../utils/regions.js";
+
 const postSchema = new mongoose.Schema(
   {
     author: {
@@ -127,5 +129,7 @@ const postSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+postSchema.plugin(countyPlugin);
 
 export const Post = mongoose.model("Post", postSchema);

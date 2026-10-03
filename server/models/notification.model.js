@@ -19,8 +19,13 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["order", "community", "system", "like", "comment", "reply"],
+      enum: ["order", "community", "system", "like", "comment", "reply", "broadcast"],
       default: "system",
+    },
+    // In-app route to open when the notification is tapped, e.g. "/broadcast/<id>".
+    link: {
+      type: String,
+      default: "",
     },
     isRead: {
       type: Boolean,

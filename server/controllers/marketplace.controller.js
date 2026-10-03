@@ -1,4 +1,5 @@
 import { Product } from "../models/product.model.js";
+import { notRemoved } from "../models/moderation-fields.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { uploadManyToCloudinary } from "../utils/media-upload.js";
@@ -6,10 +7,10 @@ import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
 export const getMarketplaceOverview = asyncHandler(async (_req, res) => {
   const [featuredProducts, totalListings, verifiedSellerListings, wholesaleListings] = await Promise.all([
-    Product.find({ featured: true }).populate("seller", "name verificationStatus location role avatarUrl").limit(4),
-    Product.countDocuments(),
-    Product.countDocuments({ sellerType: "farmer" }),
-    Product.countDocuments({ stock: { $gte: 100 } }),
+    Product.find({ featured: true, ...notRemoved }).populate("seller", "name verificationStatus location role avatarUrl").limit(4),
+    Product.countDocuments(notRemoved),
+    Product.countDocuments({ sellerType: "farmer", ...notRemoved }),
+    Product.countDocuments({ stock: { $gte: 100 }, ...notRemoved }),
   ]);
 
   res.json({
@@ -29,7 +30,7 @@ export const getMarketplaceOverview = asyncHandler(async (_req, res) => {
 
 export const getProducts = asyncHandler(async (req, res) => {
   const { category, location, search, featured } = req.query;
-  const filters = {};
+  const filters = { ...notRemoved };
 
   if (category) {
     filters.category = category;
@@ -60,7 +61,7 @@ export const getProducts = asyncHandler(async (req, res) => {
 });
 
 export const getProductById = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id).populate(
+  const product = await Product.findOne({ _id: req.params.id, ...notRemoved }).populate(
     "seller",
     "name verificationStatus location role bio trustScore phone avatarUrl"
   );

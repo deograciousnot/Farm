@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+import { moderationFields } from "./moderation-fields.js";
+
 const threadReplySchema = new mongoose.Schema(
   {
     thread: {
@@ -18,6 +20,7 @@ const threadReplySchema = new mongoose.Schema(
       trim: true,
       maxlength: 600,
     },
+    ...moderationFields,
   },
   {
     timestamps: true,

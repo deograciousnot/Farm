@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 
+import { countyPlugin } from "../utils/regions.js";
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -74,8 +76,22 @@ const userSchema = new mongoose.Schema(
     ],
     accountStatus: {
       type: String,
-      enum: ["active", "deleted"],
+      enum: ["active", "suspended", "deleted"],
       default: "active",
+    },
+    suspendedReason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    suspendedAt: {
+      type: Date,
+      default: null,
+    },
+    // Grants access to the admin dashboard. Set with `npm run server:make-admin -- <email>`.
+    isAdmin: {
+      type: Boolean,
+      default: false,
     },
     deletedAt: {
       type: Date,
@@ -98,5 +114,7 @@ userSchema.pre("save", async function hashPassword() {
 userSchema.methods.comparePassword = function comparePassword(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
+
+userSchema.plugin(countyPlugin);
 
 export const User = mongoose.model("User", userSchema);

@@ -1,5 +1,9 @@
 import mongoose from "mongoose";
 
+import { countyPlugin } from "../utils/regions.js";
+
+import { moderationFields } from "./moderation-fields.js";
+
 const productSchema = new mongoose.Schema(
   {
     seller: {
@@ -59,10 +63,13 @@ const productSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    ...moderationFields,
   },
   {
     timestamps: true,
   }
 );
+
+productSchema.plugin(countyPlugin);
 
 export const Product = mongoose.model("Product", productSchema);

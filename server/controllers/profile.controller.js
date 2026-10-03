@@ -2,6 +2,7 @@ import { Notification } from "../models/notification.model.js";
 import { Order } from "../models/order.model.js";
 import { Post } from "../models/post.model.js";
 import { Product } from "../models/product.model.js";
+import { notRemoved } from "../models/moderation-fields.js";
 import { SellerRemark } from "../models/seller-remark.model.js";
 import { User } from "../models/user.model.js";
 import { AppError } from "../utils/app-error.js";
@@ -30,12 +31,12 @@ function shapeProfileSummary(user) {
 
 async function buildProfilePayload(viewer, targetUser, { includeNotifications = false } = {}) {
   const [posts, listings, ordersCount, notifications, unreadNotifications, receivedRemarks, givenRemarks] = await Promise.all([
-    Post.find({ author: targetUser._id })
+    Post.find({ author: targetUser._id, ...notRemoved })
       .populate("author", "name role location verificationStatus trustScore avatarUrl followers following")
       .sort({ createdAt: -1 })
       .limit(24)
       .lean(),
-    Product.find({ seller: targetUser._id })
+    Product.find({ seller: targetUser._id, ...notRemoved })
       .populate("seller", "name role location verificationStatus trustScore avatarUrl followers following")
       .sort({ createdAt: -1 })
       .limit(24)

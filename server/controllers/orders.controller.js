@@ -1,9 +1,11 @@
 import { Order } from "../models/order.model.js";
 import { Product } from "../models/product.model.js";
+import { notRemoved } from "../models/moderation-fields.js";
 import { SellerRemark } from "../models/seller-remark.model.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { createNotification } from "../utils/notifications.js";
+import { restockOrder } from "../utils/orders.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
 async function findOrderForUser(orderId, userId) {
@@ -58,7 +60,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     throw new AppError("A productId is required to create an order.", 400);
   }
 
-  const product = await Product.findById(productId).populate("seller");
+  const product = await Product.findOne({ _id: productId, ...notRemoved }).populate("seller");
 
   if (!product) {
     throw new AppError("Product not found.", 404);
@@ -242,6 +244,10 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
         ? "On the way"
         : "Cancelled";
   await order.save();
+
+  if (status === "cancelled") {
+    await restockOrder(order);
+  }
 
   const notifyUserId = isSeller ? order.buyer : order.seller;
   await createNotification({

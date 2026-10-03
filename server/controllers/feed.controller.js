@@ -1,5 +1,6 @@
 import { Post } from "../models/post.model.js";
 import { Product } from "../models/product.model.js";
+import { notRemoved } from "../models/moderation-fields.js";
 import { CommunityThread } from "../models/community-thread.model.js";
 import { User } from "../models/user.model.js";
 import { Comment } from "../models/comment.model.js";
@@ -114,7 +115,7 @@ export const getFeed = asyncHandler(async (_req, res) => {
   const [posts, totalPosts] = await Promise.all([
     Post.find(filters)
       .populate("author", "name role location verificationStatus trustScore avatarUrl")
-      .populate("linkedProduct", "name price unit location")
+      .populate({ path: "linkedProduct", select: "name price unit location", match: notRemoved })
       .sort({ isPinned: -1, isSponsored: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -125,10 +126,10 @@ export const getFeed = asyncHandler(async (_req, res) => {
   const postIds = posts.map((post) => post._id);
 
   const [previewProducts, activeThreads, verifiedGrowers, comments, savedPosts, likedPosts] = await Promise.all([
-    Product.find({ featured: true }).populate("seller", "name location verificationStatus avatarUrl").limit(3),
+    Product.find({ featured: true, ...notRemoved }).populate("seller", "name location verificationStatus avatarUrl").limit(3),
     CommunityThread.countDocuments(),
     User.countDocuments({ role: "farmer", verificationStatus: { $in: ["verified", "top-rated"] } }),
-    Comment.find({ post: { $in: postIds } })
+    Comment.find({ post: { $in: postIds }, ...notRemoved })
       .populate("author", "name role location avatarUrl")
       .sort({ createdAt: -1 })
       .limit(40)
@@ -191,9 +192,9 @@ export const getFeedPostById = asyncHandler(async (req, res) => {
     throw new AppError("Invalid post id.", 400);
   }
 
-  const post = await Post.findById(postId)
+  const post = await Post.findOne({ _id: postId, ...notRemoved })
     .populate("author", "name role location verificationStatus trustScore avatarUrl followers following")
-    .populate("linkedProduct", "name price unit location")
+    .populate({ path: "linkedProduct", select: "name price unit location", match: notRemoved })
     .lean();
 
   if (!post) {
@@ -201,7 +202,7 @@ export const getFeedPostById = asyncHandler(async (req, res) => {
   }
 
   const [comments, savedPost, likedPost] = await Promise.all([
-    Comment.find({ post: post._id })
+    Comment.find({ post: post._id, ...notRemoved })
       .populate("author", "name role location avatarUrl verificationStatus")
       .sort({ createdAt: -1 })
       .limit(50)
@@ -239,6 +240,7 @@ export const createFeedPost = asyncHandler(async (req, res) => {
     linkedProduct = await Product.findOne({
       _id: linkedProductId,
       seller: req.user._id,
+      ...notRemoved,
     })
       .select("_id")
       .lean();
@@ -266,7 +268,7 @@ export const createFeedPost = asyncHandler(async (req, res) => {
 
   const populatedPost = await Post.findById(post._id)
     .populate("author", "name role location verificationStatus trustScore avatarUrl")
-    .populate("linkedProduct", "name price unit location")
+    .populate({ path: "linkedProduct", select: "name price unit location", match: notRemoved })
     .lean();
 
   await recalculateTrustScoreForUser(req.user._id);
