@@ -227,3 +227,39 @@ export async function attachReportTargets(reports) {
     preview: previews.get(key(report.targetType, report.target)) ?? { title: "Content no longer exists", body: "", status: "missing" },
   }));
 }
+
+/**
+ * Take down everything a member has published (spam clean-up). Listings are handled by suspension.
+ * Comment and answer counts on the parent posts and discussions are reduced to match.
+ */
+export async function removeAllContentBy(req, user, reason = "") {
+  const removal = { moderationStatus: "removed", removedReason: reason || "Removed with the author's account", removedAt: new Date() };
+  const mine = { author: user._id, ...notRemoved };
+
+  const [comments, replies] = await Promise.all([
+    Comment.find(mine).select("post").lean(),
+    ThreadReply.find(mine).select("thread").lean(),
+  ]);
+
+  const [posts, threads] = await Promise.all([Post.updateMany(mine, removal), CommunityThread.updateMany(mine, removal)]);
+  await Promise.all([Comment.updateMany(mine, removal), ThreadReply.updateMany(mine, removal)]);
+
+  const decrement = async (Model, field, ids) => {
+    const counts = ids.reduce((map, id) => map.set(String(id), (map.get(String(id)) ?? 0) + 1), new Map());
+    await Promise.all([...counts].map(([id, count]) => Model.updateOne({ _id: id }, { $inc: { [field]: -count } })));
+    await Model.updateMany({ [field]: { $lt: 0 } }, { $set: { [field]: 0 } });
+  };
+  await decrement(Post, "commentsCount", comments.map((comment) => comment.post));
+  await decrement(CommunityThread, "repliesCount", replies.map((reply) => reply.thread));
+
+  const summary = { posts: posts.modifiedCount, discussions: threads.modifiedCount, comments: comments.length, answers: replies.length };
+  await logAction(req, {
+    action: "user.purge",
+    targetType: "user",
+    target: user._id,
+    summary: `${user.name}: removed ${summary.posts} posts, ${summary.discussions} discussions, ${summary.comments} comments, ${summary.answers} answers`,
+    reason,
+  });
+
+  return summary;
+}

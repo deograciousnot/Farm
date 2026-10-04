@@ -121,8 +121,8 @@ export const api = {
     request<Paginated<AdminUser>>(`/admin/users${query(params)}`),
   setVerification: (userId: string, status: "verified" | "unverified") =>
     request<{ message: string }>(`/admin/users/${userId}/verification`, { method: "PATCH", body: { status } }),
-  setUserStatus: (userId: string, status: "active" | "suspended", reason = "") =>
-    request<{ message: string }>(`/admin/users/${userId}/status`, { method: "PATCH", body: { status, reason } }),
+  setUserStatus: (userId: string, status: "active" | "suspended", reason = "", removeContent = false) =>
+    request<{ message: string }>(`/admin/users/${userId}/status`, { method: "PATCH", body: { status, reason, removeContent } }),
 
   getNotifications: (params: { page?: number; type?: string }) =>
     request<Paginated<AdminNotification>>(`/admin/notifications${query(params)}`),

@@ -37,6 +37,12 @@ import { asyncHandler } from "../utils/async-handler.js";
 const adminRouter = Router();
 
 function requireSeedOrAdminSecret(req, _res, next) {
+  // Seeding can wipe the database, so it is off in production unless explicitly enabled.
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_SEED !== "true") {
+    next(new AppError("Not found.", 404));
+    return;
+  }
+
   const providedSeedSecret = req.header("x-seed-secret") || req.body?.seedSecret || req.body?.secret;
   const providedAdminSecret = req.header("x-admin-secret") || req.body?.adminSecret;
 

@@ -2,6 +2,7 @@ import { Product } from "../models/product.model.js";
 import { notRemoved } from "../models/moderation-fields.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { assertCanPublish } from "../utils/spam-guard.js";
 import { uploadManyToCloudinary } from "../utils/media-upload.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
@@ -80,6 +81,8 @@ export const createProduct = asyncHandler(async (req, res) => {
   if (!name || !category || !description || !unit || price == null || stock == null || !location) {
     throw new AppError("Name, category, description, unit, price, stock, and location are required.", 400);
   }
+
+  await assertCanPublish(req.user, { model: Product, text: description });
 
   const uploadedMedia = await uploadManyToCloudinary(req.files, {
     folder: "farmconnect/products",

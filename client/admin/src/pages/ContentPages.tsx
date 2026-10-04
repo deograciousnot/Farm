@@ -250,6 +250,7 @@ const actionLabels: Record<string, string> = {
   "content.restore": "Restored content",
   "user.suspend": "Suspended account",
   "user.reinstate": "Reinstated account",
+  "user.purge": "Removed all content by account",
   "user.verification": "Changed verification",
   "report.reviewed": "Marked report reviewed",
   "report.dismissed": "Dismissed report",

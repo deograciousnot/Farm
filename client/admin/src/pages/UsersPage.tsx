@@ -73,8 +73,14 @@ export function UsersPage({ onChanged }: { onChanged: () => void }) {
       body: "They'll be signed out and blocked from signing in, and their listings will be hidden until you reinstate them.",
       confirmLabel: "Suspend",
       reason: "required",
-      reasonPlaceholder: "e.g. Took payment and never delivered (2 buyer reports)",
-      onConfirm: (reason) => run(() => api.setUserStatus(user._id, "suspended", reason), "Account suspended"),
+      reasonPlaceholder: "e.g. Spam: posted the same ad 40 times",
+      checkbox: { label: "Also remove everything they posted (posts, questions, answers, comments)" },
+      onConfirm: async (reason, removeContent) => {
+        const response = await api.setUserStatus(user._id, "suspended", reason, removeContent);
+        toast(response.message);
+        onChanged();
+        await list.reload();
+      },
     });
   }
 

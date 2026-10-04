@@ -9,6 +9,7 @@ import { SavedPost } from "../models/saved-post.model.js";
 import { Notification } from "../models/notification.model.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { assertCanPublish } from "../utils/spam-guard.js";
 import { uploadManyToCloudinary } from "../utils/media-upload.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 import mongoose from "mongoose";
@@ -229,6 +230,8 @@ export const createFeedPost = asyncHandler(async (req, res) => {
   if (!headline || !body) {
     throw new AppError("Headline and body are required.", 400);
   }
+
+  await assertCanPublish(req.user, { model: Post, text: body });
 
   let linkedProduct = null;
 

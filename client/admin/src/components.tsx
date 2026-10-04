@@ -53,7 +53,9 @@ export type ConfirmOptions = {
   /** Ask for a reason; it is shown to the affected user and stored in the audit log. */
   reason?: "required" | "optional";
   reasonPlaceholder?: string;
-  onConfirm: (reason: string) => Promise<unknown>;
+  /** An extra opt-in, e.g. "Also remove everything they posted". */
+  checkbox?: { label: string; defaultChecked?: boolean };
+  onConfirm: (reason: string, checked: boolean) => Promise<unknown>;
 };
 
 const ConfirmContext = createContext<(options: ConfirmOptions) => void>(() => {});
@@ -61,6 +63,7 @@ const ConfirmContext = createContext<(options: ConfirmOptions) => void>(() => {}
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
   const [reason, setReason] = useState("");
+  const [checked, setChecked] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -74,6 +77,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
   const open = useCallback((next: ConfirmOptions) => {
     setReason("");
+    setChecked(Boolean(next.checkbox?.defaultChecked));
     setError("");
     setOptions(next);
   }, []);
@@ -87,7 +91,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
     setIsBusy(true);
     try {
-      await options.onConfirm(reason.trim());
+      await options.onConfirm(reason.trim(), checked);
       setOptions(null);
     } catch (confirmError) {
       setError(errorMessage(confirmError));
@@ -119,6 +123,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                   rows={3}
                   autoFocus
                 />
+              </label>
+            ) : null}
+            {options.checkbox ? (
+              <label className="check">
+                <input type="checkbox" checked={checked} onChange={(event) => setChecked(event.target.checked)} />
+                {options.checkbox.label}
               </label>
             ) : null}
             {error ? <p className="form-error">{error}</p> : null}

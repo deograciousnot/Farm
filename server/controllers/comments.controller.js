@@ -7,6 +7,7 @@ import { Post } from "../models/post.model.js";
 import { SavedPost } from "../models/saved-post.model.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { assertCanPublish } from "../utils/spam-guard.js";
 import { createNotification } from "../utils/notifications.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
@@ -53,6 +54,8 @@ export const createComment = asyncHandler(async (req, res) => {
   if (!post) {
     throw new AppError("Post not found.", 404);
   }
+
+  await assertCanPublish(req.user, { model: Comment, text: body });
 
   const comment = await Comment.create({
     post: post._id,

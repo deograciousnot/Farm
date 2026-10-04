@@ -3,6 +3,7 @@ import { ThreadReply } from "../models/thread-reply.model.js";
 import { notRemoved } from "../models/moderation-fields.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { assertCanPublish } from "../utils/spam-guard.js";
 import { createNotification } from "../utils/notifications.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 import { uploadManyToCloudinary } from "../utils/media-upload.js";
@@ -77,6 +78,8 @@ export const createThread = asyncHandler(async (req, res) => {
     throw new AppError("Title, body, and category are required.", 400);
   }
 
+  await assertCanPublish(req.user, { model: CommunityThread, text: body });
+
   const media = await uploadManyToCloudinary(req.files, {
     folder: "farmconnect/community",
   });
@@ -117,6 +120,8 @@ export const createReply = asyncHandler(async (req, res) => {
   if (!body?.trim()) {
     throw new AppError("Reply body is required.", 400);
   }
+
+  await assertCanPublish(req.user, { model: ThreadReply, text: body });
 
   const reply = await ThreadReply.create({
     thread: thread._id,

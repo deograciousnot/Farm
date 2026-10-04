@@ -3,7 +3,7 @@ import { notRemoved } from "../../models/moderation-fields.js";
 import { Product } from "../../models/product.model.js";
 import { Report } from "../../models/report.model.js";
 import { User } from "../../models/user.model.js";
-import { logAction, setUserStatus } from "../../services/moderation.js";
+import { logAction, removeAllContentBy, setUserStatus } from "../../services/moderation.js";
 import { AppError } from "../../utils/app-error.js";
 import { asyncHandler } from "../../utils/async-handler.js";
 import { createNotification } from "../../utils/notifications.js";
@@ -103,7 +103,20 @@ export const setVerification = asyncHandler(async (req, res) => {
 });
 
 export const setStatus = asyncHandler(async (req, res) => {
-  const { status, reason = "" } = req.body;
+  const { status, reason = "", removeContent = false } = req.body;
   const user = await setUserStatus(req, req.params.userId, status, String(reason).trim());
-  res.json({ message: status === "suspended" ? "Account suspended." : "Account reinstated.", item: user });
+
+  // Spam clean-up: optionally take down everything they posted along with the suspension.
+  const removed = status === "suspended" && removeContent ? await removeAllContentBy(req, user, String(reason).trim()) : null;
+
+  res.json({
+    message:
+      status === "suspended"
+        ? removed
+          ? `Account suspended. Removed ${removed.posts + removed.discussions + removed.comments + removed.answers} items they posted.`
+          : "Account suspended."
+        : "Account reinstated.",
+    item: user,
+    removed,
+  });
 });

@@ -1,14 +1,21 @@
 import cookieParser from "cookie-parser";
 import express from "express";
+import helmet from "helmet";
 
 import { env } from "./config/env.js";
+import { globalLimiter } from "./middleware/rate-limit.middleware.js";
 import { apiRouter } from "./routes/index.js";
 
 export function createApp() {
   const app = express();
 
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  // Render (and most hosts) sit behind one proxy; trust it so rate limits see the real client IP.
+  app.set("trust proxy", 1);
+  app.disable("x-powered-by");
+  app.use(helmet());
+  // JSON bodies are small text; media goes through multipart uploads with their own limits.
+  app.use(express.json({ limit: "100kb" }));
+  app.use(express.urlencoded({ extended: true, limit: "100kb" }));
   app.use(cookieParser());
   app.use((req, res, next) => {
     const origin = req.headers.origin;
@@ -39,7 +46,7 @@ export function createApp() {
     });
   });
 
-  app.use("/api", apiRouter);
+  app.use("/api", globalLimiter, apiRouter);
 
   app.use((req, res) => {
     res.status(404).json({
@@ -48,7 +55,8 @@ export function createApp() {
   });
 
   app.use((error, _req, res, _next) => {
-    const statusCode = error.statusCode || 500;
+    // Oversized bodies and bad JSON come from the body parser with their own status codes.
+    const statusCode = error.statusCode || error.status || 500;
 
     res.status(statusCode).json({
       message: error.message || "Something went wrong.",
