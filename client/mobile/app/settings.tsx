@@ -131,7 +131,6 @@ export default function SettingsScreen() {
 
         <AppText variant="caption" color="textSubtle" align="center" selectable>
           FarmConnect {appVersion}
-          {__DEV__ ? ` · ${api.baseUrl}` : ''}
         </AppText>
       </ScrollView>
 
