@@ -26,6 +26,7 @@ export function sanitizeUser(user) {
     bio: user.bio,
     avatarUrl: user.avatarUrl,
     phone: user.phone,
+    phoneVerified: Boolean(user.verifiedPhone),
     verificationStatus: user.verificationStatus,
     trustScore: user.trustScore,
     followingCount: Array.isArray(user.following) ? user.following.length : 0,
@@ -160,17 +161,18 @@ export const deleteAccount = asyncHandler(async (req, res) => {
     throw new AppError("Type DELETE to confirm account deletion.", 400);
   }
 
-  if (!currentPassword) {
-    throw new AppError("Current password is required.", 400);
-  }
-
   const user = await User.findById(req.user._id).select("+password");
 
   if (!user) {
     throw new AppError("User not found.", 404);
   }
 
-  const isPasswordValid = await user.comparePassword(currentPassword);
+  // Phone-only accounts have no password; their signed-in session plus typing DELETE is the confirmation.
+  if (user.password && !currentPassword) {
+    throw new AppError("Current password is required.", 400);
+  }
+
+  const isPasswordValid = !user.password || (await user.comparePassword(currentPassword));
 
   if (!isPasswordValid) {
     throw new AppError("Current password is incorrect.", 401);
@@ -224,6 +226,8 @@ export const deleteAccount = asyncHandler(async (req, res) => {
   user.bio = "";
   user.avatarUrl = "";
   user.phone = "";
+  // Free the number so it can sign up again later.
+  user.verifiedPhone = undefined;
   user.verificationStatus = "unverified";
   user.trustScore = 0;
   user.following = [];

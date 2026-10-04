@@ -25,6 +25,8 @@ type SessionContextValue = {
   continueAsGuest: () => void;
   signInDemo: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  /** Store a session the server already issued (e.g. after phone code sign-in). */
+  signInWithToken: (token: string, user: ApiUser) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   updateUser: (nextUser: ApiUser) => Promise<void>;
   logout: () => Promise<void>;
@@ -42,6 +44,7 @@ const SessionContext = createContext<SessionContextValue>({
   continueAsGuest: () => {},
   signInDemo: async () => {},
   login: async () => {},
+  signInWithToken: async () => {},
   register: async () => {},
   updateUser: async () => {},
   logout: async () => {},
@@ -211,6 +214,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         continueAsGuest,
         signInDemo,
         login,
+        signInWithToken: persistSession,
         register,
         updateUser,
         logout,

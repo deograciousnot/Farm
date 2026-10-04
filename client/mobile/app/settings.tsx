@@ -60,7 +60,7 @@ export default function SettingsScreen() {
                 {user.name}
               </AppText>
               <AppText variant="caption" color="textMuted" numberOfLines={1}>
-                {user.email}
+                {user.email || user.phone}
               </AppText>
             </View>
           </Card>
@@ -84,7 +84,8 @@ export default function SettingsScreen() {
                 subtitle="Send it to buyers or other farmers"
                 onPress={() => shareProfile(user)}
               />
-              <ListRow icon="lock" title="Change password" onPress={() => setSheet('password')} />
+              {/* Phone sign-in accounts have no password to change. */}
+              {user.email ? <ListRow icon="lock" title="Change password" onPress={() => setSheet('password')} /> : null}
             </Card>
           </Section>
         ) : null}
@@ -198,11 +199,14 @@ function ChangePasswordSheet({ visible, onClose }: { visible: boolean; onClose: 
 function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { token, clearDeletedAccount } = useSession();
   const { showToast } = useToast();
+  const { user } = useSession();
+  // Phone sign-in accounts have no password; typing DELETE is the confirmation.
+  const needsPassword = Boolean(user?.email);
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [error, setError] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
-  const canDelete = Boolean(password) && confirmation === 'DELETE';
+  const canDelete = (!needsPassword || Boolean(password)) && confirmation === 'DELETE';
 
   async function remove() {
     if (!token || !canDelete) {
@@ -228,7 +232,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
       onClose={onClose}
       title="Delete account"
       subtitle="This erases your profile, posts, listings, comments, answers, followers, and notifications. Order records keep only what's needed for the other party, with your personal details removed.">
-      <TextField label="Current password" value={password} onChangeText={setPassword} secureTextEntry />
+      {needsPassword ? <TextField label="Current password" value={password} onChangeText={setPassword} secureTextEntry /> : null}
       <TextField
         label="Type DELETE to confirm"
         value={confirmation}

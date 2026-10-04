@@ -152,7 +152,7 @@ export async function setUserStatus(req, userId, status, reason = "") {
       action: status === "suspended" ? "user.suspend" : "user.reinstate",
       targetType: "user",
       target: user._id,
-      summary: `${user.name} (${user.email})`,
+      summary: `${user.name} (${user.email || user.verifiedPhone || user.phone})`,
       reason,
     });
   }
@@ -180,15 +180,15 @@ export async function attachReportTargets(reports) {
     Object.entries(idsByType).map(async ([type, ids]) => {
       if (type === "user") {
         const users = await User.find({ _id: { $in: ids } })
-          .select("name email role location avatarUrl bio verificationStatus accountStatus")
+          .select("name email phone role location avatarUrl bio verificationStatus accountStatus")
           .lean();
         users.forEach((user) =>
           previews.set(key(type, user._id), {
             title: user.name,
             body: user.bio || `${user.role} · ${user.location}`,
-            author: { _id: user._id, name: user.name, email: user.email },
+            author: { _id: user._id, name: user.name, email: user.email || user.phone },
             status: user.accountStatus === "suspended" ? "suspended" : user.accountStatus === "deleted" ? "missing" : "active",
-            context: user.email,
+            context: user.email || user.phone,
           })
         );
         return;

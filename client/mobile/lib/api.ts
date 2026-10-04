@@ -195,6 +195,21 @@ export const api = {
       formData,
     });
   },
+  requestPhoneCode(phone: string) {
+    return request<{ message: string; phone: string; expiresInSeconds: number; resendInSeconds: number; devCode?: string }>(
+      '/auth/otp/request',
+      { method: 'POST', body: { phone } }
+    );
+  },
+  verifyPhoneCode(phone: string, code: string) {
+    return request<
+      | { message: string; token: string; user: AuthResponse['user']; needsProfile?: undefined }
+      | { message: string; needsProfile: true; signupToken: string; phone: string }
+    >('/auth/otp/verify', { method: 'POST', body: { phone, code } });
+  },
+  completePhoneSignup(input: { signupToken: string; name: string; role: string; location: string; interests?: string[] }) {
+    return request<AuthResponse>('/auth/phone/register', { method: 'POST', body: input });
+  },
   changePassword(token: string, input: { currentPassword: string; newPassword: string }) {
     return request<{ message: string }>('/auth/password', {
       method: 'PATCH',

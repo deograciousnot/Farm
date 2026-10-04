@@ -11,6 +11,7 @@
     "server:trust": "node server/scripts/recalculate-trust-scores.js",
     "server:make-admin": "node server/scripts/make-admin.js",
     "server:backfill-regions": "node server/scripts/backfill-regions.js",
+    "server:sync-indexes": "node server/scripts/sync-indexes.js",
     "server:seed:analytics-demo": "node server/scripts/seed-analytics-demo.js",
     "client": "npm --prefix client/mobile start",
     "admin": "npm --prefix client/admin run dev",

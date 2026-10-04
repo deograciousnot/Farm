@@ -8,6 +8,8 @@ export type ApiUser = {
   avatarUrl?: string;
   bio?: string;
   phone?: string;
+  /** True when the phone number was confirmed by SMS code. */
+  phoneVerified?: boolean;
   trustScore?: number;
   verificationStatus?: string;
   interests?: string[];

@@ -10,18 +10,30 @@ const userSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    // Phone sign-up accounts may have no email or password; they sign in with an SMS code.
     email: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
       lowercase: true,
       trim: true,
+      required() {
+        return !this.verifiedPhone;
+      },
     },
     password: {
       type: String,
-      required: true,
       minlength: 6,
       select: false,
+      required() {
+        return !this.verifiedPhone;
+      },
+    },
+    // A phone number proven by SMS code, in +254 format. Used to sign in.
+    verifiedPhone: {
+      type: String,
+      unique: true,
+      sparse: true,
     },
     role: {
       type: String,
@@ -112,7 +124,8 @@ userSchema.pre("save", async function hashPassword() {
 });
 
 userSchema.methods.comparePassword = function comparePassword(candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
+  // Phone-only accounts have no password to compare against.
+  return this.password ? bcrypt.compare(candidatePassword, this.password) : Promise.resolve(false);
 };
 
 userSchema.plugin(countyPlugin);

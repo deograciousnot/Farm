@@ -151,7 +151,7 @@ export function UsersPage({ onChanged }: { onChanged: () => void }) {
                 ) : null}
               </div>
               <small className="muted">
-                {user.email} · <span className="capitalize">{user.role}</span> · {user.location} · joined {formatDate(user.createdAt)}
+                {user.email || user.phone} · <span className="capitalize">{user.role}</span> · {user.location} · joined {formatDate(user.createdAt)}
               </small>
               <div className="user-facts">
                 <span className={user.phone ? "" : "warn"}>

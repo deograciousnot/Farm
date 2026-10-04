@@ -32,6 +32,10 @@ export const env = {
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY || "",
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET || "",
   allowedOrigins: normalizeList(process.env.ALLOWED_ORIGINS),
+  // SMS sign-in codes (Africa's Talking). Leave empty in development to print codes to the console.
+  africasTalkingUsername: process.env.AT_USERNAME || "",
+  africasTalkingApiKey: process.env.AT_API_KEY || "",
+  africasTalkingSenderId: process.env.AT_SENDER_ID || "",
 };
 
 export function validateEnv() {

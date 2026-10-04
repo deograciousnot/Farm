@@ -63,25 +63,33 @@ type BroadcastCardProps = {
 export const BroadcastCard = memo(function BroadcastCard({ broadcast, onDismiss, showUnread = false }: BroadcastCardProps) {
   const category = broadcastCategories[broadcast.category] ?? broadcastCategories.advisory;
 
+  // The close button sits over the card rather than inside it: a button can't contain another button on web.
   return (
-    <Card tone="surface" onPress={() => router.push({ pathname: '/broadcast/[id]', params: { id: broadcast._id } })} style={styles.card}>
-      <View style={styles.topRow}>
-        <View style={styles.flex}>
-          <PublisherRow broadcast={broadcast} />
+    <View>
+      <Card tone="surface" onPress={() => router.push({ pathname: '/broadcast/[id]', params: { id: broadcast._id } })} style={styles.card}>
+        <View style={styles.topRow}>
+          <View style={styles.flex}>
+            <PublisherRow broadcast={broadcast} />
+          </View>
+          {onDismiss ? <View style={styles.dismissSpace} /> : null}
         </View>
-        {onDismiss ? <IconButton icon="x" label="Hide from Home" variant="plain" size={32} color="textSubtle" onPress={() => onDismiss(broadcast)} /> : null}
-      </View>
-      <View style={styles.badges}>
-        <Badge label={category.label} tone={category.tone} icon={category.icon} />
-        {showUnread && broadcast.isRead === false ? <Badge label="New" tone="primary" /> : null}
-      </View>
-      <AppText variant="subhead" numberOfLines={2}>
-        {broadcast.title}
-      </AppText>
-      <AppText variant="callout" color="textMuted" numberOfLines={2}>
-        {broadcast.body}
-      </AppText>
-    </Card>
+        <View style={styles.badges}>
+          <Badge label={category.label} tone={category.tone} icon={category.icon} />
+          {showUnread && broadcast.isRead === false ? <Badge label="New" tone="primary" /> : null}
+        </View>
+        <AppText variant="subhead" numberOfLines={2}>
+          {broadcast.title}
+        </AppText>
+        <AppText variant="callout" color="textMuted" numberOfLines={2}>
+          {broadcast.body}
+        </AppText>
+      </Card>
+      {onDismiss ? (
+        <View style={styles.dismiss}>
+          <IconButton icon="x" label="Hide from Home" variant="plain" size={32} color="textSubtle" onPress={() => onDismiss(broadcast)} />
+        </View>
+      ) : null}
+    </View>
   );
 });
 
@@ -89,6 +97,8 @@ const styles = StyleSheet.create({
   card: { gap: Spacing.xs },
   topRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.xs },
   flex: { flex: 1 },
+  dismissSpace: { width: 32, height: 32 },
+  dismiss: { position: 'absolute', top: Spacing.md, right: Spacing.md },
   badges: { flexDirection: 'row', gap: 6 },
   publisher: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   publisherIcon: { borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
