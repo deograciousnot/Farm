@@ -27,7 +27,8 @@ type SessionContextValue = {
   login: (email: string, password: string) => Promise<void>;
   /** Store a session the server already issued (e.g. after phone code sign-in). */
   signInWithToken: (token: string, user: ApiUser) => Promise<void>;
-  register: (input: RegisterInput) => Promise<void>;
+  /** Resolves with the confirmation code only in development, when no email provider is set up. */
+  register: (input: RegisterInput) => Promise<{ devCode?: string }>;
   updateUser: (nextUser: ApiUser) => Promise<void>;
   logout: () => Promise<void>;
   logoutToGuest: () => Promise<void>;
@@ -45,7 +46,7 @@ const SessionContext = createContext<SessionContextValue>({
   signInDemo: async () => {},
   login: async () => {},
   signInWithToken: async () => {},
-  register: async () => {},
+  register: async () => ({}),
   updateUser: async () => {},
   logout: async () => {},
   logoutToGuest: async () => {},
@@ -164,6 +165,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   async function register(input: RegisterInput) {
     const response = await api.register(input);
     await persistSession(response.token, response.user);
+    return { devCode: response.devCode };
   }
 
   async function updateUser(nextUser: ApiUser) {

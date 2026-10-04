@@ -29,6 +29,10 @@ function normalize(text) {
  * or if the member already posted the same text in the last day.
  */
 export async function assertCanPublish(user, { model, text }) {
+  if (user.email && user.emailVerified === false) {
+    throw new AppError("Confirm your email address before posting. Enter the code we emailed you, or ask for a new one in Settings.", 403);
+  }
+
   const since = new Date(Date.now() - DAY_MS);
   const isNewAccount = user.createdAt && Date.now() - new Date(user.createdAt).getTime() < DAY_MS;
 

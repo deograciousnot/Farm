@@ -87,7 +87,8 @@ export default function AuthScreen() {
     }, [goBack, mode, switchMode]),
   );
 
-  if (!isLoading && token) {
+  // While submitting, sign-up decides where to go next (the email confirmation screen).
+  if (!isLoading && token && !isSubmitting) {
     return <Redirect href="/(tabs)" />;
   }
 
@@ -130,7 +131,7 @@ export default function AuthScreen() {
 
     try {
       if (isSignup) {
-        await register({
+        const { devCode } = await register({
           name: name.trim(),
           email: email.trim(),
           password,
@@ -138,11 +139,12 @@ export default function AuthScreen() {
           role,
           interests: defaultInterests,
         });
+        router.replace({ pathname: '/(tabs)' });
+        router.push({ pathname: '/verify-email', params: { sent: '1', ...(devCode ? { devCode } : {}) } });
       } else {
         await login(email.trim(), password);
+        router.replace('/(tabs)');
       }
-
-      router.replace('/(tabs)');
     } catch (submitError) {
       setError(getErrorMessage(submitError, 'Could not sign you in.'));
     } finally {
@@ -230,6 +232,17 @@ export default function AuthScreen() {
               trailing={passwordToggle}
               onSubmitEditing={isSignup ? undefined : () => void submit()}
             />
+            {isSignup ? null : (
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => router.push({ pathname: '/forgot-password', params: email.trim() ? { email: email.trim() } : {} })}
+                hitSlop={10}
+                style={styles.alignEnd}>
+                <AppText variant="label" color="primary">
+                  Forgot password?
+                </AppText>
+              </Pressable>
+            )}
             {isSignup ? (
               <>
                 <TextField
@@ -318,6 +331,7 @@ const styles = StyleSheet.create({
   },
   heading: { gap: Spacing.xs },
   form: { gap: Spacing.md },
+  alignEnd: { alignSelf: 'flex-end' },
   alignCenter: { alignSelf: 'center' },
   group: { gap: Spacing.xs },
   terms: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },

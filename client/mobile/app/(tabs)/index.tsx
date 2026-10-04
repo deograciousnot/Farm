@@ -14,7 +14,7 @@ import { Fab } from '@/components/ui/fab';
 import { TabHeader } from '@/components/ui/screen-header';
 import { ListSkeleton } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/state-views';
-import { ScreenPadding, Spacing } from '@/constants/theme';
+import { Radius, ScreenPadding, Spacing } from '@/constants/theme';
 import { useBroadcasts, useCommunity, useFeed, usePullToRefresh, useRefreshOnFocus } from '@/hooks/queries';
 import { useDismissBroadcast, usePostActions, useReportContent } from '@/hooks/use-content-actions';
 import { useTheme } from '@/hooks/use-theme';
@@ -66,6 +66,20 @@ export default function HomeScreen() {
     <View style={styles.header}>
       <TabHeader title={greeting(user?.name)} subtitle="What farmers are sharing today" />
       <ChipGroup options={filters} value={filter} onChange={setFilter} bleed />
+      {user?.needsEmailVerification ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/verify-email')}
+          style={[styles.verifyBanner, { backgroundColor: colors.primarySoft }]}>
+          <Feather name="mail" size={18} color={colors.primary} />
+          <AppText variant="callout" style={styles.flex}>
+            Confirm your email to start posting and selling.
+          </AppText>
+          <AppText variant="label" color="primary">
+            Enter code
+          </AppText>
+        </Pressable>
+      ) : null}
       {filter === 'All' && broadcasts.data?.length ? (
         <View style={styles.official}>
           <BroadcastCard broadcast={broadcasts.data[0]} onDismiss={dismissBroadcast} />
@@ -174,6 +188,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: ScreenPadding, paddingBottom: 96 },
   header: { gap: Spacing.md, paddingBottom: Spacing.xxs },
+  verifyBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderRadius: Radius.md },
+  flex: { flex: 1 },
   separator: { height: StyleSheet.hairlineWidth },
   footerSpinner: { paddingVertical: Spacing.lg },
   official: { gap: Spacing.xs },

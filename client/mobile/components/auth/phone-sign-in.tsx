@@ -3,13 +3,14 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { CodeInput } from '@/components/auth/code-input';
 import { LocationFields } from '@/components/location/location-fields';
 import { AppText } from '@/components/ui/app-text';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { TextField } from '@/components/ui/text-field';
 import { joinLocation } from '@/constants/counties';
-import { FontFamily, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { api, getErrorMessage } from '@/lib/api';
 import { useSession } from '@/providers/session-provider';
@@ -143,26 +144,15 @@ export function PhoneSignIn({ onUseEmail }: { onUseEmail: () => void }) {
         <AppText variant="callout" color="textMuted">
           Enter the code we sent to <AppText variant="label">{phone}</AppText>.
         </AppText>
-        <TextInput
+        <CodeInput
           ref={codeInput}
           value={code}
-          onChangeText={(text) => {
-            const digits = text.replace(/\D/g, '').slice(0, 6);
+          onChange={(digits) => {
             setCode(digits);
             setError('');
-            if (digits.length === 6) void verify(digits);
           }}
-          keyboardType="number-pad"
-          autoComplete="sms-otp"
-          textContentType="oneTimeCode"
-          maxLength={6}
-          placeholder="••••••"
-          placeholderTextColor={colors.textSubtle}
-          accessibilityLabel="6-digit code"
-          style={[
-            styles.codeInput,
-            { color: colors.text, backgroundColor: colors.surface, borderColor: error ? colors.danger : colors.border },
-          ]}
+          onComplete={(digits) => void verify(digits)}
+          invalid={Boolean(error)}
         />
         {devCode ? (
           <AppText variant="caption" color="textMuted" style={styles.center}>
@@ -247,15 +237,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { alignSelf: 'center' },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
-  codeInput: {
-    minHeight: 64,
-    borderWidth: 1,
-    borderRadius: Radius.md,
-    textAlign: 'center',
-    fontFamily: FontFamily.bold,
-    fontSize: 28,
-    letterSpacing: 12,
-  },
   error: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, padding: Spacing.sm, borderRadius: Radius.md },
   terms: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   checkbox: { width: 22, height: 22, borderRadius: Radius.sm - 2, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },

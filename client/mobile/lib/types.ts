@@ -10,6 +10,8 @@ export type ApiUser = {
   phone?: string;
   /** True when the phone number was confirmed by SMS code. */
   phoneVerified?: boolean;
+  /** An email sign-up that hasn't entered its confirmation code yet. Can browse, can't post. */
+  needsEmailVerification?: boolean;
   trustScore?: number;
   verificationStatus?: string;
   interests?: string[];

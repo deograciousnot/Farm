@@ -15,6 +15,7 @@
     "server:seed:analytics-demo": "node server/scripts/seed-analytics-demo.js",
     "client": "npm --prefix client/mobile start",
     "admin": "npm --prefix client/admin run dev",
+    "mobile:apk": "cd client/mobile && npx eas-cli@latest build --platform android --profile preview",
     "admin:build": "npm --prefix client/admin run build",
     "android": "npm --prefix client/mobile run android",
     "build:apk": "npm --prefix client/mobile run build:apk",

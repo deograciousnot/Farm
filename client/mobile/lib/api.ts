@@ -191,7 +191,7 @@ export const api = {
     input.interests.forEach((interest) => formData.append('interests', interest));
     appendSingleAsset(formData, 'avatar', input.avatar);
 
-    return requestFormData<AuthResponse>('/auth/register', {
+    return requestFormData<AuthResponse & { devCode?: string }>('/auth/register', {
       formData,
     });
   },
@@ -209,6 +209,21 @@ export const api = {
   },
   completePhoneSignup(input: { signupToken: string; name: string; role: string; location: string; interests?: string[] }) {
     return request<AuthResponse>('/auth/phone/register', { method: 'POST', body: input });
+  },
+  resendEmailCode(token: string) {
+    return request<{ message: string; resendInSeconds?: number; devCode?: string; alreadyVerified?: boolean }>('/auth/email/resend', {
+      method: 'POST',
+      token,
+    });
+  },
+  verifyEmail(token: string, code: string) {
+    return request<{ message: string; user: AuthResponse['user'] }>('/auth/email/verify', { method: 'POST', token, body: { code } });
+  },
+  forgotPassword(email: string) {
+    return request<{ message: string; resendInSeconds: number; devCode?: string }>('/auth/password/forgot', { method: 'POST', body: { email } });
+  },
+  resetPassword(input: { email: string; code: string; newPassword: string }) {
+    return request<AuthResponse>('/auth/password/reset', { method: 'POST', body: input });
   },
   changePassword(token: string, input: { currentPassword: string; newPassword: string }) {
     return request<{ message: string }>('/auth/password', {

@@ -36,6 +36,9 @@ export const env = {
   africasTalkingUsername: process.env.AT_USERNAME || "",
   africasTalkingApiKey: process.env.AT_API_KEY || "",
   africasTalkingSenderId: process.env.AT_SENDER_ID || "",
+  // Email codes (Resend). Leave empty in development to print emails to the console.
+  resendApiKey: process.env.RESEND_API_KEY || "",
+  emailFrom: process.env.EMAIL_FROM || "FarmConnect <onboarding@resend.dev>",
 };
 
 export function validateEnv() {

@@ -1,3 +1,4 @@
+import { env } from "../config/env.js";
 import { User } from "../models/user.model.js";
 import { Post } from "../models/post.model.js";
 import { Product } from "../models/product.model.js";
@@ -9,11 +10,13 @@ import { LikedPost } from "../models/liked-post.model.js";
 import { SavedPost } from "../models/saved-post.model.js";
 import { SellerRemark } from "../models/seller-remark.model.js";
 import { Notification } from "../models/notification.model.js";
+import { emailIsLive } from "../services/email.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { signToken } from "../utils/jwt.js";
 import { uploadBufferToCloudinary } from "../utils/media-upload.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
+import { sendVerificationCode } from "./email-auth.controller.js";
 
 export function sanitizeUser(user) {
   return {
@@ -27,6 +30,8 @@ export function sanitizeUser(user) {
     avatarUrl: user.avatarUrl,
     phone: user.phone,
     phoneVerified: Boolean(user.verifiedPhone),
+    // Only email sign-ups that haven't entered their code yet; they can browse but not post.
+    needsEmailVerification: Boolean(user.email) && user.emailVerified === false,
     verificationStatus: user.verificationStatus,
     trustScore: user.trustScore,
     followingCount: Array.isArray(user.following) ? user.following.length : 0,
@@ -67,7 +72,19 @@ export const registerUser = asyncHandler(async (req, res) => {
     location,
     interests,
     avatarUrl,
+    // Without an email provider in production there is no way to send the code, so don't ask for one.
+    ...(emailIsLive() || env.nodeEnv !== "production" ? { emailVerified: false } : {}),
   });
+
+  // The account exists either way; if the email fails to send, they can ask for another code.
+  let devCode;
+  if (user.emailVerified === false) {
+    try {
+      devCode = await sendVerificationCode(user);
+    } catch (error) {
+      console.error("Couldn't send the confirmation email", error.message);
+    }
+  }
 
   user = await recalculateTrustScoreForUser(user._id);
 
@@ -77,6 +94,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     message: "FarmConnect registration successful.",
     token,
     user: sanitizeUser(user),
+    ...(devCode && !emailIsLive() ? { devCode } : {}),
   });
 });
 

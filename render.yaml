@@ -25,6 +25,18 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      # SMS sign-in codes (Africa's Talking)
+      - key: AT_USERNAME
+        sync: false
+      - key: AT_API_KEY
+        sync: false
+      - key: AT_SENDER_ID
+        sync: false
+      # Email confirmation and password-reset codes (Resend)
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
 
   - type: web
     name: farmconnect-admin

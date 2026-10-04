@@ -77,6 +77,14 @@ export default function SettingsScreen() {
         {isSignedIn && user ? (
           <Section title="Account">
             <Card padded={false} style={styles.group}>
+              {user.needsEmailVerification ? (
+                <ListRow
+                  icon="mail"
+                  title="Confirm your email"
+                  subtitle="Enter the code we emailed you to start posting"
+                  onPress={() => router.push('/verify-email')}
+                />
+              ) : null}
               <ListRow icon="edit-2" title="Edit profile" subtitle="Name, photo, bio, phone" onPress={() => router.push('/profile/edit')} />
               <ListRow
                 icon="share-2"

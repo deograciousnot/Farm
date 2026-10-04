@@ -1,28 +1,19 @@
-import crypto from "node:crypto";
-
 import jwt from "jsonwebtoken";
 
 import { env } from "../config/env.js";
-import { OtpCode } from "../models/otp-code.model.js";
 import { User } from "../models/user.model.js";
 import { sendSms, smsIsLive } from "../services/sms.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { signToken } from "../utils/jwt.js";
+import { CODE_TTL_SECONDS, RESEND_COOLDOWN_SECONDS, consumeCode, issueCode } from "../utils/one-time-code.js";
 import { maskPhone, normalizeKenyanPhone } from "../utils/phone.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 import { sanitizeUser } from "./auth.controller.js";
 
-const CODE_TTL_MS = 10 * 60 * 1000;
-const RESEND_COOLDOWN_MS = 60 * 1000;
-const MAX_CODES_PER_HOUR = 5;
-const MAX_ATTEMPTS = 5;
 const SIGNUP_TOKEN_TTL = "20m";
 const ROLES = ["farmer", "buyer", "hobbyist"];
-
-function hashCode(phone, code) {
-  return crypto.createHmac("sha256", env.jwtSecret).update(`${phone}:${code}`).digest("hex");
-}
+const PURPOSE = "phone-sign-in";
 
 function requirePhone(input) {
   const phone = normalizeKenyanPhone(input);
@@ -35,39 +26,17 @@ function requirePhone(input) {
 /** Step 1: text a 6-digit code to the number. */
 export const requestCode = asyncHandler(async (req, res) => {
   const phone = requirePhone(req.body.phone);
-  const now = Date.now();
-
-  const recent = await OtpCode.find({ phone, createdAt: { $gte: new Date(now - 60 * 60 * 1000) } })
-    .sort({ createdAt: -1 })
-    .select("createdAt")
-    .lean();
-
-  if (recent[0] && now - new Date(recent[0].createdAt).getTime() < RESEND_COOLDOWN_MS) {
-    const wait = Math.ceil((RESEND_COOLDOWN_MS - (now - new Date(recent[0].createdAt).getTime())) / 1000);
-    throw new AppError(`Please wait ${wait} seconds before asking for another code.`, 429);
-  }
-
-  if (recent.length >= MAX_CODES_PER_HOUR) {
-    throw new AppError("Too many codes requested for this number. Please try again in an hour.", 429);
-  }
-
-  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
-  // Only the newest code is valid, so a later request replaces earlier ones.
-  await OtpCode.deleteMany({ phone });
-  await OtpCode.create({ phone, codeHash: hashCode(phone, code), expiresAt: new Date(now + CODE_TTL_MS) });
-
-  try {
-    await sendSms(phone, `Your FarmConnect code is ${code}. It expires in 10 minutes. Never share it with anyone.`);
-  } catch (error) {
-    await OtpCode.deleteMany({ phone });
-    throw error;
-  }
+  const code = await issueCode({
+    target: phone,
+    purpose: PURPOSE,
+    deliver: (value) => sendSms(phone, `Your FarmConnect code is ${value}. It expires in 10 minutes. Never share it with anyone.`),
+  });
 
   res.json({
     message: `We sent a code to ${maskPhone(phone)}.`,
     phone,
-    expiresInSeconds: CODE_TTL_MS / 1000,
-    resendInSeconds: RESEND_COOLDOWN_MS / 1000,
+    expiresInSeconds: CODE_TTL_SECONDS,
+    resendInSeconds: RESEND_COOLDOWN_SECONDS,
     // Local development only: with no SMS provider configured, hand the code back so it can be typed in.
     ...(!smsIsLive() && env.nodeEnv !== "production" ? { devCode: code } : {}),
   });
@@ -79,29 +48,7 @@ export const requestCode = asyncHandler(async (req, res) => {
  */
 export const verifyCode = asyncHandler(async (req, res) => {
   const phone = requirePhone(req.body.phone);
-  const code = String(req.body.code ?? "").replace(/\D/g, "");
-  const record = await OtpCode.findOne({ phone, expiresAt: { $gt: new Date() } });
-
-  if (!record) {
-    throw new AppError("That code has expired. Ask for a new one.", 400);
-  }
-
-  if (record.attempts >= MAX_ATTEMPTS) {
-    await OtpCode.deleteOne({ _id: record._id });
-    throw new AppError("Too many wrong codes. Ask for a new one.", 429);
-  }
-
-  const expected = Buffer.from(record.codeHash, "hex");
-  const actual = Buffer.from(hashCode(phone, code), "hex");
-
-  if (code.length !== 6 || !crypto.timingSafeEqual(expected, actual)) {
-    record.attempts += 1;
-    await record.save();
-    const left = MAX_ATTEMPTS - record.attempts;
-    throw new AppError(left > 0 ? `That code isn't right. ${left} ${left === 1 ? "try" : "tries"} left.` : "Too many wrong codes. Ask for a new one.", 400);
-  }
-
-  await OtpCode.deleteMany({ phone });
+  await consumeCode({ target: phone, purpose: PURPOSE, code: req.body.code });
 
   const user = await User.findOne({ verifiedPhone: phone });
 

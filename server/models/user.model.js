@@ -29,6 +29,11 @@ const userSchema = new mongoose.Schema(
         return !this.verifiedPhone;
       },
     },
+    // False until a new email sign-up enters the code we emailed. Accounts from before email
+    // confirmation existed have no value and are treated as confirmed.
+    emailVerified: {
+      type: Boolean,
+    },
     // A phone number proven by SMS code, in +254 format. Used to sign in.
     verifiedPhone: {
       type: String,

@@ -82,6 +82,8 @@ function AppShell() {
           <Stack.Screen name="profile/[id]" />
           <Stack.Screen name="profile/edit" options={{ presentation: 'modal' }} />
           <Stack.Screen name="settings" />
+          <Stack.Screen name="verify-email" />
+          <Stack.Screen name="forgot-password" />
           <Stack.Screen name="product/[id]" />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
