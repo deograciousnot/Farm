@@ -7,7 +7,6 @@
     "icon": "./assets/images/farmconnect-icon.png",
     "scheme": "farmconnect",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -19,7 +18,6 @@
         "backgroundImage": "./assets/images/farmconnect-adaptive-background.png",
         "monochromeImage": "./assets/images/farmconnect-adaptive-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": []
     },
@@ -47,7 +45,11 @@
             "backgroundColor": "#171311"
           }
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-video",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

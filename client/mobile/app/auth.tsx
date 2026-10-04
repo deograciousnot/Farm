@@ -1,7 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useFocusEffect } from '@react-navigation/native';
-import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { Redirect, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Alert, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -53,11 +52,14 @@ export default function AuthScreen() {
   }, []);
 
   // Follow ?mode= changes (and params that arrive after the first render on web).
-  useEffect(() => {
+  const [followedMode, setFollowedMode] = useState(params.mode);
+  if (params.mode !== followedMode) {
+    setFollowedMode(params.mode);
     if (params.mode === 'signup' || params.mode === 'login') {
-      switchMode(params.mode);
+      setMode(params.mode);
+      setError('');
     }
-  }, [params.mode, switchMode]);
+  }
 
   const goBack = useCallback(() => {
     if (router.canGoBack()) {

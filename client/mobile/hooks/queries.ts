@@ -1,5 +1,5 @@
-import { useFocusEffect } from '@react-navigation/native';
 import { type InfiniteData, type QueryClient, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 
 import { api } from '@/lib/api';

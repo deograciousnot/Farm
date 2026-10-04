@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
@@ -33,13 +33,16 @@ export function ReviewSheet({ order, onClose }: ReviewSheetProps) {
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
+  // Start fresh whenever a different order opens the sheet (adjusting state during render, not in an effect).
+  const [openOrderId, setOpenOrderId] = useState(order?._id);
+  if (order?._id !== openOrderId) {
+    setOpenOrderId(order?._id);
     if (order) {
       setRating(5);
       setRemark('');
       setError('');
     }
-  }, [order]);
+  }
 
   async function submit() {
     if (!token || !order) {
