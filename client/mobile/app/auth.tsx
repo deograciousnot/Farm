@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Redirect, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PhoneSignIn } from '@/components/auth/phone-sign-in';
@@ -27,6 +27,9 @@ type Role = (typeof roles)[number]['value'];
 
 const defaultInterests = ['Market tea', 'Buyer demand'];
 
+// Off until the SMS provider is live; set EXPO_PUBLIC_PHONE_SIGN_IN=true in the build to turn it on.
+const PHONE_SIGN_IN = process.env.EXPO_PUBLIC_PHONE_SIGN_IN === 'true';
+
 export default function AuthScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -34,8 +37,8 @@ export default function AuthScreen() {
   const { token, isLoading, register, login, continueAsGuest, markIntroSeen } = useSession();
 
   const [mode, setMode] = useState<'login' | 'signup'>(params.mode === 'signup' ? 'signup' : 'login');
-  // Phone sign-in is the default; email and password remain for existing accounts.
-  const [method, setMethod] = useState<'phone' | 'email'>('phone');
+  // Phone sign-in is the default once SMS is live; until then it stays hidden (see PHONE_SIGN_IN).
+  const [method, setMethod] = useState<'phone' | 'email'>(PHONE_SIGN_IN ? 'phone' : 'email');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -157,13 +160,6 @@ export default function AuthScreen() {
     router.replace('/(tabs)');
   }
 
-  function showTerms() {
-    Alert.alert(
-      'Terms and conditions',
-      'By creating a FarmConnect account, you agree to use accurate profile information, trade respectfully, follow marketplace rules, and keep community discussions useful and safe.',
-    );
-  }
-
   const passwordToggle = (
     <Pressable
       accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
@@ -278,8 +274,12 @@ export default function AuthScreen() {
                   </View>
                   <AppText variant="callout" color="textMuted" style={styles.termsText}>
                     I agree to the{' '}
-                    <AppText variant="label" color="primary" onPress={showTerms}>
-                      terms and conditions
+                    <AppText variant="label" color="primary" onPress={() => router.push('/legal/terms')}>
+                      terms of use
+                    </AppText>{' '}
+                    and{' '}
+                    <AppText variant="label" color="primary" onPress={() => router.push('/legal/privacy')}>
+                      privacy policy
                     </AppText>
                   </AppText>
                 </Pressable>
@@ -296,11 +296,13 @@ export default function AuthScreen() {
             ) : null}
 
             <Button label={isSignup ? 'Create account' : 'Sign in'} onPress={() => void submit()} loading={isSubmitting} fullWidth />
-            <Pressable accessibilityRole="button" onPress={() => setMethod('phone')} hitSlop={10} style={styles.alignCenter}>
-              <AppText variant="label" color="primary">
-                Use phone number instead
-              </AppText>
-            </Pressable>
+            {PHONE_SIGN_IN ? (
+              <Pressable accessibilityRole="button" onPress={() => setMethod('phone')} hitSlop={10} style={styles.alignCenter}>
+                <AppText variant="label" color="primary">
+                  Use phone number instead
+                </AppText>
+              </Pressable>
+            ) : null}
           </View>
         )}
 

@@ -10,14 +10,18 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://farmconnect-api-0oui.onrender.com"
-      }
+        "EXPO_PUBLIC_API_URL": "https://farmconnect-api-0oui.onrender.com",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      },
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://farmconnect-api-0oui.onrender.com"
-      }
+        "EXPO_PUBLIC_API_URL": "https://farmconnect-api-0oui.onrender.com",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      },
+      "channel": "production"
     }
   }
 }

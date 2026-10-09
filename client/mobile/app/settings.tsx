@@ -13,6 +13,7 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { Section } from '@/components/ui/section';
 import { Sheet } from '@/components/ui/sheet';
 import { TextField } from '@/components/ui/text-field';
+import { SUPPORT_EMAIL } from '@/constants/legal';
 import { ScreenPadding, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { api, getErrorMessage } from '@/lib/api';
@@ -31,12 +32,12 @@ export default function SettingsScreen() {
   async function contactSupport() {
     const subject = encodeURIComponent('FarmConnect support request');
     const body = encodeURIComponent(`Account: ${user?.email ?? 'Guest'}\nApp version: ${appVersion}\n\nWhat happened:\n`);
-    const url = `mailto:support@farmconnect.app?subject=${subject}&body=${body}`;
+    const url = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
 
     if (await Linking.canOpenURL(url)) {
       await Linking.openURL(url);
     } else {
-      Alert.alert('Contact support', 'Email support@farmconnect.app with what happened and your account email.');
+      Alert.alert('Contact support', `Email ${SUPPORT_EMAIL} with what happened and your account email.`);
     }
   }
 
@@ -120,6 +121,8 @@ export default function SettingsScreen() {
         <Section title="Help">
           <Card padded={false} style={styles.group}>
             <ListRow icon="mail" title="Contact support" subtitle="We usually reply within a day" onPress={() => void contactSupport()} />
+            <ListRow icon="file-text" title="Terms of use" onPress={() => router.push('/legal/terms')} />
+            <ListRow icon="shield" title="Privacy policy" onPress={() => router.push('/legal/privacy')} />
             {isSignedIn ? <ListRow icon="log-out" title="Sign out" onPress={confirmSignOut} /> : null}
           </Card>
         </Section>

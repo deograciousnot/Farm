@@ -1,5 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider, type Theme } from 'expo-router/react-navigation';
+import * as Sentry from '@sentry/react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
+import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -20,7 +22,16 @@ export const unstable_settings = {
 
 void SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+// Crash reporting is off until a Sentry DSN is set in app.json (extra.sentryDsn). No personal data is sent.
+const sentryDsn = (Constants.expoConfig?.extra?.sentryDsn as string | undefined) || process.env.EXPO_PUBLIC_SENTRY_DSN;
+
+if (sentryDsn && !__DEV__) {
+  Sentry.init({ dsn: sentryDsn, sendDefaultPii: false, tracesSampleRate: 0 });
+}
+
+export default Sentry.wrap(RootLayout);
+
+function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(appFonts);
 
   // Fall back to system fonts rather than hanging on the splash if fonts fail to load.
@@ -84,6 +95,7 @@ function AppShell() {
           <Stack.Screen name="settings" />
           <Stack.Screen name="verify-email" />
           <Stack.Screen name="forgot-password" />
+          <Stack.Screen name="legal/[doc]" />
           <Stack.Screen name="product/[id]" />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>

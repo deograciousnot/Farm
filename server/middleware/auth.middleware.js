@@ -51,7 +51,7 @@ export const requireAuth = asyncHandler(async (req, _res, next) => {
   }
 
   if (user.accountStatus === "suspended") {
-    throw new AppError("This account has been suspended. Contact support@farmconnect.app for help.", 403);
+    throw new AppError(`This account has been suspended. Contact ${env.supportEmail} for help.`, 403);
   }
 
   req.user = user;

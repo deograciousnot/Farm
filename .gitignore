@@ -16,3 +16,6 @@ client/mobile/.git/
 client/FarmConnect/
 ~$*.rtf
 .tmp/
+
+# Database backups contain personal data
+backups/

@@ -42,11 +42,18 @@ export function isStaleSessionError(error: unknown) {
   return error instanceof ApiRequestError && error.status === 401 && /user no longer exists/i.test(error.message);
 }
 
+// Over-the-air updates don't carry eas.json build env, so release bundles fall back to the live API.
+const PRODUCTION_API_URL = 'https://farmconnect-api-0oui.onrender.com';
+
 function getApiBaseUrl() {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
 
   if (envUrl) {
     return envUrl.replace(/\/$/, '');
+  }
+
+  if (!__DEV__) {
+    return PRODUCTION_API_URL;
   }
 
   const constantsAny = Constants as unknown as {

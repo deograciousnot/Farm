@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { CodeInput } from '@/components/auth/code-input';
 import { LocationFields } from '@/components/location/location-fields';
@@ -212,16 +212,12 @@ export function PhoneSignIn({ onUseEmail }: { onUseEmail: () => void }) {
         </View>
         <AppText variant="callout" color="textMuted" style={styles.flex}>
           I agree to the{' '}
-          <AppText
-            variant="label"
-            color="primary"
-            onPress={() =>
-              Alert.alert(
-                'Terms and conditions',
-                'By creating a FarmConnect account, you agree to use accurate profile information, trade respectfully, follow marketplace rules, and keep community discussions useful and safe.',
-              )
-            }>
-            terms and conditions
+          <AppText variant="label" color="primary" onPress={() => router.push('/legal/terms')}>
+            terms of use
+          </AppText>{' '}
+          and{' '}
+          <AppText variant="label" color="primary" onPress={() => router.push('/legal/privacy')}>
+            privacy policy
           </AppText>
         </AppText>
       </Pressable>

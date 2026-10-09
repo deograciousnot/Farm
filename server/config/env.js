@@ -28,6 +28,8 @@ export const env = {
   jwtSecret: process.env.JWT_SECRET || "",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   adminSecret: process.env.ADMIN_SECRET || "",
+  // Where users reach a person; keep in step with SUPPORT_EMAIL in the mobile app's constants/legal.ts.
+  supportEmail: process.env.SUPPORT_EMAIL || "ardesamsco@gmail.com",
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY || "",
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET || "",
