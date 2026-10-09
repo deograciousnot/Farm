@@ -13,6 +13,7 @@
     "server:backfill-regions": "node server/scripts/backfill-regions.js",
     "server:sync-indexes": "node server/scripts/sync-indexes.js",
     "server:seed:analytics-demo": "node server/scripts/seed-analytics-demo.js",
+    "server:seed:showcase": "node server/scripts/seed-showcase.js",
     "client": "npm --prefix client/mobile start",
     "admin": "npm --prefix client/admin run dev",
     "mobile:apk": "cd client/mobile && npx eas-cli@latest build --platform android --profile preview",

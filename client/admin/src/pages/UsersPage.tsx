@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BadgeCheck, Flag, Phone, PhoneOff, Search, ShieldOff, UserCheck, UserX } from "lucide-react";
+import { BadgeCheck, Flag, MailWarning, Phone, PhoneOff, Search, ShieldOff, Trash2, UserCheck, UserX } from "lucide-react";
 
 import { api } from "../api";
 import { Avatar, ListState, LoadMore, Pill, errorMessage, formatDate, useConfirm, usePaged, useToast } from "../components";
@@ -9,6 +9,7 @@ const views = [
   { value: "queue", label: "Verification queue" },
   { value: "all", label: "Everyone" },
   { value: "suspended", label: "Suspended" },
+  { value: "unconfirmed", label: "Unconfirmed sign-ups" },
 ] as const;
 
 type View = (typeof views)[number]["value"];
@@ -18,6 +19,7 @@ export function UsersPage({ onChanged }: { onChanged: () => void }) {
   const [role, setRole] = useState("all");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const confirm = useConfirm();
   const toast = useToast();
 
@@ -34,10 +36,47 @@ export function UsersPage({ onChanged }: { onChanged: () => void }) {
         search,
         role: view === "queue" ? undefined : role,
         verification: view === "queue" ? "queue" : undefined,
-        status: view === "suspended" ? "suspended" : undefined,
+        status: view === "suspended" || view === "unconfirmed" ? view : undefined,
       }),
     `${view}|${role}|${search}`
   );
+
+  // A selection only makes sense for the list it was made in.
+  useEffect(() => setSelected(new Set()), [view, role, search]);
+
+  const selectable = list.items.filter((user) => !user.isAdmin);
+  const allSelected = selectable.length > 0 && selectable.every((user) => selected.has(user._id));
+
+  function toggle(userId: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(selectable.map((user) => user._id)));
+  }
+
+  function deleteSelected() {
+    const count = selected.size;
+    confirm({
+      title: `Delete ${count} account${count === 1 ? "" : "s"}?`,
+      body: "Everything they posted (posts, questions, answers, comments, listings) is removed and their personal details are wiped. This can't be undone.",
+      confirmLabel: `Delete ${count}`,
+      reason: "optional",
+      reasonPlaceholder: "e.g. Bot sign-ups from the same email pattern",
+      onConfirm: async (reason) => {
+        const response = await api.bulkDeleteUsers([...selected], reason);
+        toast(response.message);
+        setSelected(new Set());
+        onChanged();
+        await list.reload();
+      },
+    });
+  }
 
   async function run(action: () => Promise<unknown>, success: string) {
     await action();
@@ -96,7 +135,9 @@ export function UsersPage({ onChanged }: { onChanged: () => void }) {
           <p>
             {view === "queue"
               ? `${list.total} farmers waiting for verification. Verified sellers get a badge and their phone shown to buyers.`
-              : `${list.total} accounts.`}
+              : view === "unconfirmed"
+                ? `${list.total} accounts signed up with an email but never confirmed it. Scripted bot sign-ups usually end up here.`
+                : `${list.total} accounts.`}
           </p>
         </div>
         <div className="segmented" role="tablist">
@@ -123,6 +164,26 @@ export function UsersPage({ onChanged }: { onChanged: () => void }) {
         ) : null}
       </div>
 
+      {selectable.length ? (
+        <div className={`bulk-bar${selected.size ? " active" : ""}`}>
+          <label className="check">
+            <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+            {allSelected ? "Clear selection" : `Select all ${selectable.length} shown`}
+          </label>
+          {selected.size ? (
+            <>
+              <span className="muted">{selected.size} selected</span>
+              <button className="danger-button" onClick={deleteSelected}>
+                <Trash2 size={16} />
+                Delete selected
+              </button>
+            </>
+          ) : (
+            <span className="muted">Tick accounts to delete several at once. Admins can't be selected.</span>
+          )}
+        </div>
+      ) : null}
+
       <div className="table-list">
         <ListState
           isLoading={list.isLoading}
@@ -132,7 +193,15 @@ export function UsersPage({ onChanged }: { onChanged: () => void }) {
           onRetry={() => void list.reload()}
         />
         {list.items.map((user) => (
-          <article className="user-row" key={user._id}>
+          <article className={`user-row${selected.has(user._id) ? " selected" : ""}`} key={user._id}>
+            <input
+              type="checkbox"
+              className="row-check"
+              aria-label={`Select ${user.name}`}
+              checked={selected.has(user._id)}
+              disabled={user.isAdmin}
+              onChange={() => toggle(user._id)}
+            />
             <Avatar name={user.name} url={user.avatarUrl} size={44} />
             <div className="row-main">
               <div className="row-title">
@@ -144,6 +213,11 @@ export function UsersPage({ onChanged }: { onChanged: () => void }) {
                 ) : null}
                 {user.accountStatus === "suspended" ? <Pill tone="red">Suspended</Pill> : null}
                 {user.isAdmin ? <Pill tone="amber">Admin</Pill> : null}
+                {user.emailVerified === false ? (
+                  <Pill tone="amber">
+                    <MailWarning size={12} /> Email not confirmed
+                  </Pill>
+                ) : null}
                 {user.pendingReports ? (
                   <Pill tone="red">
                     <Flag size={12} /> {user.pendingReports} reports

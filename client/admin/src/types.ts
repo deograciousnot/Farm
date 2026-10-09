@@ -85,6 +85,7 @@ export type AdminUser = {
   accountStatus: "active" | "suspended";
   suspendedReason?: string;
   isAdmin?: boolean;
+  emailVerified?: boolean;
   createdAt: string;
   followersCount: number;
   listingsCount: number;

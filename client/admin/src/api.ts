@@ -123,6 +123,8 @@ export const api = {
     request<{ message: string }>(`/admin/users/${userId}/verification`, { method: "PATCH", body: { status } }),
   setUserStatus: (userId: string, status: "active" | "suspended", reason = "", removeContent = false) =>
     request<{ message: string }>(`/admin/users/${userId}/status`, { method: "PATCH", body: { status, reason, removeContent } }),
+  bulkDeleteUsers: (userIds: string[], reason = "") =>
+    request<{ message: string; deleted: number; skipped: number }>("/admin/users/bulk-delete", { method: "POST", body: { userIds, reason } }),
 
   getNotifications: (params: { page?: number; type?: string }) =>
     request<Paginated<AdminNotification>>(`/admin/notifications${query(params)}`),

@@ -3,6 +3,7 @@ import { notRemoved } from "../../models/moderation-fields.js";
 import { Product } from "../../models/product.model.js";
 import { Report } from "../../models/report.model.js";
 import { User } from "../../models/user.model.js";
+import { deleteUserAccount } from "../../services/accounts.js";
 import { logAction, removeAllContentBy, setUserStatus } from "../../services/moderation.js";
 import { AppError } from "../../utils/app-error.js";
 import { asyncHandler } from "../../utils/async-handler.js";
@@ -29,10 +30,15 @@ export const listUsers = asyncHandler(async (req, res) => {
     filters.accountStatus = "active";
   }
   if (["active", "suspended"].includes(status)) filters.accountStatus = status;
+  // Signed up with an email but never entered the confirmation code: where scripted sign-ups pile up.
+  if (status === "unconfirmed") {
+    filters.emailVerified = false;
+    filters.isAdmin = { $ne: true };
+  }
 
   const [users, total] = await Promise.all([
     User.find(filters)
-      .select("name email role location phone avatarUrl bio verificationStatus trustScore accountStatus suspendedReason isAdmin createdAt followers")
+      .select("name email role location phone avatarUrl bio verificationStatus trustScore accountStatus suspendedReason isAdmin emailVerified createdAt followers")
       .sort({ createdAt: -1 })
       .skip(pagination.skip)
       .limit(pagination.limit)
@@ -118,5 +124,41 @@ export const setStatus = asyncHandler(async (req, res) => {
         : "Account reinstated.",
     item: user,
     removed,
+  });
+});
+
+const MAX_BULK_DELETE = 100;
+
+/** Delete many accounts at once (bot clean-up). Admins and your own account are always skipped. */
+export const bulkDeleteUsers = asyncHandler(async (req, res) => {
+  const { userIds, reason = "" } = req.body ?? {};
+
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    throw new AppError("Choose at least one account to delete.", 400);
+  }
+
+  if (userIds.length > MAX_BULK_DELETE) {
+    throw new AppError(`You can delete up to ${MAX_BULK_DELETE} accounts at a time.`, 400);
+  }
+
+  userIds.forEach((id) => assertObjectId(id, "user id"));
+
+  const users = await User.find({ _id: { $in: userIds }, accountStatus: { $ne: "deleted" } });
+  const deletable = users.filter((user) => !user.isAdmin && String(user._id) !== String(req.user._id));
+  const trimmedReason = String(reason).trim();
+
+  // One at a time keeps the follower/following clean-up from racing between accounts.
+  for (const user of deletable) {
+    const summary = `${user.name} (${user.email || user.phone || user._id})`;
+    await deleteUserAccount(user);
+    await logAction(req, { action: "user.delete", targetType: "user", target: user._id, summary, reason: trimmedReason });
+  }
+
+  const skipped = userIds.length - deletable.length;
+
+  res.json({
+    message: `Deleted ${deletable.length} account${deletable.length === 1 ? "" : "s"}.${skipped ? ` Skipped ${skipped} (admins, your own account, or already deleted).` : ""}`,
+    deleted: deletable.length,
+    skipped,
   });
 });

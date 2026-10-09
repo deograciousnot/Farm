@@ -28,7 +28,7 @@ import {
   pinThread,
   updateReport,
 } from "../controllers/admin/moderation.controller.js";
-import { listUsers, setStatus, setVerification } from "../controllers/admin/people.controller.js";
+import { bulkDeleteUsers, listUsers, setStatus, setVerification } from "../controllers/admin/people.controller.js";
 import { seedDatabase } from "../data/seed.js";
 import { requireAdmin } from "../middleware/auth.middleware.js";
 import { AppError } from "../utils/app-error.js";
@@ -97,6 +97,7 @@ adminRouter.patch("/threads/:threadId/pin", pinThread);
 adminRouter.get("/users", listUsers);
 adminRouter.patch("/users/:userId/verification", setVerification);
 adminRouter.patch("/users/:userId/status", setStatus);
+adminRouter.post("/users/bulk-delete", bulkDeleteUsers);
 
 adminRouter.get("/products", listProducts);
 adminRouter.patch("/products/:productId/feature", featureProduct);
