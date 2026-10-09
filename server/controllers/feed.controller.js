@@ -11,6 +11,7 @@ import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { assertCanPublish } from "../utils/spam-guard.js";
 import { uploadManyToCloudinary } from "../utils/media-upload.js";
+import { escapeRegex } from "../utils/request.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 import mongoose from "mongoose";
 
@@ -103,11 +104,13 @@ export const getFeed = asyncHandler(async (_req, res) => {
 
     filters.author = { $in: (_req.user.following ?? []).map((entry) => entry) };
   } else if (filter && filter !== "All") {
+    // Match the text literally: raw user input as a regex can error or be crafted to hang the server.
+    const pattern = escapeRegex(String(filter).slice(0, 80));
     filters.$or = [
-      { tag: { $regex: filter, $options: "i" } },
-      { headline: { $regex: filter, $options: "i" } },
-      { body: { $regex: filter, $options: "i" } },
-      { postType: { $regex: filter, $options: "i" } },
+      { tag: { $regex: pattern, $options: "i" } },
+      { headline: { $regex: pattern, $options: "i" } },
+      { body: { $regex: pattern, $options: "i" } },
+      { postType: { $regex: pattern, $options: "i" } },
     ];
   }
 

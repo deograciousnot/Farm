@@ -4,6 +4,7 @@ import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { assertCanPublish } from "../utils/spam-guard.js";
 import { uploadManyToCloudinary } from "../utils/media-upload.js";
+import { escapeRegex } from "../utils/request.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
 export const getMarketplaceOverview = asyncHandler(async (_req, res) => {
@@ -49,11 +50,13 @@ export const getProducts = asyncHandler(async (req, res) => {
   }
 
   if (search) {
+    // Match the text literally: raw user input as a regex can error or be crafted to hang the server.
+    const pattern = escapeRegex(String(search).slice(0, 80));
     filters.$or = [
-      { name: { $regex: search, $options: "i" } },
-      { description: { $regex: search, $options: "i" } },
-      { location: { $regex: search, $options: "i" } },
-      { category: { $regex: search, $options: "i" } },
+      { name: { $regex: pattern, $options: "i" } },
+      { description: { $regex: pattern, $options: "i" } },
+      { location: { $regex: pattern, $options: "i" } },
+      { category: { $regex: pattern, $options: "i" } },
     ];
   }
 

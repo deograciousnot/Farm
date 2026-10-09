@@ -1,4 +1,5 @@
-import { Readable } from "stream";
+import { createReadStream } from "node:fs";
+import { Readable } from "node:stream";
 
 import { cloudinary, hasCloudinaryConfig } from "../config/cloudinary.js";
 import { AppError } from "./app-error.js";
@@ -39,7 +40,7 @@ export async function uploadBufferToCloudinary(file, { folder }) {
       }
     );
 
-    Readable.from(file.buffer).pipe(uploadStream);
+    (file.path ? createReadStream(file.path) : Readable.from(file.buffer)).pipe(uploadStream);
   });
 }
 
