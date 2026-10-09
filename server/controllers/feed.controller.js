@@ -188,7 +188,7 @@ export const getFeed = asyncHandler(async (_req, res) => {
     posts: posts.map((post) => ({
       ...shapePost(post, { savedPostIds, likedPostIds, commentsByPostId, currentUser: _req.user }),
     })),
-    previewProducts,
+    previewProducts: previewProducts.filter((product) => product.seller),
   });
 });
 

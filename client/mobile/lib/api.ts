@@ -84,6 +84,17 @@ function withAuthoredComments(post: FeedPost): FeedPost {
   return { ...post, recentComments: withAuthor(post.recentComments ?? []) };
 }
 
+function withSeller(products: Product[]) {
+  return products.filter((product) => product.seller);
+}
+
+const DELETED_USER = { name: 'Deleted account', role: '', location: '', avatarUrl: '' } as unknown as Order['buyer'];
+
+// Orders outlive a deleted buyer or seller, so keep them with a placeholder party.
+function withParties<T extends { buyer: Order['buyer']; seller: Order['seller'] } | null>(item: T): T {
+  return item ? { ...item, buyer: item.buyer ?? DELETED_USER, seller: item.seller ?? DELETED_USER } : item;
+}
+
 // The free Render instance can take ~30s to wake up, so allow for a cold start.
 const REQUEST_TIMEOUT_MS = 45_000;
 const UPLOAD_TIMEOUT_MS = 180_000;
@@ -266,7 +277,11 @@ export const api = {
       pagination: { page: number; limit: number; total: number; hasMore: boolean };
       posts: FeedPost[];
       previewProducts: Product[];
-    }>(`/feed${query}`, { token }).then((data) => ({ ...data, posts: withAuthor(data.posts).map(withAuthoredComments) }));
+    }>(`/feed${query}`, { token }).then((data) => ({
+      ...data,
+      posts: withAuthor(data.posts).map(withAuthoredComments),
+      previewProducts: withSeller(data.previewProducts ?? []),
+    }));
   },
   getComments(postId: string) {
     return request<{ items: Comment[] }>(`/feed/${postId}/comments`).then((data) => ({ items: withAuthor(data.items) }));
@@ -361,10 +376,10 @@ export const api = {
       shortcuts: { label: string; value: string }[];
       featuredProducts: Product[];
       totals: { listings: number; featured: number };
-    }>('/marketplace/overview');
+    }>('/marketplace/overview').then((data) => ({ ...data, featuredProducts: withSeller(data.featuredProducts) }));
   },
   getProducts() {
-    return request<{ items: Product[] }>('/marketplace/products');
+    return request<{ items: Product[] }>('/marketplace/products').then((data) => ({ items: withSeller(data.items) }));
   },
   createProduct(
     token: string,
@@ -431,10 +446,13 @@ export const api = {
   },
   getOrders(token: string, scope?: 'buyer' | 'seller') {
     const query = scope === 'seller' ? '?scope=seller' : '';
-    return request<{ items: Order[] }>(`/orders${query}`, { token });
+    return request<{ items: Order[] }>(`/orders${query}`, { token }).then((data) => ({ items: data.items.map(withParties) }));
   },
   getOrderById(token: string, orderId: string) {
-    return request<{ item: Order; remark: SellerRemark | null }>(`/orders/${orderId}`, { token });
+    return request<{ item: Order; remark: SellerRemark | null }>(`/orders/${orderId}`, { token }).then((data) => ({
+      item: withParties(data.item),
+      remark: withParties(data.remark),
+    }));
   },
   updateOrderStatus(token: string, orderId: string, status: 'accepted' | 'in-transit' | 'cancelled') {
     return request<{ item: Order; remark: SellerRemark | null; message: string }>(`/orders/${orderId}/status`, {

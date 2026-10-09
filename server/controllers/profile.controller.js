@@ -100,8 +100,8 @@ async function buildProfilePayload(viewer, targetUser, { includeNotifications = 
     },
     notifications,
     remarks: {
-      received: receivedRemarks,
-      given: givenRemarks,
+      received: receivedRemarks.filter((remark) => remark.buyer),
+      given: givenRemarks.filter((remark) => remark.seller),
     },
   };
 }

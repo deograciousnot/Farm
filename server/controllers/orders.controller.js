@@ -8,6 +8,18 @@ import { createNotification } from "../utils/notifications.js";
 import { restockOrder } from "../utils/orders.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
+// An order outlives a deleted buyer or seller account; show it with a placeholder instead.
+const DELETED_USER = { name: "Deleted account", role: "", location: "", avatarUrl: "" };
+
+function withMissingParties(doc) {
+  if (!doc) {
+    return doc;
+  }
+
+  const item = typeof doc.toJSON === "function" ? doc.toJSON() : doc;
+  return { ...item, buyer: item.buyer ?? DELETED_USER, seller: item.seller ?? DELETED_USER };
+}
+
 async function findOrderForUser(orderId, userId) {
   return Order.findOne({
     _id: orderId,
@@ -33,7 +45,7 @@ export const getOrders = asyncHandler(async (req, res) => {
     .populate("items.product", "name category")
     .sort({ createdAt: -1 });
 
-  res.json({ items: orders });
+  res.json({ items: orders.map(withMissingParties) });
 });
 
 export const getOrderById = asyncHandler(async (req, res) => {
@@ -48,8 +60,8 @@ export const getOrderById = asyncHandler(async (req, res) => {
     .populate("seller", "name role location avatarUrl verificationStatus trustScore");
 
   res.json({
-    item: order,
-    remark,
+    item: withMissingParties(order),
+    remark: withMissingParties(remark),
   });
 });
 
@@ -195,8 +207,8 @@ export const completeOrderWithRemark = asyncHandler(async (req, res) => {
 
   res.json({
     message: "Order completed and seller remark saved.",
-    item: populatedOrder,
-    remark,
+    item: withMissingParties(populatedOrder),
+    remark: withMissingParties(remark),
   });
 });
 
@@ -264,7 +276,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
 
   res.json({
     message: "Order status updated.",
-    item: populatedOrder,
-    remark,
+    item: withMissingParties(populatedOrder),
+    remark: withMissingParties(remark),
   });
 });

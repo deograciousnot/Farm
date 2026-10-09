@@ -7,12 +7,15 @@ import { uploadManyToCloudinary } from "../utils/media-upload.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
 export const getMarketplaceOverview = asyncHandler(async (_req, res) => {
-  const [featuredProducts, totalListings, verifiedSellerListings, wholesaleListings] = await Promise.all([
+  let [featuredProducts, totalListings, verifiedSellerListings, wholesaleListings] = await Promise.all([
     Product.find({ featured: true, ...notRemoved }).populate("seller", "name verificationStatus location role avatarUrl").limit(4),
     Product.countDocuments(notRemoved),
     Product.countDocuments({ sellerType: "farmer", ...notRemoved }),
     Product.countDocuments({ stock: { $gte: 100 }, ...notRemoved }),
   ]);
+
+  // Listings can outlive their seller's account; the app expects every listing to have one.
+  featuredProducts = featuredProducts.filter((product) => product.seller);
 
   res.json({
     filters: ["All produce", "Vegetables", "Fruits", "Grains", "Farm inputs", "Wholesale"],
@@ -58,7 +61,7 @@ export const getProducts = asyncHandler(async (req, res) => {
     .populate("seller", "name verificationStatus location role avatarUrl")
     .sort({ featured: -1, createdAt: -1 });
 
-  res.json({ items: products });
+  res.json({ items: products.filter((product) => product.seller) });
 });
 
 export const getProductById = asyncHandler(async (req, res) => {
@@ -67,7 +70,7 @@ export const getProductById = asyncHandler(async (req, res) => {
     "name verificationStatus location role bio trustScore phone avatarUrl"
   );
 
-  if (!product) {
+  if (!product || !product.seller) {
     throw new AppError("Product not found.", 404);
   }
 
