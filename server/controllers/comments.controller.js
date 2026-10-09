@@ -33,7 +33,7 @@ export const getCommentsForPost = asyncHandler(async (req, res) => {
     .limit(30);
 
   res.json({
-    items: comments.map(normalizeComment),
+    items: comments.filter((comment) => comment.author).map(normalizeComment),
   });
 });
 

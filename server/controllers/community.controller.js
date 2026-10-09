@@ -25,7 +25,7 @@ export const getCommunityOverview = asyncHandler(async (_req, res) => {
   res.json({
     rooms: ["Dairy Kenya", "Tomato Growers", "Market Prices", "Farm Inputs", "Kitchen Gardeners"],
     stats,
-    threads: topThreads,
+    threads: topThreads.filter((thread) => thread.author),
   });
 });
 
@@ -35,7 +35,7 @@ export const getThreadById = asyncHandler(async (req, res) => {
     "name role location verificationStatus avatarUrl"
   );
 
-  if (!thread) {
+  if (!thread || !thread.author) {
     throw new AppError("Community thread not found.", 404);
   }
 
@@ -67,7 +67,7 @@ export const getRepliesForThread = asyncHandler(async (req, res) => {
     .limit(50);
 
   res.json({
-    items: replies.map(normalizeReply),
+    items: replies.filter((reply) => reply.author).map(normalizeReply),
   });
 });
 

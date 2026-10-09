@@ -113,7 +113,7 @@ export const getFeed = asyncHandler(async (_req, res) => {
 
   filters.moderationStatus = { $ne: "removed" };
 
-  const [posts, totalPosts] = await Promise.all([
+  const [allPosts, totalPosts] = await Promise.all([
     Post.find(filters)
       .populate("author", "name role location verificationStatus trustScore avatarUrl")
       .populate({ path: "linkedProduct", select: "name price unit location", match: notRemoved })
@@ -124,6 +124,8 @@ export const getFeed = asyncHandler(async (_req, res) => {
     Post.countDocuments(filters),
   ]);
 
+  // Content can outlive its author's account; the app expects every post to have one.
+  const posts = allPosts.filter((post) => post.author);
   const postIds = posts.map((post) => post._id);
 
   const [previewProducts, activeThreads, verifiedGrowers, comments, savedPosts, likedPosts] = await Promise.all([
@@ -148,6 +150,10 @@ export const getFeed = asyncHandler(async (_req, res) => {
   const likedPostIds = new Set(likedPosts.map((entry) => String(entry.post)));
 
   for (const comment of comments) {
+    if (!comment.author) {
+      continue;
+    }
+
     const key = String(comment.post);
     const currentComments = commentsByPostId.get(key) ?? [];
 
@@ -177,7 +183,7 @@ export const getFeed = asyncHandler(async (_req, res) => {
       page,
       limit,
       total: totalPosts,
-      hasMore: skip + posts.length < totalPosts,
+      hasMore: skip + allPosts.length < totalPosts,
     },
     posts: posts.map((post) => ({
       ...shapePost(post, { savedPostIds, likedPostIds, commentsByPostId, currentUser: _req.user }),
@@ -198,7 +204,7 @@ export const getFeedPostById = asyncHandler(async (req, res) => {
     .populate({ path: "linkedProduct", select: "name price unit location", match: notRemoved })
     .lean();
 
-  if (!post) {
+  if (!post || !post.author) {
     throw new AppError("Post not found.", 404);
   }
 
@@ -212,7 +218,7 @@ export const getFeedPostById = asyncHandler(async (req, res) => {
     req.user ? LikedPost.findOne({ user: req.user._id, post: post._id }).lean() : Promise.resolve(null),
   ]);
 
-  const commentsByPostId = new Map([[String(post._id), comments]]);
+  const commentsByPostId = new Map([[String(post._id), comments.filter((comment) => comment.author)]]);
 
   res.json({
     item: shapePost(post, {

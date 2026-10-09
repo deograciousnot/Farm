@@ -75,6 +75,15 @@ function getApiBaseUrl() {
 
 const API_BASE_URL = `${getApiBaseUrl()}/api`;
 
+// Content can outlive its author's account; drop it rather than crash rendering a null author.
+function withAuthor<T extends { author: unknown }>(items: T[]) {
+  return items.filter((item) => item.author);
+}
+
+function withAuthoredComments(post: FeedPost): FeedPost {
+  return { ...post, recentComments: withAuthor(post.recentComments ?? []) };
+}
+
 // The free Render instance can take ~30s to wake up, so allow for a cold start.
 const REQUEST_TIMEOUT_MS = 45_000;
 const UPLOAD_TIMEOUT_MS = 180_000;
@@ -257,13 +266,13 @@ export const api = {
       pagination: { page: number; limit: number; total: number; hasMore: boolean };
       posts: FeedPost[];
       previewProducts: Product[];
-    }>(`/feed${query}`, { token });
+    }>(`/feed${query}`, { token }).then((data) => ({ ...data, posts: withAuthor(data.posts).map(withAuthoredComments) }));
   },
   getComments(postId: string) {
-    return request<{ items: Comment[] }>(`/feed/${postId}/comments`);
+    return request<{ items: Comment[] }>(`/feed/${postId}/comments`).then((data) => ({ items: withAuthor(data.items) }));
   },
   getFeedPostById(postId: string, token?: string | null) {
-    return request<{ item: FeedPost }>(`/feed/${postId}`, { token });
+    return request<{ item: FeedPost }>(`/feed/${postId}`, { token }).then((data) => ({ item: withAuthoredComments(data.item) }));
   },
   createComment(token: string, postId: string, body: string) {
     return request<{ item: Comment; commentsCount: number }>(`/feed/${postId}/comments`, {
@@ -391,13 +400,15 @@ export const api = {
     return request<{ item: Product }>(`/marketplace/products/${id}`);
   },
   getCommunity() {
-    return request<{ rooms: string[]; stats: import('@/lib/types').CommunityStat[]; threads: CommunityThread[] }>('/community');
+    return request<{ rooms: string[]; stats: import('@/lib/types').CommunityStat[]; threads: CommunityThread[] }>('/community').then(
+      (data) => ({ ...data, threads: withAuthor(data.threads) })
+    );
   },
   getThreadById(id: string) {
     return request<{ item: CommunityThread }>(`/community/${id}`);
   },
   getThreadReplies(id: string) {
-    return request<{ items: ThreadReply[] }>(`/community/${id}/replies`);
+    return request<{ items: ThreadReply[] }>(`/community/${id}/replies`).then((data) => ({ items: withAuthor(data.items) }));
   },
   createThread(token: string, input: { title: string; body: string; category: string; media?: UploadableAsset[] }) {
     const formData = new FormData();
