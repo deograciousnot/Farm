@@ -51,6 +51,14 @@
       "expo-image",
       "expo-video",
       "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/farmconnect-notification-icon.png",
+          "color": "#1E6B47",
+          "defaultChannel": "default"
+        }
+      ],
       "@sentry/react-native"
     ],
     "experiments": {

@@ -5,6 +5,7 @@ import { Notification } from "../models/notification.model.js";
 import { Order } from "../models/order.model.js";
 import { Post } from "../models/post.model.js";
 import { Product } from "../models/product.model.js";
+import { PushToken } from "../models/push-token.model.js";
 import { SavedPost } from "../models/saved-post.model.js";
 import { SellerRemark } from "../models/seller-remark.model.js";
 import { ThreadReply } from "../models/thread-reply.model.js";
@@ -34,6 +35,7 @@ export async function deleteUserAccount(user) {
     Product.deleteMany({ seller: userId }),
     CommunityThread.deleteMany({ author: userId }),
     Notification.deleteMany({ user: userId }),
+    PushToken.deleteMany({ user: userId }),
     User.updateMany({}, { $pull: { followers: userId, following: userId } }),
     Order.updateMany(
       { buyer: userId },

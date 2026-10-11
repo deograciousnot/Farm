@@ -10,6 +10,7 @@ import {
 import { createComment, getCommentsForPost, toggleLikedPost, toggleSavedPost } from "../controllers/comments.controller.js";
 import { createFeedPost, deleteFeedPost, getFeed, getFeedPostById } from "../controllers/feed.controller.js";
 import { dismissBroadcast, getBroadcast, listBroadcasts } from "../controllers/broadcasts.controller.js";
+import { removePushToken, registerPushToken } from "../controllers/push.controller.js";
 import { createReport } from "../controllers/reports.controller.js";
 import { completeOrderWithRemark, createOrder, getOrderById, getOrders, updateOrderStatus } from "../controllers/orders.controller.js";
 import {
@@ -66,4 +67,7 @@ apiRouter.get("/profile/:userId", attachUserIfPresent, getPublicProfile);
 apiRouter.patch("/profile/me", requireAuth, upload.single("avatar"), updateMyProfile);
 apiRouter.post("/profile/:userId/follow", requireAuth, reactionLimiter, toggleFollowUser);
 apiRouter.post("/profile/notifications/read-all", requireAuth, markAllNotificationsRead);
+// Phone push notifications: the app registers its Expo push token after the member allows them.
+apiRouter.post("/push-tokens", requireAuth, registerPushToken);
+apiRouter.delete("/push-tokens", requireAuth, removePushToken);
 apiRouter.post("/profile/notifications/:notificationId/read", requireAuth, markNotificationRead);

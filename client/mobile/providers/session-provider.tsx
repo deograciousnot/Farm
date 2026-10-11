@@ -3,6 +3,7 @@ import { createContext, PropsWithChildren, useContext, useEffect, useState } fro
 import { router } from 'expo-router';
 
 import { api } from '@/lib/api';
+import { unregisterPush } from '@/lib/push';
 import { queryClient, setStaleSessionListener } from '@/lib/query-client';
 import type { ApiUser, RegisterInput } from '@/lib/types';
 
@@ -174,6 +175,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }
 
   async function logout() {
+    if (token) void unregisterPush(token);
     queryClient.clear();
     setMode('signed-out');
     setToken(null);
@@ -183,6 +185,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }
 
   async function logoutToGuest() {
+    if (token) void unregisterPush(token);
     queryClient.clear();
     setMode('guest');
     setToken(null);

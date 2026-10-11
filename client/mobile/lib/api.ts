@@ -259,6 +259,12 @@ export const api = {
       body: input,
     });
   },
+  registerPushToken(token: string, pushToken: string, platform: string) {
+    return request<{ message: string }>('/push-tokens', { method: 'POST', token, body: { token: pushToken, platform } });
+  },
+  removePushToken(token: string, pushToken: string) {
+    return request<{ message: string }>('/push-tokens', { method: 'DELETE', token, body: { token: pushToken } });
+  },
   deleteAccount(token: string, input: { currentPassword: string; confirmation: string }) {
     return request<{ message: string }>('/auth/account', {
       method: 'DELETE',

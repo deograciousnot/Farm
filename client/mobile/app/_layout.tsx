@@ -10,7 +10,9 @@ import { useEffect, useMemo } from 'react';
 import 'react-native-reanimated';
 
 import { appFonts } from '@/constants/fonts';
+import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { useTheme } from '@/hooks/use-theme';
+import { configureNotifications } from '@/lib/push';
 import { queryClient } from '@/lib/query-client';
 import { PreferencesProvider } from '@/providers/preferences-provider';
 import { SessionProvider, useSession } from '@/providers/session-provider';
@@ -21,6 +23,7 @@ export const unstable_settings = {
 };
 
 void SplashScreen.preventAutoHideAsync();
+configureNotifications();
 
 // Crash reporting is off until a Sentry DSN is set in app.json (extra.sentryDsn). No personal data is sent.
 const sentryDsn = (Constants.expoConfig?.extra?.sentryDsn as string | undefined) || process.env.EXPO_PUBLIC_SENTRY_DSN;
@@ -53,6 +56,7 @@ function RootLayout() {
 function AppShell() {
   const { scheme, colors } = useTheme();
   const { isLoading } = useSession();
+  usePushNotifications();
 
   useEffect(() => {
     if (!isLoading) {

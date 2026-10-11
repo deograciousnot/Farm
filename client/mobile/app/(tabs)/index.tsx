@@ -5,6 +5,7 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Vie
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BroadcastCard } from '@/components/broadcasts/broadcast-card';
+import { EnableAlertsCard } from '@/components/notifications/enable-alerts-card';
 import { CommentSheet } from '@/components/feed/comments';
 import { FeedPostCard } from '@/components/feed/feed-post-card';
 import { AppText } from '@/components/ui/app-text';
@@ -80,6 +81,7 @@ export default function HomeScreen() {
           </AppText>
         </Pressable>
       ) : null}
+      <EnableAlertsCard />
       {filter === 'All' && broadcasts.data?.length ? (
         <View style={styles.official}>
           <BroadcastCard broadcast={broadcasts.data[0]} onDismiss={dismissBroadcast} />

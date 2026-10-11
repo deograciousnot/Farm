@@ -16,6 +16,7 @@ import { TextField } from '@/components/ui/text-field';
 import { SUPPORT_EMAIL } from '@/constants/legal';
 import { ScreenPadding, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { usePushPermission } from '@/hooks/use-push-notifications';
 import { api, getErrorMessage } from '@/lib/api';
 import { usePreferences } from '@/providers/preferences-provider';
 import { useSession } from '@/providers/session-provider';
@@ -24,6 +25,7 @@ import { useToast } from '@/providers/toast-provider';
 export default function SettingsScreen() {
   const { colors } = useTheme();
   const { user, token, logout, logoutToGuest } = useSession();
+  const { permission: pushPermission, enable: enablePush } = usePushPermission();
   const { dataSaver, setPreference } = usePreferences();
   const [sheet, setSheet] = useState<'password' | 'delete' | null>(null);
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
@@ -95,6 +97,20 @@ export default function SettingsScreen() {
               />
               {/* Phone sign-in accounts have no password to change. */}
               {user.email ? <ListRow icon="lock" title="Change password" onPress={() => setSheet('password')} /> : null}
+              {pushPermission && pushPermission !== 'unsupported' ? (
+                <ListRow
+                  icon="bell"
+                  title="Notifications"
+                  subtitle={
+                    pushPermission === 'granted'
+                      ? "On. Choose which alerts you get in your phone's settings"
+                      : pushPermission === 'blocked'
+                        ? "Off. Turn them on in your phone's settings"
+                        : 'Off. Tap to get pest alerts, replies and order updates'
+                  }
+                  onPress={() => (pushPermission === 'granted' ? void Linking.openSettings() : void enablePush())}
+                />
+              ) : null}
             </Card>
           </Section>
         ) : null}

@@ -7,6 +7,7 @@ import { logAction } from "../../services/moderation.js";
 import { AppError } from "../../utils/app-error.js";
 import { asyncHandler } from "../../utils/async-handler.js";
 import { KENYA_COUNTIES } from "../../utils/regions.js";
+import { sendPushToUsers } from "../../services/push.js";
 import { assertObjectId, paginationMeta, parsePagination } from "../../utils/request.js";
 
 const ROLES = ["farmer", "buyer", "hobbyist"];
@@ -229,6 +230,12 @@ export const publishBroadcast = asyncHandler(async (req, res) => {
       { ordered: false }
     );
   }
+
+  // Official updates use the high-priority "Official alerts" channel on Android.
+  void sendPushToUsers(
+    recipients.map((user) => user._id),
+    { title, body, link, channelId: "alerts" }
+  );
 
   broadcast.status = "published";
   broadcast.publishedAt = new Date();
