@@ -13,7 +13,7 @@
     "android": {
       "package": "com.farmconnect.app",
       "adaptiveIcon": {
-        "backgroundColor": "#fff8f1",
+        "backgroundColor": "#1E6B47",
         "foregroundImage": "./assets/images/farmconnect-adaptive-foreground.png",
         "backgroundImage": "./assets/images/farmconnect-adaptive-background.png",
         "monochromeImage": "./assets/images/farmconnect-adaptive-monochrome.png"
@@ -38,11 +38,12 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/farmconnect-splash-icon.png",
-          "imageWidth": 220,
+          "imageWidth": 160,
           "resizeMode": "contain",
-          "backgroundColor": "#fff8f1",
+          "backgroundColor": "#F6F4EE",
           "dark": {
-            "backgroundColor": "#171311"
+            "image": "./assets/images/farmconnect-splash-icon-dark.png",
+            "backgroundColor": "#0E1311"
           }
         }
       ],

@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -48,9 +49,7 @@ export default function GetStartedScreen() {
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.xxl, paddingBottom: insets.bottom + Spacing.lg }]}>
       <Animated.View entering={FadeInDown.duration(400)} style={styles.brand}>
-        <View style={[styles.logo, { backgroundColor: colors.primary }]}>
-          <Feather name="sunrise" size={28} color={colors.onPrimary} />
-        </View>
+        <Image source={require('@/assets/images/farmconnect-icon.png')} style={styles.logo} accessibilityLabel="FarmConnect logo" />
         <AppText variant="overline" color="primary">
           FarmConnect
         </AppText>
@@ -85,7 +84,7 @@ export default function GetStartedScreen() {
 const styles = StyleSheet.create({
   content: { flexGrow: 1, paddingHorizontal: ScreenPadding + Spacing.xs, gap: Spacing.xxl, justifyContent: 'space-between' },
   brand: { gap: Spacing.sm },
-  logo: { width: 56, height: 56, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs },
+  logo: { width: 56, height: 56, borderRadius: Radius.lg, marginBottom: Spacing.xs },
   promises: { gap: Spacing.lg },
   promise: { flexDirection: 'row', gap: Spacing.md },
   promiseIcon: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
