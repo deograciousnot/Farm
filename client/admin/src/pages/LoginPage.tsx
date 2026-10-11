@@ -3,9 +3,9 @@ import { Loader2, Shield } from "lucide-react";
 
 import { api } from "../api";
 import { errorMessage } from "../components";
-import type { AdminProfile } from "../types";
+import type { DashboardSession } from "../api";
 
-export function LoginPage({ onSignedIn }: { onSignedIn: (admin: AdminProfile) => void }) {
+export function LoginPage({ onSignedIn }: { onSignedIn: (session: DashboardSession) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -31,9 +31,9 @@ export function LoginPage({ onSignedIn }: { onSignedIn: (admin: AdminProfile) =>
         <div className="brand-mark">
           <Shield size={30} />
         </div>
-        <p className="eyebrow">FarmConnect Admin</p>
-        <h1>Keep the community trustworthy</h1>
-        <p className="muted">Sign in with your FarmConnect account. Only accounts with admin access can continue.</p>
+        <p className="eyebrow">FarmConnect Dashboard</p>
+        <h1>Sign in to your dashboard</h1>
+        <p className="muted">Use your FarmConnect account. Admins see the full dashboard; organisation staff added by FarmConnect see their partner dashboard.</p>
         <form onSubmit={submit} className="gate-form">
           <label className="field">
             <span>Email</span>

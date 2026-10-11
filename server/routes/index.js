@@ -11,6 +11,7 @@ import { createComment, getCommentsForPost, toggleLikedPost, toggleSavedPost } f
 import { createFeedPost, deleteFeedPost, getFeed, getFeedPostById } from "../controllers/feed.controller.js";
 import { dismissBroadcast, getBroadcast, listBroadcasts } from "../controllers/broadcasts.controller.js";
 import { removePushToken, registerPushToken } from "../controllers/push.controller.js";
+import { getOrganization } from "../controllers/organizations.controller.js";
 import { createReport } from "../controllers/reports.controller.js";
 import { completeOrderWithRemark, createOrder, getOrderById, getOrders, updateOrderStatus } from "../controllers/orders.controller.js";
 import {
@@ -25,6 +26,7 @@ import { attachUserIfPresent, requireAuth } from "../middleware/auth.middleware.
 import { reactionLimiter, reportLimiter, writeLimiter } from "../middleware/rate-limit.middleware.js";
 import { upload } from "../middleware/upload.middleware.js";
 import adminRouter from "./admin.routes.js";
+import partnerRouter from "./partner.routes.js";
 import authRouter from "./auth.routes.js";
 import marketplaceRouter from "./marketplace.routes.js";
 
@@ -40,9 +42,11 @@ apiRouter.get("/health", (_req, res) => {
 apiRouter.use("/admin", adminRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/marketplace", marketplaceRouter);
+apiRouter.use("/partner", partnerRouter);
 apiRouter.post("/reports", requireAuth, reportLimiter, createReport);
 apiRouter.get("/broadcasts", attachUserIfPresent, listBroadcasts);
 apiRouter.get("/broadcasts/:id", attachUserIfPresent, getBroadcast);
+apiRouter.get("/organizations/:id", getOrganization);
 apiRouter.post("/broadcasts/:id/dismiss", requireAuth, reactionLimiter, dismissBroadcast);
 apiRouter.get("/feed", attachUserIfPresent, getFeed);
 apiRouter.post("/feed", requireAuth, writeLimiter, upload.array("media", 4), createFeedPost);

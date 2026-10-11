@@ -28,24 +28,33 @@ export function describeAudience(broadcast: Pick<Broadcast, 'counties' | 'roles'
   return `For ${who} in ${where}`;
 }
 
+/** Sponsored updates are paid messages from companies; they must never look like official alerts. */
+export const isSponsored = (broadcast: Pick<Broadcast, 'kind'>) => broadcast.kind === 'sponsored';
+
 export function PublisherRow({ broadcast, size = 'sm' }: { broadcast: Broadcast; size?: 'sm' | 'md' }) {
   const { colors } = useTheme();
   const iconSize = size === 'md' ? 40 : 28;
+  const sponsored = isSponsored(broadcast);
+  const verified = sponsored ? broadcast.organization.verification?.status === 'verified' : true;
 
   return (
     <View style={styles.publisher}>
-      <View style={[styles.publisherIcon, { width: iconSize, height: iconSize, backgroundColor: colors.primary }]}>
-        <Feather name="shield" size={iconSize * 0.48} color={colors.onPrimary} />
+      <View
+        style={[
+          styles.publisherIcon,
+          { width: iconSize, height: iconSize, backgroundColor: sponsored ? colors.surfaceMuted : colors.primary },
+        ]}>
+        <Feather name={sponsored ? 'tag' : 'shield'} size={iconSize * 0.48} color={sponsored ? colors.textMuted : colors.onPrimary} />
       </View>
       <View style={styles.publisherCopy}>
         <View style={styles.nameRow}>
           <AppText variant="label" numberOfLines={1} style={styles.name}>
             {broadcast.organization.name}
           </AppText>
-          <Feather name="check-circle" size={13} color={colors.primary} accessibilityLabel="Verified organisation" />
+          {verified ? <Feather name="check-circle" size={13} color={colors.primary} accessibilityLabel="Verified organisation" /> : null}
         </View>
         <AppText variant="caption" color="textMuted">
-          Official update · {formatRelativeTime(broadcast.publishedAt)}
+          {sponsored ? 'Sponsored' : 'Official update'} · {formatRelativeTime(broadcast.publishedAt)}
         </AppText>
       </View>
     </View>

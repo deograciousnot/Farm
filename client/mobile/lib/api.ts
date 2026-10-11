@@ -9,6 +9,7 @@ import type {
   FeedPost,
   NotificationItem,
   Order,
+  OrganizationProfile,
   Product,
   ProfileResponse,
   RegisterInput,
@@ -382,6 +383,9 @@ export const api = {
   },
   getBroadcast(id: string, token?: string | null) {
     return request<{ item: Broadcast }>(`/broadcasts/${id}`, { token });
+  },
+  getOrganization(id: string) {
+    return request<OrganizationProfile>(`/organizations/${id}`).then((data) => ({ ...data, products: withSeller(data.products) }));
   },
   getMarketplaceOverview() {
     return request<{

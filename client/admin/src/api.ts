@@ -14,8 +14,11 @@ import type {
   ModeratableType,
   OverviewResponse,
   Paginated,
+  PartnerSession,
   Report,
 } from "./types";
+
+export type DashboardSession = { kind: "admin"; admin: AdminProfile } | ({ kind: "partner" } & PartnerSession);
 
 function resolveApiBaseUrl() {
   const rawBaseUrl = (import.meta.env.VITE_API_URL || "http://localhost:8000").trim().replace(/\/$/, "");
@@ -51,7 +54,7 @@ export function setUnauthorizedHandler(handler: (() => void) | null) {
   onUnauthorized = handler;
 }
 
-async function request<T>(path: string, options: { method?: string; body?: unknown; token?: string | null } = {}) {
+async function request<T>(path: string, options: { method?: string; body?: unknown; token?: string | null; quiet?: boolean } = {}) {
   const token = options.token === undefined ? tokenStore.get() : options.token;
   let response: Response;
 
@@ -71,7 +74,8 @@ async function request<T>(path: string, options: { method?: string; body?: unkno
   const data = (await response.json().catch(() => ({}))) as T & { message?: string };
 
   if (!response.ok) {
-    if ((response.status === 401 || response.status === 403) && token && path !== "/auth/login") {
+    // `quiet` requests probe access (admin or partner?) and must not end the session when refused.
+    if ((response.status === 401 || response.status === 403) && token && path !== "/auth/login" && !options.quiet) {
       onUnauthorized?.();
     }
     throw new ApiError(data.message || "Request failed.", response.status);
@@ -91,14 +95,26 @@ function query(params: Record<string, string | number | undefined>) {
 export const api = {
   async login(email: string, password: string) {
     const { token } = await request<{ token: string }>("/auth/login", { method: "POST", body: { email, password }, token: null });
-    // Confirm admin rights before keeping the token.
-    const { admin } = await request<{ admin: AdminProfile }>("/admin/me", { token }).catch((error: ApiError) => {
-      throw error.status === 403 ? new ApiError("This account doesn't have admin access.", 403) : error;
-    });
+    const session = await api.session(token);
     tokenStore.set(token);
-    return admin;
+    return session;
   },
-  me: () => request<{ admin: AdminProfile }>("/admin/me"),
+  /** Admins get the full dashboard; organisation staff get the partner dashboard; anyone else is turned away. */
+  async session(token: string | null = tokenStore.get()): Promise<DashboardSession> {
+    try {
+      const { admin } = await request<{ admin: AdminProfile }>("/admin/me", { token, quiet: true });
+      return { kind: "admin", admin };
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 403) throw error;
+    }
+    try {
+      return { kind: "partner", ...(await request<PartnerSession>("/partner/me", { token, quiet: true })) };
+    } catch (error) {
+      throw error instanceof ApiError && error.status === 403
+        ? new ApiError("This account doesn't have access. Admins and organisation staff added by FarmConnect can sign in here.", 403)
+        : error;
+    }
+  },
   getOverview: () => request<OverviewResponse>("/admin/overview"),
 
   getReports: (params: { status?: string; page?: number }) => request<Paginated<Report>>(`/admin/reports${query(params)}`),
@@ -168,7 +184,25 @@ export const api = {
       body: input,
     }),
   publishBroadcast: (id: string) => request<{ message: string }>(`/admin/broadcasts/${id}/publish`, { method: "POST" }),
+  rejectBroadcast: (id: string, reason: string) => request<{ message: string }>(`/admin/broadcasts/${id}/reject`, { method: "POST", body: { reason } }),
+  setOrganizationVerification: (id: string, status: "verified" | "unverified", note = "") =>
+    request<{ message: string; item: Organization }>(`/admin/organizations/${id}/verification`, { method: "PATCH", body: { status, note } }),
+  addOrganizationMember: (id: string, email: string) =>
+    request<{ message: string; item: Organization }>(`/admin/organizations/${id}/members`, { method: "POST", body: { email } }),
+  removeOrganizationMember: (id: string, userId: string) =>
+    request<{ message: string; item: Organization }>(`/admin/organizations/${id}/members/${userId}`, { method: "DELETE" }),
   archiveBroadcast: (id: string) => request<{ message: string }>(`/admin/broadcasts/${id}/archive`, { method: "POST" }),
+
+  partner: {
+    getBroadcasts: (organization: string) => request<{ items: AdminBroadcast[] }>(`/partner/broadcasts${query({ organization })}`),
+    getAudience: (organization: string, counties: string[], roles: string[]) =>
+      request<{ count: number }>(`/partner/broadcasts/audience${query({ organization, counties: counties.join(","), roles: roles.join(",") })}`),
+    saveBroadcast: (input: BroadcastInput, id?: string) =>
+      request<{ message: string; item: AdminBroadcast }>(id ? `/partner/broadcasts/${id}` : "/partner/broadcasts", { method: id ? "PATCH" : "POST", body: input }),
+    submit: (id: string) => request<{ message: string }>(`/partner/broadcasts/${id}/submit`, { method: "POST" }),
+    withdraw: (id: string) => request<{ message: string }>(`/partner/broadcasts/${id}/withdraw`, { method: "POST" }),
+    remove: (id: string) => request<{ message: string }>(`/partner/broadcasts/${id}`, { method: "DELETE" }),
+  },
 
   getAudit: (params: { page?: number; action?: string }) => request<Paginated<AdminAction>>(`/admin/audit${query(params)}`),
 };

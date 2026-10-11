@@ -2,6 +2,7 @@ import { Product } from "../models/product.model.js";
 import { notRemoved } from "../models/moderation-fields.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { withSupplier } from "../services/suppliers.js";
 import { assertCanPublish } from "../utils/spam-guard.js";
 import { uploadManyToCloudinary } from "../utils/media-upload.js";
 import { escapeRegex } from "../utils/request.js";
@@ -25,7 +26,7 @@ export const getMarketplaceOverview = asyncHandler(async (_req, res) => {
       { label: "Verified sellers", value: `${verifiedSellerListings} listings` },
       { label: "Bulk buyers", value: `${wholesaleListings} wholesale-ready` },
     ],
-    featuredProducts,
+    featuredProducts: await withSupplier(featuredProducts),
     totals: {
       listings: totalListings,
       featured: featuredProducts.length,
@@ -64,7 +65,7 @@ export const getProducts = asyncHandler(async (req, res) => {
     .populate("seller", "name verificationStatus location role avatarUrl")
     .sort({ featured: -1, createdAt: -1 });
 
-  res.json({ items: products.filter((product) => product.seller) });
+  res.json({ items: await withSupplier(products.filter((product) => product.seller)) });
 });
 
 export const getProductById = asyncHandler(async (req, res) => {
@@ -77,7 +78,8 @@ export const getProductById = asyncHandler(async (req, res) => {
     throw new AppError("Product not found.", 404);
   }
 
-  res.json({ item: product });
+  const [item] = await withSupplier([product]);
+  res.json({ item });
 });
 
 export const createProduct = asyncHandler(async (req, res) => {

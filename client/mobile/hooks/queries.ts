@@ -26,6 +26,7 @@ export const queryKeys = {
   broadcasts: (scope: 'home' | 'all') => ['broadcasts', scope] as const,
   broadcastsRoot: ['broadcasts'] as const,
   broadcast: (id: string) => ['broadcast', id] as const,
+  organization: (id: string) => ['organization', id] as const,
   profile: (id: string) => ['profile', id] as const,
 };
 
@@ -151,6 +152,15 @@ export function useBroadcasts(scope: 'home' | 'all' = 'all') {
     staleTime: 5 * 60_000,
     // Guests dismiss on this device only.
     select: (items) => (scope === 'home' && !token ? items.filter((item) => !dismissedBroadcasts.includes(item._id)) : items),
+  });
+}
+
+export function useOrganization(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.organization(id ?? ''),
+    queryFn: () => api.getOrganization(id!),
+    enabled: Boolean(id),
+    staleTime: 5 * 60_000,
   });
 }
 

@@ -56,6 +56,14 @@ export const ProductCard = memo(function ProductCard({ product }: { product: Pro
             / {product.unit}
           </AppText>
         </AppText>
+        {product.supplier ? (
+          <View style={styles.seller}>
+            <Feather name="check-circle" size={14} color={colors.primary} />
+            <AppText variant="caption" color="primary" numberOfLines={1} style={styles.sellerText}>
+              {product.supplier.name}
+            </AppText>
+          </View>
+        ) : null}
         <View style={styles.seller}>
           <Avatar name={product.seller.name} imageUrl={product.seller.avatarUrl} size={18} />
           <AppText variant="caption" color="textMuted" numberOfLines={1} style={styles.sellerText}>

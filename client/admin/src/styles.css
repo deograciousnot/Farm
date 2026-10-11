@@ -245,7 +245,8 @@ h2 {
 select,
 .field input:not([type="checkbox"]),
 .field textarea,
-.search-field input {
+.search-field input,
+.member-add input {
   min-height: 40px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -335,7 +336,8 @@ select:hover,
   color: var(--text-subtle);
 }
 
-.search-field input {
+.search-field input,
+.member-add input {
   width: 100%;
   padding-left: 36px;
 }
@@ -1587,4 +1589,61 @@ button.bar-row:hover,
 
 .user-row.selected {
   border-color: var(--danger);
+}
+
+/* Partner accounts: notices, organisation staff, partner sidebar */
+.notice {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--warning-soft);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.member-heading {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.member-add {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.member-add input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+button.ghost.small {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.org-switcher {
+  margin: 16px 0 4px;
 }

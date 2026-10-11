@@ -1,12 +1,14 @@
 import mongoose from "mongoose";
 
 /**
- * An official message from a verified organisation, targeted by county and role.
- * Publishing sends a notification to every matching member and shows it at the top of their feed.
+ * A message from an organisation, targeted by county and role.
+ * "official" updates (government, NGOs, research) notify every matching member and lead the Home feed.
+ * "sponsored" updates come from companies: labelled as such, never pushed, and shown after official ones.
  */
 const broadcastSchema = new mongoose.Schema(
   {
     organization: { type: mongoose.Schema.Types.ObjectId, ref: "Organization", required: true },
+    kind: { type: String, enum: ["official", "sponsored"], default: "official" },
     title: { type: String, required: true, trim: true, maxlength: 120 },
     body: { type: String, required: true, trim: true, maxlength: 3000 },
     category: {
@@ -21,7 +23,11 @@ const broadcastSchema = new mongoose.Schema(
       label: { type: String, default: "", trim: true },
       url: { type: String, default: "", trim: true },
     },
-    status: { type: String, enum: ["draft", "published", "archived"], default: "draft", index: true },
+    // Partners write drafts and submit them ("pending"); FarmConnect publishes or rejects them.
+    status: { type: String, enum: ["draft", "pending", "rejected", "published", "archived"], default: "draft", index: true },
+    submittedAt: { type: Date, default: null },
+    submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    reviewNote: { type: String, default: "", trim: true, maxlength: 500 },
     publishedAt: { type: Date, default: null },
     expiresAt: { type: Date, default: null },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

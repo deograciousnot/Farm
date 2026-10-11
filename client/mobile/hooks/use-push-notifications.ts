@@ -10,20 +10,29 @@ import { useSession } from '@/providers/session-provider';
 export function usePushNotifications() {
   const { token, mode, isLoading } = useSession();
   const handled = useRef<string | null>(null);
-  const response = Notifications.useLastNotificationResponse();
 
   useEffect(() => {
     if (mode === 'authenticated' && token) void registerIfAllowed(token);
   }, [mode, token]);
 
+  // Not on web: expo-notifications has no web implementation and throws there.
   useEffect(() => {
-    if (isLoading || !response || Platform.OS === 'web') return;
-    const id = response.notification.request.identifier;
-    const link = response.notification.request.content.data?.link;
-    if (handled.current === id || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
-    handled.current = id;
-    if (typeof link === 'string' && link.startsWith('/')) router.push(link as Href);
-  }, [isLoading, response]);
+    if (isLoading || Platform.OS === 'web') return;
+
+    const open = (response: Notifications.NotificationResponse | null) => {
+      if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+      const id = response.notification.request.identifier;
+      const link = response.notification.request.content.data?.link;
+      if (handled.current === id) return;
+      handled.current = id;
+      if (typeof link === 'string' && link.startsWith('/')) router.push(link as Href);
+    };
+
+    // A tap that launched the app from closed, then taps while it's running.
+    void Notifications.getLastNotificationResponseAsync().then(open);
+    const subscription = Notifications.addNotificationResponseReceivedListener(open);
+    return () => subscription.remove();
+  }, [isLoading]);
 }
 
 /** The member's notification permission, plus one action that does the right thing for each state. */

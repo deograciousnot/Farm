@@ -88,7 +88,7 @@ export default function HomeScreen() {
           {broadcasts.data.length > 1 ? (
             <Pressable accessibilityRole="link" onPress={() => router.push('/broadcasts')} hitSlop={8} style={styles.seeAll}>
               <AppText variant="label" color="primary">
-                {broadcasts.data.length - 1} more official {broadcasts.data.length === 2 ? 'update' : 'updates'} →
+                {broadcasts.data.length - 1} more {broadcasts.data.length === 2 ? 'update' : 'updates'} →
               </AppText>
             </Pressable>
           ) : null}

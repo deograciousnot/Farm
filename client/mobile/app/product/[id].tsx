@@ -134,6 +134,17 @@ function ProductBody({ product }: { product: Product }) {
         </View>
       </View>
 
+      {product.supplier ? (
+        <Card padded={false} style={styles.sellerCard}>
+          <ListRow
+            icon="check-circle"
+            title={`Verified supplier · ${product.supplier.name}`}
+            subtitle="FarmConnect checked this company's registration. See what else they sell."
+            onPress={() => router.push({ pathname: '/organization/[id]', params: { id: product.supplier!._id } })}
+          />
+        </Card>
+      ) : null}
+
       <Card padded={false} style={styles.sellerCard}>
         <ListRow
           avatar={{ name: product.seller.name, imageUrl: product.seller.avatarUrl }}

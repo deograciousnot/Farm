@@ -5,7 +5,7 @@ import { BroadcastView } from "../models/broadcast-view.model.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
-const ORGANIZATION_FIELDS = "name type logoUrl website";
+const ORGANIZATION_FIELDS = "name type logoUrl website verification.status";
 // Updates leave the Home feed after this long, even if nobody dismisses them.
 const HOME_WINDOW_DAYS = 14;
 
@@ -50,7 +50,8 @@ export const listBroadcasts = asyncHandler(async (req, res) => {
 
   const broadcasts = await Broadcast.find(filters)
     .populate("organization", ORGANIZATION_FIELDS)
-    .sort({ publishedAt: -1 })
+    // On Home, official updates always come before sponsored ones.
+    .sort(forHome ? { kind: 1, publishedAt: -1 } : { publishedAt: -1 })
     .limit(limit)
     .select("-createdBy -publishedBy -anonymousViews")
     .lean();

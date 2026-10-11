@@ -3,6 +3,7 @@ import { CommunityThread } from "../models/community-thread.model.js";
 import { LikedPost } from "../models/liked-post.model.js";
 import { Notification } from "../models/notification.model.js";
 import { Order } from "../models/order.model.js";
+import { Organization } from "../models/organization.model.js";
 import { Post } from "../models/post.model.js";
 import { Product } from "../models/product.model.js";
 import { PushToken } from "../models/push-token.model.js";
@@ -36,6 +37,7 @@ export async function deleteUserAccount(user) {
     CommunityThread.deleteMany({ author: userId }),
     Notification.deleteMany({ user: userId }),
     PushToken.deleteMany({ user: userId }),
+    Organization.updateMany({ "members.user": userId }, { $pull: { members: { user: userId } } }),
     User.updateMany({}, { $pull: { followers: userId, following: userId } }),
     Order.updateMany(
       { buyer: userId },

@@ -86,6 +86,8 @@ export type Product = {
   featured?: boolean;
   mediaUrls?: string[];
   seller: ApiUser;
+  /** Set when the seller works for an organisation FarmConnect has verified (e.g. an input supplier). */
+  supplier?: { _id: string; name: string; logoUrl?: string };
 };
 
 export type CommunityThread = {
@@ -219,6 +221,8 @@ export type Broadcast = {
   /** Per-member state; absent for guests. */
   isRead?: boolean;
   isDismissed?: boolean;
+  /** "sponsored" updates come from companies and are labelled as paid messages. */
+  kind?: 'official' | 'sponsored';
   organization: {
     _id: string;
     name: string;
@@ -226,5 +230,22 @@ export type Broadcast = {
     logoUrl?: string;
     website?: string;
     description?: string;
+    verification?: { status: 'verified' | 'unverified' };
   };
+};
+
+/** An organisation's public page. */
+export type OrganizationProfile = {
+  item: {
+    _id: string;
+    name: string;
+    type: string;
+    description?: string;
+    website?: string;
+    logoUrl?: string;
+    sponsored: boolean;
+    verification: { status: 'verified' | 'unverified'; note: string; checkedAt: string | null };
+  };
+  products: Product[];
+  updates: Pick<Broadcast, '_id' | 'title' | 'body' | 'category' | 'kind' | 'publishedAt'>[];
 };

@@ -9,7 +9,11 @@ import {
   getAudience,
   listBroadcasts,
   listOrganizations,
+  addOrganizationMember,
   publishBroadcast,
+  rejectBroadcast,
+  removeOrganizationMember,
+  setOrganizationVerification,
   updateBroadcast,
   updateOrganization,
 } from "../controllers/admin/broadcasts.controller.js";
@@ -110,11 +114,15 @@ adminRouter.get("/analytics/export.csv", exportRegionalReport);
 adminRouter.get("/organizations", listOrganizations);
 adminRouter.post("/organizations", createOrganization);
 adminRouter.patch("/organizations/:organizationId", updateOrganization);
+adminRouter.patch("/organizations/:organizationId/verification", setOrganizationVerification);
+adminRouter.post("/organizations/:organizationId/members", addOrganizationMember);
+adminRouter.delete("/organizations/:organizationId/members/:userId", removeOrganizationMember);
 adminRouter.get("/broadcasts", listBroadcasts);
 adminRouter.get("/broadcasts/audience", getAudience);
 adminRouter.post("/broadcasts", createBroadcast);
 adminRouter.patch("/broadcasts/:broadcastId", updateBroadcast);
 adminRouter.post("/broadcasts/:broadcastId/publish", publishBroadcast);
+adminRouter.post("/broadcasts/:broadcastId/reject", rejectBroadcast);
 adminRouter.post("/broadcasts/:broadcastId/archive", archiveBroadcast);
 
 adminRouter.get("/notifications", listNotifications);

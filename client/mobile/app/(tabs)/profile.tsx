@@ -49,7 +49,7 @@ export default function ProfileScreen() {
               action={{ label: 'Sign in or create account', onPress: () => router.push('/auth?mode=login') }}
             />
             <Card padded={false} style={styles.notificationsCard}>
-              <ListRow icon="shield" title="Official updates" subtitle="Advisories and alerts from verified organisations" onPress={() => router.push('/broadcasts')} />
+              <ListRow icon="shield" title="Updates from organisations" subtitle="Alerts, advisories and supplier offers" onPress={() => router.push('/broadcasts')} />
             </Card>
           </>
         ) : profile.isPending ? (
@@ -77,7 +77,7 @@ export default function ProfileScreen() {
                   </View>
                 }
               />
-              <ListRow icon="shield" title="Official updates" subtitle="Advisories and alerts for your area" onPress={() => router.push('/broadcasts')} />
+              <ListRow icon="shield" title="Updates from organisations" subtitle="Alerts, advisories and supplier offers for your area" onPress={() => router.push('/broadcasts')} />
             </Card>
           </ProfileView>
         )}

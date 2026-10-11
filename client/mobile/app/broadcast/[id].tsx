@@ -1,14 +1,15 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 
-import { broadcastCategories, describeAudience, PublisherRow } from '@/components/broadcasts/broadcast-card';
+import { broadcastCategories, describeAudience, isSponsored, PublisherRow } from '@/components/broadcasts/broadcast-card';
 import { AppText } from '@/components/ui/app-text';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ListRow } from '@/components/ui/list-row';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { ListSkeleton } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/state-views';
@@ -31,7 +32,7 @@ export default function BroadcastScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title="Official update" />
+      <ScreenHeader title={broadcast.data && isSponsored(broadcast.data) ? 'Sponsored update' : 'Official update'} />
       {broadcast.isPending ? (
         <View style={styles.content}>
           <ListSkeleton count={1} />
@@ -69,17 +70,21 @@ export default function BroadcastScreen() {
             </AppText>
           </Card>
 
-          {broadcast.data.organization.description ? (
-            <View style={styles.about}>
-              <AppText variant="label">About {broadcast.data.organization.name}</AppText>
-              <AppText variant="callout" color="textMuted">
-                {broadcast.data.organization.description}
-              </AppText>
-              <AppText variant="caption" color="textSubtle">
-                FarmConnect verified this organisation before it could publish here.
-              </AppText>
-            </View>
-          ) : null}
+          <View style={styles.about}>
+            <Card padded={false}>
+              <ListRow
+                icon={isSponsored(broadcast.data) ? 'briefcase' : 'shield'}
+                title={broadcast.data.organization.name}
+                subtitle={broadcast.data.organization.description || 'See their page on FarmConnect'}
+                onPress={() => router.push({ pathname: '/organization/[id]', params: { id: broadcast.data!.organization._id } })}
+              />
+            </Card>
+            <AppText variant="caption" color="textSubtle">
+              {isSponsored(broadcast.data)
+                ? 'A paid message from a company. FarmConnect reviewed it before it went out, but does not endorse their products.'
+                : 'FarmConnect verified this organisation before it could publish here.'}
+            </AppText>
+          </View>
         </ScrollView>
       )}
     </View>
@@ -93,5 +98,5 @@ const styles = StyleSheet.create({
   article: { gap: Spacing.sm },
   alignStart: { alignSelf: 'flex-start' },
   meta: { flexDirection: 'row', alignItems: 'center' },
-  about: { gap: Spacing.xxs },
+  about: { gap: Spacing.xs },
 });

@@ -90,6 +90,7 @@ function AppShell() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="broadcast/[id]" />
           <Stack.Screen name="broadcasts" />
+          <Stack.Screen name="organization/[id]" />
           <Stack.Screen name="community/[id]" />
           <Stack.Screen name="community/new" options={{ presentation: 'modal' }} />
           <Stack.Screen name="order/[id]" />

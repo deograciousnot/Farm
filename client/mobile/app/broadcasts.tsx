@@ -16,7 +16,7 @@ export default function BroadcastsScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title="Official updates" />
+      <ScreenHeader title="Updates" />
       <FlatList
         data={broadcasts.data ?? []}
         keyExtractor={(item) => item._id}

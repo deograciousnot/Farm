@@ -241,9 +241,22 @@ export type Organization = {
   description: string;
   website: string;
   logoUrl: string;
+  members: { user: { _id: string; name: string; email?: string; avatarUrl?: string }; addedAt: string }[];
+  verification: { status: "unverified" | "verified"; note: string; checkedAt: string | null };
   broadcasts: number;
   reach: number;
 };
+
+/** Someone signed in to the partner dashboard, and the organisations they can post for. */
+export type PartnerSession = {
+  partner: { id: string; name: string; email?: string; avatarUrl?: string };
+  organizations: (Pick<Organization, "_id" | "name" | "type" | "description" | "website" | "logoUrl" | "verification"> & {
+    sponsored: boolean;
+    weeklyAllowance: { limit: number; used: number } | null;
+  })[];
+};
+
+export type BroadcastStatus = "draft" | "pending" | "rejected" | "published" | "archived";
 
 export type BroadcastCategory = "advisory" | "pest-alert" | "weather" | "market" | "program" | "training";
 
@@ -261,7 +274,11 @@ export type BroadcastInput = {
 export type AdminBroadcast = Omit<BroadcastInput, "organization"> & {
   _id: string;
   organization: { _id: string; name: string; type: OrganizationType } | null;
-  status: "draft" | "published" | "archived";
+  kind: "official" | "sponsored";
+  status: BroadcastStatus;
+  submittedAt?: string | null;
+  submittedBy?: { name: string; email?: string } | null;
+  reviewNote?: string;
   publishedAt: string | null;
   publishedBy?: { name: string } | null;
   createdAt: string;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BarChart3, Bell, Flag, History, LayoutDashboard, Loader2, LogOut, Megaphone, MessageSquare, Newspaper, Package, RefreshCcw, Receipt, Shield, Users } from "lucide-react";
 
-import { api, setUnauthorizedHandler, tokenStore } from "./api";
+import { api, setUnauthorizedHandler, tokenStore, type DashboardSession } from "./api";
 import { Avatar, ConfirmProvider, ToastProvider, errorMessage } from "./components";
 import { AuditPage, FeedPage, NotificationsPage, ThreadsPage } from "./pages/ContentPages";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
@@ -9,14 +9,15 @@ import { BroadcastsPage } from "./pages/BroadcastsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ListingsPage, OrdersPage } from "./pages/MarketPages";
 import { OverviewPage } from "./pages/OverviewPage";
+import { PartnerApp } from "./pages/PartnerApp";
 import { ReportsPage } from "./pages/ReportsPage";
 import { UsersPage } from "./pages/UsersPage";
-import type { AdminProfile, OverviewResponse } from "./types";
+import type { OverviewResponse } from "./types";
 
 const tabs = [
   { key: "overview", label: "Overview", icon: LayoutDashboard, title: "Today", group: "Insights" },
   { key: "analytics", label: "Analytics", icon: BarChart3, title: "Analytics", group: "Insights" },
-  { key: "broadcasts", label: "Broadcasts", icon: Megaphone, title: "Official broadcasts", group: "Outreach" },
+  { key: "broadcasts", label: "Updates", icon: Megaphone, title: "Updates & partners", group: "Outreach" },
   { key: "reports", label: "Reports", icon: Flag, title: "Reports", group: "Trust & safety" },
   { key: "users", label: "People", icon: Users, title: "People & verification", group: "Trust & safety" },
   { key: "listings", label: "Listings", icon: Package, title: "Listings", group: "Marketplace" },
@@ -45,7 +46,8 @@ export function App() {
 }
 
 function AdminApp() {
-  const [admin, setAdmin] = useState<AdminProfile | null>(null);
+  const [session, setSession] = useState<DashboardSession | null>(null);
+  const admin = session?.kind === "admin" ? session.admin : null;
   const [isRestoring, setIsRestoring] = useState(Boolean(tokenStore.get()));
   const [tab, setTab] = useState<Tab>(tabFromHash);
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
@@ -53,7 +55,7 @@ function AdminApp() {
 
   const signOut = useCallback(() => {
     tokenStore.clear();
-    setAdmin(null);
+    setSession(null);
     setOverview(null);
   }, []);
 
@@ -66,8 +68,8 @@ function AdminApp() {
   useEffect(() => {
     if (!tokenStore.get()) return;
     api
-      .me()
-      .then(({ admin: profile }) => setAdmin(profile))
+      .session()
+      .then(setSession)
       .catch(() => tokenStore.clear())
       .finally(() => setIsRestoring(false));
   }, []);
@@ -104,9 +106,16 @@ function AdminApp() {
     );
   }
 
-  if (!admin) {
-    return <LoginPage onSignedIn={setAdmin} />;
+  if (!session) {
+    return <LoginPage onSignedIn={setSession} />;
   }
+
+  // Organisation staff get their own, smaller dashboard.
+  if (session.kind === "partner") {
+    return <PartnerApp session={session} onSignOut={signOut} />;
+  }
+
+  if (!admin) return null;
 
   const current = tabs.find((item) => item.key === tab) ?? tabs[0];
   const badges: Partial<Record<Tab, number>> = {
