@@ -1,4 +1,5 @@
 import { AdminAction } from "../../models/admin-action.model.js";
+import { Broadcast } from "../../models/broadcast.model.js";
 import { CommunityThread } from "../../models/community-thread.model.js";
 import { notRemoved } from "../../models/moderation-fields.js";
 import { Notification } from "../../models/notification.model.js";
@@ -6,6 +7,7 @@ import { Order } from "../../models/order.model.js";
 import { Post } from "../../models/post.model.js";
 import { Product } from "../../models/product.model.js";
 import { Report } from "../../models/report.model.js";
+import { ThreadReply } from "../../models/thread-reply.model.js";
 import { User } from "../../models/user.model.js";
 import {
   USER_FIELDS,
@@ -19,6 +21,25 @@ import { AppError } from "../../utils/app-error.js";
 import { asyncHandler } from "../../utils/async-handler.js";
 import { assertObjectId, escapeRegex, paginationMeta, parsePagination } from "../../utils/request.js";
 import { stuckOrderFilter } from "./market.controller.js";
+
+const TREND_DAYS = 14;
+const DAY_MS = 86_400_000;
+
+/** Nairobi calendar dates for the last TREND_DAYS days, oldest first. */
+function trendDays() {
+  const format = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi" });
+  return Array.from({ length: TREND_DAYS }, (_, index) => format.format(new Date(Date.now() - (TREND_DAYS - 1 - index) * DAY_MS)));
+}
+
+/** Daily counts of documents created, one number per day in `days` (missing days are 0). */
+async function dailyCounts(Model, days, match = {}) {
+  const rows = await Model.aggregate([
+    { $match: { ...match, createdAt: { $gte: new Date(Date.now() - (TREND_DAYS + 1) * DAY_MS) } } },
+    { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "Africa/Nairobi" } }, count: { $sum: 1 } } },
+  ]);
+  const byDay = new Map(rows.map((row) => [row._id, row.count]));
+  return days.map((day) => byDay.get(day) ?? 0);
+}
 
 function postSort(sort = "newest") {
   if (sort === "top-liked") return { likesCount: -1, createdAt: -1 };
@@ -53,6 +74,8 @@ export const getOverview = asyncHandler(async (_req, res) => {
     topPosts,
     topThreads,
     recentActions,
+    pendingBroadcasts,
+    growingCounties,
   ] = await Promise.all([
     User.countDocuments({ accountStatus: { $ne: "deleted" } }),
     User.countDocuments({ accountStatus: "suspended" }),
@@ -70,6 +93,22 @@ export const getOverview = asyncHandler(async (_req, res) => {
     Post.find(notRemoved).populate("author", USER_FIELDS).sort({ likesCount: -1, commentsCount: -1 }).limit(5).lean(),
     CommunityThread.find(notRemoved).populate("author", USER_FIELDS).sort({ repliesCount: -1, viewsCount: -1 }).limit(5).lean(),
     AdminAction.find().populate("admin", "name").sort({ createdAt: -1 }).limit(6).lean(),
+    Broadcast.countDocuments({ status: "pending" }),
+    // Where new members joined this week.
+    User.aggregate([
+      { $match: { createdAt: { $gte: new Date(Date.now() - 7 * DAY_MS) }, accountStatus: { $ne: "deleted" }, county: { $nin: [null, ""] } } },
+      { $group: { _id: "$county", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 6 },
+    ]),
+  ]);
+
+  const days = trendDays();
+  const [members, posts, answers, orders] = await Promise.all([
+    dailyCounts(User, days, { accountStatus: { $ne: "deleted" } }),
+    dailyCounts(Post, days, notRemoved),
+    dailyCounts(ThreadReply, days, notRemoved),
+    dailyCounts(Order, days),
   ]);
 
   res.json({
@@ -87,7 +126,11 @@ export const getOverview = asyncHandler(async (_req, res) => {
       totalOrders,
       pendingReports,
       stuckOrders,
+      pendingBroadcasts,
     },
+    // Daily counts for the last 14 days (oldest first): the Overview compares this week with last.
+    trends: { days, members, posts, answers, orders },
+    growingCounties: growingCounties.map((row) => ({ county: row._id, count: row.count })),
     topPosts,
     topThreads,
     recentActions,

@@ -99,7 +99,7 @@ export function BroadcastsPage() {
         {!editing ? (
           <button className="primary-button" onClick={() => setEditing({ input: emptyDraft(organizations[0]?._id) })} disabled={!organizations.length} title={organizations.length ? undefined : "Add an organisation first"}>
             <Plus size={16} />
-            New broadcast
+            New update
           </button>
         ) : null}
       </section>

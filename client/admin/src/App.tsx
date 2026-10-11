@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, Bell, Flag, History, LayoutDashboard, Loader2, LogOut, Megaphone, MessageSquare, Newspaper, Package, RefreshCcw, Receipt, Shield, Users } from "lucide-react";
+import { BarChart3, Bell, Flag, History, LayoutDashboard, Loader2, LogOut, Megaphone, MessageSquare, Newspaper, Package, Receipt, Shield, Users } from "lucide-react";
 
 import { api, setUnauthorizedHandler, tokenStore, type DashboardSession } from "./api";
 import { Avatar, ConfirmProvider, ToastProvider, errorMessage } from "./components";
@@ -168,19 +168,16 @@ function AdminApp() {
       </aside>
 
       <section className="workspace">
-        <header className="topbar">
-          <h1>{current.title}</h1>
-          {tab === "overview" ? (
-            <button className="refresh-button" onClick={() => void loadOverview()}>
-              <RefreshCcw size={17} />
-              Refresh
-            </button>
-          ) : null}
-        </header>
+        {/* The Overview has its own greeting header. */}
+        {tab !== "overview" ? (
+          <header className="topbar">
+            <h1>{current.title}</h1>
+          </header>
+        ) : null}
 
         {tab === "overview" ? (
           overview ? (
-            <OverviewPage data={overview} onNavigate={navigate} />
+            <OverviewPage data={overview} adminName={admin.name} onNavigate={navigate} onRefresh={() => void loadOverview()} />
           ) : overviewError ? (
             <div className="error-banner">{overviewError}</div>
           ) : (
@@ -189,16 +186,20 @@ function AdminApp() {
             </div>
           )
         ) : null}
-        {tab === "analytics" ? <AnalyticsPage /> : null}
-        {tab === "broadcasts" ? <BroadcastsPage /> : null}
-        {tab === "listings" ? <ListingsPage onChanged={() => void loadOverview()} /> : null}
-        {tab === "orders" ? <OrdersPage onChanged={() => void loadOverview()} /> : null}
-        {tab === "reports" ? <ReportsPage onChanged={() => void loadOverview()} /> : null}
-        {tab === "users" ? <UsersPage onChanged={() => void loadOverview()} /> : null}
-        {tab === "feed" ? <FeedPage onChanged={() => void loadOverview()} /> : null}
-        {tab === "threads" ? <ThreadsPage onChanged={() => void loadOverview()} /> : null}
-        {tab === "notifications" ? <NotificationsPage /> : null}
-        {tab === "audit" ? <AuditPage /> : null}
+        {tab !== "overview" ? (
+          <div className="page" key={tab}>
+            {tab === "analytics" ? <AnalyticsPage /> : null}
+            {tab === "broadcasts" ? <BroadcastsPage /> : null}
+            {tab === "listings" ? <ListingsPage onChanged={() => void loadOverview()} /> : null}
+            {tab === "orders" ? <OrdersPage onChanged={() => void loadOverview()} /> : null}
+            {tab === "reports" ? <ReportsPage onChanged={() => void loadOverview()} /> : null}
+            {tab === "users" ? <UsersPage onChanged={() => void loadOverview()} /> : null}
+            {tab === "feed" ? <FeedPage onChanged={() => void loadOverview()} /> : null}
+            {tab === "threads" ? <ThreadsPage onChanged={() => void loadOverview()} /> : null}
+            {tab === "notifications" ? <NotificationsPage /> : null}
+            {tab === "audit" ? <AuditPage /> : null}
+          </div>
+        ) : null}
       </section>
     </main>
   );

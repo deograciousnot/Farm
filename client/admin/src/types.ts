@@ -116,6 +116,9 @@ export type AdminAction = {
 
 export type OverviewResponse = {
   stats: Record<string, number>;
+  /** Daily counts for the last 14 days, oldest first. */
+  trends: { days: string[]; members: number[]; posts: number[]; answers: number[]; orders: number[] };
+  growingCounties: { county: string; count: number }[];
   topPosts: FeedPost[];
   topThreads: CommunityThread[];
   recentActions: AdminAction[];

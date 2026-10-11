@@ -86,8 +86,10 @@ export function PartnerApp({ session, onSignOut }: { session: PartnerSession; on
         <header className="topbar">
           <h1>{current.title}</h1>
         </header>
-        {tab === "updates" ? <UpdatesView key={organization._id} organization={organization} organizations={session.organizations} /> : null}
-        {tab === "organisation" ? <OrganisationView organization={organization} /> : null}
+        <div className="page" key={`${tab}-${organization._id}`}>
+          {tab === "updates" ? <UpdatesView organization={organization} organizations={session.organizations} /> : null}
+          {tab === "organisation" ? <OrganisationView organization={organization} /> : null}
+        </div>
       </section>
     </main>
   );
