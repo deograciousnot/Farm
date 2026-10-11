@@ -62,7 +62,7 @@
       "eas": {
         "projectId": "e3e3ac51-4cae-45c4-b210-9809ad7eb572"
       },
-      "sentryDsn": ""
+      "sentryDsn": "https://bf7a08ca1769d50321716f74b5320703@o4512238519386112.ingest.de.sentry.io/4512238536032336"
     },
     "owner": "notsyx",
     "runtimeVersion": {
