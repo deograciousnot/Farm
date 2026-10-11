@@ -1,10 +1,20 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { useEffect } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeInDown,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DriftingLeaves } from '@/components/brand/drifting-leaves';
 import { AppText } from '@/components/ui/app-text';
 import { Button } from '@/components/ui/button';
 import { Radius, ScreenPadding, Spacing } from '@/constants/theme';
@@ -45,43 +55,67 @@ export default function GetStartedScreen() {
   }
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.xxl, paddingBottom: insets.bottom + Spacing.lg }]}>
-      <Animated.View entering={FadeInDown.duration(400)} style={styles.brand}>
-        <Image source={require('@/assets/images/farmconnect-icon.png')} style={styles.logo} accessibilityLabel="FarmConnect logo" />
-        <AppText variant="overline" color="primary">
-          FarmConnect
-        </AppText>
-        <AppText variant="display">Farmers learning from farmers.</AppText>
-      </Animated.View>
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <DriftingLeaves />
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.xxl, paddingBottom: insets.bottom + Spacing.lg }]}>
+        <Animated.View entering={FadeInDown.duration(400)} style={styles.brand}>
+          <BreathingLogo />
+          <AppText variant="overline" color="primary">
+            FarmConnect
+          </AppText>
+          <AppText variant="display">Farmers learning from farmers.</AppText>
+        </Animated.View>
 
-      <View style={styles.promises}>
-        {promises.map((promise, index) => (
-          <Animated.View key={promise.title} entering={FadeInDown.delay(120 + index * 90).duration(400)} style={styles.promise}>
-            <View style={[styles.promiseIcon, { backgroundColor: colors.primarySoft }]}>
-              <Feather name={promise.icon} size={20} color={colors.primary} />
-            </View>
-            <View style={styles.promiseCopy}>
-              <AppText variant="subhead">{promise.title}</AppText>
-              <AppText variant="callout" color="textMuted">
-                {promise.body}
-              </AppText>
-            </View>
-          </Animated.View>
-        ))}
-      </View>
+        <View style={styles.promises}>
+          {promises.map((promise, index) => (
+            <Animated.View key={promise.title} entering={FadeInDown.delay(120 + index * 90).duration(400)} style={styles.promise}>
+              <View style={[styles.promiseIcon, { backgroundColor: colors.primarySoft }]}>
+                <Feather name={promise.icon} size={20} color={colors.primary} />
+              </View>
+              <View style={styles.promiseCopy}>
+                <AppText variant="subhead">{promise.title}</AppText>
+                <AppText variant="callout" color="textMuted">
+                  {promise.body}
+                </AppText>
+              </View>
+            </Animated.View>
+          ))}
+        </View>
 
-      <View style={styles.actions}>
-        <Button label="Create an account" onPress={() => goToAuth('signup')} fullWidth />
-        <Button label="I already have an account" variant="secondary" onPress={() => goToAuth('login')} fullWidth />
-        <Button label="Look around first" variant="ghost" onPress={browseAsGuest} fullWidth />
-      </View>
-    </ScrollView>
+        <Animated.View entering={FadeInDown.delay(480).duration(500)} style={styles.actions}>
+          <Button label="Create an account" onPress={() => goToAuth('signup')} fullWidth />
+          <Button label="I already have an account" variant="secondary" onPress={() => goToAuth('login')} fullWidth />
+          <Button label="Look around first" variant="ghost" onPress={browseAsGuest} fullWidth />
+        </Animated.View>
+      </ScrollView>
+    </View>
+  );
+}
+
+/** The app icon, breathing slowly. Still for people who ask for reduced motion. */
+function BreathingLogo() {
+  const reduceMotion = useReducedMotion();
+  const breath = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    breath.value = withRepeat(withTiming(1, { duration: 2800, easing: Easing.inOut(Easing.sin) }), -1, true);
+  }, [breath, reduceMotion]);
+
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: 1 + breath.value * 0.05 }, { rotate: `${(breath.value - 0.5) * 4}deg` }] }));
+
+  return (
+    <Animated.View style={[styles.logoWrap, style]}>
+      <Image source={require('@/assets/images/farmconnect-icon.png')} style={styles.logo} accessibilityLabel="FarmConnect logo" />
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  logoWrap: { alignSelf: 'flex-start' },
   content: { flexGrow: 1, paddingHorizontal: ScreenPadding + Spacing.xs, gap: Spacing.xxl, justifyContent: 'space-between' },
   brand: { gap: Spacing.sm },
   logo: { width: 56, height: 56, borderRadius: Radius.lg, marginBottom: Spacing.xs },

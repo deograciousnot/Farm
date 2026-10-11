@@ -6,9 +6,10 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import 'react-native-reanimated';
 
+import { AnimatedSplash } from '@/components/brand/animated-splash';
 import { appFonts } from '@/constants/fonts';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { useTheme } from '@/hooks/use-theme';
@@ -23,6 +24,8 @@ export const unstable_settings = {
 };
 
 void SplashScreen.preventAutoHideAsync();
+// Crossfade from the native splash into the animated one (same picture), hiding any tiny offset.
+SplashScreen.setOptions({ duration: 300, fade: true });
 configureNotifications();
 
 // Crash reporting is off until a Sentry DSN is set in app.json (extra.sentryDsn). No personal data is sent.
@@ -56,6 +59,9 @@ function RootLayout() {
 function AppShell() {
   const { scheme, colors } = useTheme();
   const { isLoading } = useSession();
+  const [showSplash, setShowSplash] = useState(true);
+  // Stable, so re-renders while the session loads don't restart the animation.
+  const hideSplash = useCallback(() => setShowSplash(false), []);
   usePushNotifications();
 
   useEffect(() => {
@@ -104,6 +110,7 @@ function AppShell() {
           <Stack.Screen name="product/[id]" />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
+        {showSplash ? <AnimatedSplash ready={!isLoading} onDone={hideSplash} /> : null}
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       </ToastProvider>
     </ThemeProvider>
