@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "com.farmconnect.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#1E6B47",
         "foregroundImage": "./assets/images/farmconnect-adaptive-foreground.png",

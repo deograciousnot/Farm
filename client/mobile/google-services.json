@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "802734294738",
+    "project_id": "harvest-hub-1zyt69",
+    "storage_bucket": "harvest-hub-1zyt69.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:802734294738:android:f23fffda1417840280cf0b",
+        "android_client_info": {
+          "package_name": "com.farmconnect.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDAEYWLH40zUHk14EJ8X0QogPxxR0pxcTM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
