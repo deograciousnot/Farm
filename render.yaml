@@ -37,6 +37,25 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
+      # M-Pesa payments (Safaricom Daraja). Without keys, payments are switched off in production.
+      - key: MPESA_ENV
+        value: sandbox
+      - key: MPESA_CONSUMER_KEY
+        sync: false
+      - key: MPESA_CONSUMER_SECRET
+        sync: false
+      - key: MPESA_SHORTCODE
+        sync: false
+      - key: MPESA_PASSKEY
+        sync: false
+      - key: MPESA_TRANSACTION_TYPE
+        sync: false
+      - key: MPESA_TILL_NUMBER
+        sync: false
+      - key: MPESA_CALLBACK_BASE_URL
+        sync: false
+      - key: MPESA_CALLBACK_SECRET
+        generateValue: true
 
   - type: web
     name: farmconnect-admin

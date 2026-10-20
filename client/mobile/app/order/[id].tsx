@@ -5,6 +5,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
 
+import { BuyerSafetyCard, ProblemSheet } from '@/components/orders/problem-sheet';
 import { ReviewSheet } from '@/components/orders/review-sheet';
 import { AppText } from '@/components/ui/app-text';
 import { OrderStatusBadge } from '@/components/ui/badge';
@@ -50,19 +51,20 @@ export default function OrderDetailScreen() {
       ) : !order.data?.item ? (
         <EmptyState icon="file-text" title="Order not found" />
       ) : (
-        <OrderBody order={order.data.item} remark={order.data.remark} />
+        <OrderBody order={order.data.item} remark={order.data.remark} problemReported={order.data.problemReported} />
       )}
     </View>
   );
 }
 
-function OrderBody({ order, remark }: { order: Order; remark: SellerRemark | null }) {
+function OrderBody({ order, remark, problemReported }: { order: Order; remark: SellerRemark | null; problemReported: boolean }) {
   const { colors } = useTheme();
   const { token, user } = useSession();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [pendingStatus, setPendingStatus] = useState<StatusUpdate | null>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isProblemOpen, setIsProblemOpen] = useState(false);
 
   const viewerId = getUserId(user);
   const isBuyer = viewerId === getUserId(order.buyer);
@@ -128,6 +130,8 @@ function OrderBody({ order, remark }: { order: Order; remark: SellerRemark | nul
           ) : null}
         </View>
       ) : null}
+
+      {isBuyer && order.status !== 'delivered' && order.status !== 'cancelled' ? <BuyerSafetyCard /> : null}
 
       <Section title="Progress">
         {order.status === 'cancelled' ? (
@@ -216,7 +220,21 @@ function OrderBody({ order, remark }: { order: Order; remark: SellerRemark | nul
         </Section>
       ) : null}
 
+      {isBuyer ? (
+        problemReported ? (
+          <Card tone="surfaceMuted" style={styles.cancelled}>
+            <Feather name="flag" size={16} color={colors.textMuted} />
+            <AppText variant="callout" color="textMuted" style={styles.flex}>
+              You reported a problem with this order. FarmConnect is looking into it.
+            </AppText>
+          </Card>
+        ) : (
+          <Button label="Problem with this order?" icon="flag" variant="ghost" onPress={() => setIsProblemOpen(true)} />
+        )
+      ) : null}
+
       <ReviewSheet order={isReviewOpen ? order : null} onClose={() => setIsReviewOpen(false)} />
+      <ProblemSheet orderId={order._id} visible={isProblemOpen} onClose={() => setIsProblemOpen(false)} />
     </ScrollView>
   );
 }

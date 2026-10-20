@@ -13,7 +13,14 @@ import { dismissBroadcast, getBroadcast, listBroadcasts } from "../controllers/b
 import { removePushToken, registerPushToken } from "../controllers/push.controller.js";
 import { getOrganization } from "../controllers/organizations.controller.js";
 import { createReport } from "../controllers/reports.controller.js";
-import { completeOrderWithRemark, createOrder, getOrderById, getOrders, updateOrderStatus } from "../controllers/orders.controller.js";
+import {
+  completeOrderWithRemark,
+  createOrder,
+  getOrderById,
+  getOrders,
+  reportProblemWithOrder,
+  updateOrderStatus,
+} from "../controllers/orders.controller.js";
 import {
   getPublicProfile,
   getMyProfile,
@@ -27,6 +34,7 @@ import { reactionLimiter, reportLimiter, writeLimiter } from "../middleware/rate
 import { upload } from "../middleware/upload.middleware.js";
 import adminRouter from "./admin.routes.js";
 import partnerRouter from "./partner.routes.js";
+import paymentsRouter from "./payments.routes.js";
 import authRouter from "./auth.routes.js";
 import marketplaceRouter from "./marketplace.routes.js";
 
@@ -43,6 +51,7 @@ apiRouter.use("/admin", adminRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/marketplace", marketplaceRouter);
 apiRouter.use("/partner", partnerRouter);
+apiRouter.use("/payments", paymentsRouter);
 apiRouter.post("/reports", requireAuth, reportLimiter, createReport);
 apiRouter.get("/broadcasts", attachUserIfPresent, listBroadcasts);
 apiRouter.get("/broadcasts/:id", attachUserIfPresent, getBroadcast);
@@ -66,6 +75,7 @@ apiRouter.post("/orders", requireAuth, writeLimiter, createOrder);
 apiRouter.get("/orders/:orderId", requireAuth, getOrderById);
 apiRouter.patch("/orders/:orderId/status", requireAuth, updateOrderStatus);
 apiRouter.post("/orders/:orderId/complete", requireAuth, completeOrderWithRemark);
+apiRouter.post("/orders/:orderId/problem", requireAuth, reportLimiter, reportProblemWithOrder);
 apiRouter.get("/profile/me", requireAuth, getMyProfile);
 apiRouter.get("/profile/:userId", attachUserIfPresent, getPublicProfile);
 apiRouter.patch("/profile/me", requireAuth, upload.single("avatar"), updateMyProfile);

@@ -16,6 +16,12 @@ const reportSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    // Set when a buyer reports a problem with an order (the report targets the seller).
+    order: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      default: null,
+    },
     reason: {
       type: String,
       required: true,
@@ -45,5 +51,6 @@ const reportSchema = new mongoose.Schema(
 
 reportSchema.index({ targetType: 1, target: 1, createdAt: -1 });
 reportSchema.index({ status: 1, createdAt: -1 });
+reportSchema.index({ order: 1, reporter: 1 }, { sparse: true });
 
 export const Report = mongoose.model("Report", reportSchema);

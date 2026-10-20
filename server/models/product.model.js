@@ -59,6 +59,11 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Set when the seller paid to boost the listing; null when an admin featured it (no end date).
+    featuredUntil: {
+      type: Date,
+      default: null,
+    },
     mediaUrls: {
       type: [String],
       default: [],
@@ -71,5 +76,6 @@ const productSchema = new mongoose.Schema(
 );
 
 productSchema.plugin(countyPlugin);
+productSchema.index({ featured: 1, featuredUntil: 1 });
 
 export const Product = mongoose.model("Product", productSchema);

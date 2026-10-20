@@ -6,6 +6,7 @@ import { formatNumber } from "../charts";
 import { Avatar, ListState, Pill, errorMessage, formatDate, useConfirm, useToast } from "../components";
 import type { AdminBroadcast, BroadcastInput, PartnerSession } from "../types";
 import { BroadcastComposer, audienceLabel, categories, emptyDraft } from "./BroadcastsPage";
+import { SponsoredCredits } from "./SponsoredCredits";
 
 type PartnerOrganization = PartnerSession["organizations"][number];
 
@@ -26,9 +27,19 @@ const statusPill: Record<AdminBroadcast["status"], { label: string; tone: "neutr
 
 /** The dashboard organisation staff see: their own updates and organisation, nothing else. */
 export function PartnerApp({ session, onSignOut }: { session: PartnerSession; onSignOut: () => void }) {
+  const [organizations, setOrganizations] = useState(session.organizations);
   const [organizationId, setOrganizationId] = useState(session.organizations[0]._id);
   const [tab, setTab] = useState<Tab>("updates");
-  const organization = session.organizations.find((item) => item._id === organizationId) ?? session.organizations[0];
+  const organization = organizations.find((item) => item._id === organizationId) ?? organizations[0];
+
+  // Credits and the weekly allowance change as updates are bought, submitted and published.
+  const refreshOrganizations = useCallback(async () => {
+    try {
+      setOrganizations((await api.partner.getProfile()).organizations);
+    } catch {
+      // Keep showing the last known figures.
+    }
+  }, []);
   const current = tabs.find((item) => item.key === tab) ?? tabs[0];
 
   return (
@@ -44,11 +55,11 @@ export function PartnerApp({ session, onSignOut }: { session: PartnerSession; on
               <span>Partners</span>
             </div>
           </div>
-          {session.organizations.length > 1 ? (
+          {organizations.length > 1 ? (
             <label className="field org-switcher">
               <span>Organisation</span>
               <select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}>
-                {session.organizations.map((item) => (
+                {organizations.map((item) => (
                   <option key={item._id} value={item._id}>
                     {item.name}
                   </option>
@@ -87,7 +98,7 @@ export function PartnerApp({ session, onSignOut }: { session: PartnerSession; on
           <h1>{current.title}</h1>
         </header>
         <div className="page" key={`${tab}-${organization._id}`}>
-          {tab === "updates" ? <UpdatesView organization={organization} organizations={session.organizations} /> : null}
+          {tab === "updates" ? <UpdatesView organization={organization} organizations={organizations} onOrganizationChange={refreshOrganizations} /> : null}
           {tab === "organisation" ? <OrganisationView organization={organization} /> : null}
         </div>
       </section>
@@ -95,7 +106,15 @@ export function PartnerApp({ session, onSignOut }: { session: PartnerSession; on
   );
 }
 
-function UpdatesView({ organization, organizations }: { organization: PartnerOrganization; organizations: PartnerOrganization[] }) {
+function UpdatesView({
+  organization,
+  organizations,
+  onOrganizationChange,
+}: {
+  organization: PartnerOrganization;
+  organizations: PartnerOrganization[];
+  onOrganizationChange: () => void;
+}) {
   const [items, setItems] = useState<AdminBroadcast[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -132,6 +151,7 @@ function UpdatesView({ organization, organizations }: { organization: PartnerOrg
             ? "Your updates appear with a Sponsored label, below official alerts, and don't send notifications."
             : "Approved updates notify everyone you target."}
           {allowance ? ` This week: ${allowance.used} of ${allowance.limit} sponsored updates published.` : ""}
+          {organization.sponsored ? " Sponsored updates are paid: buy credits below with M-Pesa." : ""}
         </p>
         {!editing ? (
           <button className="primary-button" onClick={() => setEditing({ input: emptyDraft(organization._id) })}>
@@ -140,6 +160,10 @@ function UpdatesView({ organization, organizations }: { organization: PartnerOrg
           </button>
         ) : null}
       </section>
+
+      {organization.sponsored ? (
+        <SponsoredCredits organizationId={organization._id} credits={organization.sponsoredCredits ?? 0} onChange={onOrganizationChange} />
+      ) : null}
 
       {editing ? (
         <BroadcastComposer
@@ -230,6 +254,7 @@ function UpdatesView({ organization, organizations }: { organization: PartnerOrg
                           try {
                             toast((await api.partner.submit(broadcast._id)).message);
                             await load();
+                            onOrganizationChange();
                           } catch (submitError) {
                             toast(errorMessage(submitError), "error");
                           }
@@ -246,6 +271,7 @@ function UpdatesView({ organization, organizations }: { organization: PartnerOrg
                         try {
                           toast((await api.partner.withdraw(broadcast._id)).message);
                           await load();
+                          onOrganizationChange();
                         } catch (withdrawError) {
                           toast(errorMessage(withdrawError), "error");
                         }

@@ -7,6 +7,7 @@ import { Comment } from "../models/comment.model.js";
 import { LikedPost } from "../models/liked-post.model.js";
 import { SavedPost } from "../models/saved-post.model.js";
 import { Notification } from "../models/notification.model.js";
+import { activeFeaturedFilter } from "../services/payments.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { assertCanPublish } from "../utils/spam-guard.js";
@@ -132,7 +133,7 @@ export const getFeed = asyncHandler(async (_req, res) => {
   const postIds = posts.map((post) => post._id);
 
   const [previewProducts, activeThreads, verifiedGrowers, comments, savedPosts, likedPosts] = await Promise.all([
-    Product.find({ featured: true, ...notRemoved }).populate("seller", "name location verificationStatus avatarUrl").limit(3),
+    Product.find({ ...activeFeaturedFilter(), ...notRemoved }).populate("seller", "name location verificationStatus avatarUrl").limit(3),
     CommunityThread.countDocuments(),
     User.countDocuments({ role: "farmer", verificationStatus: { $in: ["verified", "top-rated"] } }),
     Comment.find({ post: { $in: postIds }, ...notRemoved })

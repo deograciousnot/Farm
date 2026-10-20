@@ -28,6 +28,7 @@ export const queryKeys = {
   broadcast: (id: string) => ['broadcast', id] as const,
   organization: (id: string) => ['organization', id] as const,
   profile: (id: string) => ['profile', id] as const,
+  paymentPlans: ['payment-plans'] as const,
 };
 
 export type FeedPage = Awaited<ReturnType<typeof api.getFeed>>;
@@ -89,6 +90,15 @@ export function useMarketplace() {
       const [overview, listings] = await Promise.all([api.getMarketplaceOverview(), api.getProducts()]);
       return { filters: overview.filters, products: listings.items };
     },
+  });
+}
+
+export function usePaymentPlans(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.paymentPlans,
+    queryFn: () => api.getPaymentPlans(),
+    enabled,
+    staleTime: 10 * 60_000,
   });
 }
 

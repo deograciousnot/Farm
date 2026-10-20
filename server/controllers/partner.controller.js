@@ -1,12 +1,20 @@
 import { Broadcast } from "../models/broadcast.model.js";
 import { Organization } from "../models/organization.model.js";
 import { User } from "../models/user.model.js";
-import { SPONSORED_WEEKLY_LIMIT, audienceQuery, broadcastInput, parseList, withViewCounts } from "../services/broadcasts.js";
+import {
+  SPONSORED_WEEKLY_LIMIT,
+  audienceQuery,
+  broadcastInput,
+  holdSponsoredCredit,
+  parseList,
+  releaseSponsoredCredit,
+  withViewCounts,
+} from "../services/broadcasts.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { assertObjectId } from "../utils/request.js";
 
-const ORGANIZATION_FIELDS = "name type description website logoUrl verification";
+const ORGANIZATION_FIELDS = "name type description website logoUrl verification sponsoredCredits";
 
 /** Loads the organisation and checks the signed-in member belongs to it. */
 async function membership(req, organizationId) {
@@ -104,6 +112,10 @@ export const submitPartnerBroadcast = asyncHandler(async (req, res) => {
     throw new AppError("Only drafts can be submitted.", 400);
   }
 
+  if (broadcast.kind === "sponsored" && !broadcast.creditHeld) {
+    await holdSponsoredCredit(broadcast);
+  }
+
   broadcast.status = "pending";
   broadcast.submittedAt = new Date();
   broadcast.submittedBy = req.user._id;
@@ -119,9 +131,10 @@ export const withdrawPartnerBroadcast = asyncHandler(async (req, res) => {
     throw new AppError("Only updates waiting for review can be withdrawn.", 400);
   }
 
+  await releaseSponsoredCredit(broadcast);
   broadcast.status = "draft";
   await broadcast.save();
-  res.json({ message: "Withdrawn. It's a draft again.", item: broadcast });
+  res.json({ message: broadcast.kind === "sponsored" ? "Withdrawn. It's a draft again and your credit is back." : "Withdrawn. It's a draft again.", item: broadcast });
 });
 
 export const deletePartnerBroadcast = asyncHandler(async (req, res) => {

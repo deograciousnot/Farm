@@ -9,6 +9,31 @@ const ROLES = ["farmer", "buyer", "hobbyist"];
 // Companies may publish this many sponsored updates per rolling week, so the feed stays useful.
 export const SPONSORED_WEEKLY_LIMIT = 2;
 
+/**
+ * A company's update needs a paid credit to go up for review. Takes one atomically, so two submits
+ * can't share the last credit.
+ */
+export async function holdSponsoredCredit(broadcast) {
+  const organization = await Organization.findOneAndUpdate(
+    { _id: broadcast.organization, sponsoredCredits: { $gte: 1 } },
+    { $inc: { sponsoredCredits: -1 } },
+    { returnDocument: "after" }
+  );
+
+  if (!organization) {
+    throw new AppError("You're out of sponsored update credits. Buy a pack with M-Pesa, then submit again.", 402);
+  }
+
+  broadcast.creditHeld = true;
+}
+
+/** Gives the credit back when an update is withdrawn, sent back, or archived before it went out. */
+export async function releaseSponsoredCredit(broadcast) {
+  if (!broadcast.creditHeld) return;
+  await Organization.updateOne({ _id: broadcast.organization?._id ?? broadcast.organization }, { $inc: { sponsoredCredits: 1 } });
+  broadcast.creditHeld = false;
+}
+
 /** Companies' updates are always sponsored; public bodies' are official. */
 export function kindForOrganization(organization) {
   return organization?.type === "company" ? "sponsored" : "official";

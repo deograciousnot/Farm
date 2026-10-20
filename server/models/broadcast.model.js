@@ -26,6 +26,8 @@ const broadcastSchema = new mongoose.Schema(
     // Partners write drafts and submit them ("pending"); FarmConnect publishes or rejects them.
     status: { type: String, enum: ["draft", "pending", "rejected", "published", "archived"], default: "draft", index: true },
     submittedAt: { type: Date, default: null },
+    // True while a sponsored update waiting for review holds one of its company's paid credits.
+    creditHeld: { type: Boolean, default: false },
     submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     reviewNote: { type: String, default: "", trim: true, maxlength: 500 },
     publishedAt: { type: Date, default: null },

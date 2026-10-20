@@ -84,10 +84,36 @@ export type Product = {
   location: string;
   sellerType: string;
   featured?: boolean;
+  /** When a paid boost ends; null/absent when FarmConnect featured it. */
+  featuredUntil?: string | null;
   mediaUrls?: string[];
   seller: ApiUser;
   /** Set when the seller works for an organisation FarmConnect has verified (e.g. an input supplier). */
   supplier?: { _id: string; name: string; logoUrl?: string };
+};
+
+export type BoostPlan = { id: string; label: string; days: number; amount: number };
+
+export type PaymentPlans = {
+  /** False when M-Pesa isn't set up on the server yet. */
+  available: boolean;
+  /** True in development without Daraja keys: payments succeed on their own after a few seconds. */
+  simulated: boolean;
+  listingBoosts: BoostPlan[];
+};
+
+export type Payment = {
+  _id: string;
+  purpose: 'listing-boost' | 'sponsored-credits';
+  plan: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'paid' | 'failed' | 'cancelled';
+  receipt: string;
+  message: string;
+  simulated: boolean;
+  createdAt: string;
+  paidAt: string | null;
 };
 
 export type CommunityThread = {

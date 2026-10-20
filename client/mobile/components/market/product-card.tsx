@@ -42,6 +42,11 @@ export const ProductCard = memo(function ProductCard({ product }: { product: Pro
           <View style={styles.mediaBadge}>
             <Badge label="Sold out" tone="danger" />
           </View>
+        ) : product.featured ? (
+          // Paid boosts must be visible as promotion, not passed off as organic ranking.
+          <View style={styles.mediaBadge}>
+            <Badge label="Featured" tone="accent" icon="zap" />
+          </View>
         ) : null}
       </View>
 

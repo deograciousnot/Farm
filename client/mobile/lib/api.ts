@@ -10,6 +10,8 @@ import type {
   NotificationItem,
   Order,
   OrganizationProfile,
+  Payment,
+  PaymentPlans,
   Product,
   ProfileResponse,
   RegisterInput,
@@ -466,9 +468,10 @@ export const api = {
     return request<{ items: Order[] }>(`/orders${query}`, { token }).then((data) => ({ items: data.items.map(withParties) }));
   },
   getOrderById(token: string, orderId: string) {
-    return request<{ item: Order; remark: SellerRemark | null }>(`/orders/${orderId}`, { token }).then((data) => ({
+    return request<{ item: Order; remark: SellerRemark | null; problemReported?: boolean }>(`/orders/${orderId}`, { token }).then((data) => ({
       item: withParties(data.item),
       remark: withParties(data.remark),
+      problemReported: Boolean(data.problemReported),
     }));
   },
   updateOrderStatus(token: string, orderId: string, status: 'accepted' | 'in-transit' | 'cancelled') {
@@ -549,6 +552,18 @@ export const api = {
       formData,
       method: 'PATCH',
     });
+  },
+  reportOrderProblem(token: string, orderId: string, input: { problem: string; note: string }) {
+    return request<{ message: string }>(`/orders/${orderId}/problem`, { method: 'POST', token, body: input });
+  },
+  getPaymentPlans() {
+    return request<PaymentPlans>('/payments/plans');
+  },
+  boostListing(token: string, input: { productId: string; plan: string; phone: string }) {
+    return request<{ message: string; item: Payment }>('/payments/boost', { method: 'POST', token, body: input });
+  },
+  getPayment(token: string, id: string) {
+    return request<{ item: Payment }>(`/payments/${id}`, { token });
   },
   getSession(token: string) {
     return request<{ authenticated: boolean; user: ProfileResponse['profile'] }>('/auth/session', { token });

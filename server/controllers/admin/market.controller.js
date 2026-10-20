@@ -4,6 +4,7 @@ import { Report } from "../../models/report.model.js";
 import { User } from "../../models/user.model.js";
 import { USER_FIELDS, logAction, moderationFilter } from "../../services/moderation.js";
 import { notRemoved } from "../../models/moderation-fields.js";
+import { activeFeaturedFilter } from "../../services/payments.js";
 import { AppError } from "../../utils/app-error.js";
 import { asyncHandler } from "../../utils/async-handler.js";
 import { createNotification } from "../../utils/notifications.js";
@@ -28,7 +29,7 @@ export function stuckOrderFilter() {
 export const listProducts = asyncHandler(async (req, res) => {
   const pagination = parsePagination(req);
   const { search = "", category = "all", county = "all", status = "all", sort = "newest" } = req.query;
-  const filters = status === "featured" ? { featured: true, ...notRemoved } : moderationFilter(status);
+  const filters = status === "featured" ? { $and: [activeFeaturedFilter()], ...notRemoved } : moderationFilter(status);
 
   if (search.trim()) {
     const pattern = new RegExp(escapeRegex(search.trim()), "i");
@@ -93,6 +94,8 @@ export const featureProduct = asyncHandler(async (req, res) => {
   }
 
   product.featured = Boolean(req.body.featured);
+  // An admin pick has no end date; unfeaturing also ends any paid boost.
+  product.featuredUntil = null;
   await product.save();
   await logAction(req, {
     action: product.featured ? "product.feature" : "product.unfeature",

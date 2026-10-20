@@ -148,6 +148,21 @@ What admins can do:
 - **Partner report (CSV)**: aggregated county figures safe to share with partners. Counts under 5 show as "<5" and values from fewer than 5 orders are withheld, so no individual can be identified.
 - **Audit log**: every admin action, who took it, and why.
 
+### Payments (M-Pesa)
+
+FarmConnect earns from two things, both paid with M-Pesa STK push (Safaricom Daraja):
+
+- **Listing boosts**: a seller pays to show a listing first in the market and on Home (KES 50 for 3 days, 100 for a week, 300 for a month). Boosted listings are labelled "Featured", and boosting again adds days on to the end.
+- **Sponsored update credits**: companies buy credits in the partner dashboard (KES 5,000 for one, 20,000 for five). Submitting a sponsored update holds a credit, publishing spends it, and withdrawing or sending it back returns it.
+
+Prices live in `server/config/pricing.js`. The admin **Revenue** tab shows income and every payment attempt.
+
+Without Daraja keys, payments are simulated in development: the prompt "succeeds" after a few seconds and nothing is charged. Simulated payments never count toward revenue. To use the Daraja sandbox:
+
+1. Create an app at developer.safaricom.co.ke and put its consumer key and secret in `.env` (`MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`). Leave `MPESA_ENV=sandbox`; the test shortcode and passkey are the defaults.
+2. Set `MPESA_CALLBACK_BASE_URL` to this API's public https URL (the Render URL, or an ngrok tunnel locally) and `MPESA_CALLBACK_SECRET` to a long random string.
+3. For real money: get a paybill or till from Safaricom, "Go Live" on Daraja, then set `MPESA_ENV=production` with the live shortcode, passkey and keys (`MPESA_TRANSACTION_TYPE=CustomerBuyGoodsOnline` plus `MPESA_TILL_NUMBER` for a till).
+
 ### Regions
 
 Locations are free text, so the server maps them to Kenya's 47 counties (`server/utils/regions.js`) and stores the result as `county` on users, listings, posts and orders whenever they're saved. After deploying, fill in existing records once:

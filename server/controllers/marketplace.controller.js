@@ -2,6 +2,7 @@ import { Product } from "../models/product.model.js";
 import { notRemoved } from "../models/moderation-fields.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { activeFeaturedFilter } from "../services/payments.js";
 import { withSupplier } from "../services/suppliers.js";
 import { assertCanPublish } from "../utils/spam-guard.js";
 import { uploadManyToCloudinary } from "../utils/media-upload.js";
@@ -10,7 +11,7 @@ import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
 export const getMarketplaceOverview = asyncHandler(async (_req, res) => {
   let [featuredProducts, totalListings, verifiedSellerListings, wholesaleListings] = await Promise.all([
-    Product.find({ featured: true, ...notRemoved }).populate("seller", "name verificationStatus location role avatarUrl").limit(4),
+    Product.find({ ...activeFeaturedFilter(), ...notRemoved }).populate("seller", "name verificationStatus location role avatarUrl").limit(4),
     Product.countDocuments(notRemoved),
     Product.countDocuments({ sellerType: "farmer", ...notRemoved }),
     Product.countDocuments({ stock: { $gte: 100 }, ...notRemoved }),
@@ -47,7 +48,7 @@ export const getProducts = asyncHandler(async (req, res) => {
   }
 
   if (featured === "true") {
-    filters.featured = true;
+    filters.$and = [activeFeaturedFilter()];
   }
 
   if (search) {

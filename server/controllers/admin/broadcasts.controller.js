@@ -8,6 +8,7 @@ import {
   broadcastInput,
   kindForOrganization,
   parseList,
+  releaseSponsoredCredit,
   withViewCounts,
 } from "../../services/broadcasts.js";
 import { sendEmail } from "../../services/email.js";
@@ -254,6 +255,8 @@ export const publishBroadcast = asyncHandler(async (req, res) => {
     );
   }
 
+  // The held credit is now spent.
+  broadcast.creditHeld = false;
   broadcast.status = "published";
   broadcast.publishedAt = new Date();
   broadcast.publishedBy = req.user._id;
@@ -299,6 +302,7 @@ export const rejectBroadcast = asyncHandler(async (req, res) => {
     throw new AppError("Tell them what to change so they can fix it.", 400);
   }
 
+  await releaseSponsoredCredit(broadcast);
   broadcast.status = "rejected";
   broadcast.reviewNote = reason.slice(0, 500);
   await broadcast.save();
@@ -333,6 +337,7 @@ export const archiveBroadcast = asyncHandler(async (req, res) => {
     throw new AppError("Broadcast not found.", 404);
   }
 
+  await releaseSponsoredCredit(broadcast);
   broadcast.status = "archived";
   await broadcast.save();
   await logAction(req, { action: "broadcast.archive", targetType: "broadcast", target: broadcast._id, summary: broadcast.title });

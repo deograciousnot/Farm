@@ -256,7 +256,35 @@ export type PartnerSession = {
   organizations: (Pick<Organization, "_id" | "name" | "type" | "description" | "website" | "logoUrl" | "verification"> & {
     sponsored: boolean;
     weeklyAllowance: { limit: number; used: number } | null;
+    /** Paid sponsored updates left to submit (companies only). */
+    sponsoredCredits: number;
   })[];
+};
+
+export type RevenueWindow = { total: number; count: number; boosts: number; sponsored: number; customers: number };
+
+export type AdminPayment = Payment & {
+  phone: string;
+  user: { _id: string; name: string; email?: string; phone?: string } | null;
+  product?: { _id: string; name: string } | null;
+  organization?: { _id: string; name: string } | null;
+};
+
+export type SponsoredPack = { id: string; label: string; credits: number; amount: number };
+
+export type PaymentPlans = { available: boolean; simulated: boolean; sponsoredPacks: SponsoredPack[] };
+
+export type Payment = {
+  _id: string;
+  purpose: "listing-boost" | "sponsored-credits";
+  plan: string;
+  amount: number;
+  status: "pending" | "paid" | "failed" | "cancelled";
+  receipt: string;
+  message: string;
+  simulated: boolean;
+  createdAt: string;
+  paidAt: string | null;
 };
 
 export type BroadcastStatus = "draft" | "pending" | "rejected" | "published" | "archived";

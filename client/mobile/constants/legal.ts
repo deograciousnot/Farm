@@ -1,7 +1,7 @@
 // Where users reach a person. Shown in Settings, the legal pages, and suspension messages.
 export const SUPPORT_EMAIL = 'ardesamsco@gmail.com';
 
-export const LEGAL_UPDATED = '9 October 2026';
+export const LEGAL_UPDATED = '20 October 2026';
 
 export type LegalDoc = {
   title: string;
@@ -24,7 +24,19 @@ export const TERMS: LegalDoc = {
     },
     {
       heading: 'Buying and selling',
-      body: 'FarmConnect helps buyers and sellers find each other. We are not a party to any sale. Price, quality, delivery, and payment are agreed directly between you, and we do not hold or process payments. Confirm who you are dealing with before paying, and never pay someone who refuses to answer basic questions. A "Verified" badge means we confirmed the seller is a real person or business we could contact. It is not a guarantee of quality or delivery.',
+      body: 'FarmConnect helps buyers and sellers find each other. We are not a party to any sale. Price, quality, delivery, and payment for goods are agreed directly between you, and we never hold or pass on money for goods. Confirm who you are dealing with before paying, pay on delivery where you can, and never pay someone who refuses to answer basic questions. A "Verified" badge means we confirmed the seller is a real person or business we could contact. It is not a guarantee of quality or delivery. FarmConnect will never ask you to send money to us for goods; anyone who does is a scammer.',
+    },
+    {
+      heading: 'If an order goes wrong',
+      body: 'Because payment for goods goes straight to the seller, FarmConnect cannot refund it. If you paid and the goods never came, the goods were wrong, or the seller stopped responding, use "Problem with this order?" on the order. We review every report, and when several buyers report the same seller we take their listings down while we look into it. Sellers who take payment without delivering are suspended. If you were defrauded, also contact Safaricom (call 100 to ask about reversing an M-Pesa payment) and report it to the police.',
+    },
+    {
+      heading: 'Paid features',
+      body: 'Some features cost money and are paid to FarmConnect by M-Pesa: listing boosts for sellers, and sponsored updates for companies. Prices are shown before you pay. A boost shows a listing first in the market and on Home, labelled "Featured", for the time you paid for. It does not guarantee sales, and "Featured" means promoted, not recommended or checked by FarmConnect. Only verified sellers can boost. Sponsored updates are reviewed before they go out and are always labelled Sponsored.',
+    },
+    {
+      heading: 'Refunds for paid features',
+      body: 'If you paid but the boost or credits did not appear, contact us with your M-Pesa receipt and we will apply them or refund you. A sponsored update credit is returned if we send the update back or you withdraw it before it is published. Boosts are not refunded once they start, and a boost ends without a refund if the listing is removed for breaking these terms or the seller is suspended.',
     },
     {
       heading: 'Official broadcasts',

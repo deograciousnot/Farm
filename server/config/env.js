@@ -41,6 +41,22 @@ export const env = {
   // Email codes (Resend). Leave empty in development to print emails to the console.
   resendApiKey: process.env.RESEND_API_KEY || "",
   emailFrom: process.env.EMAIL_FROM || "FarmConnect <onboarding@resend.dev>",
+  // M-Pesa payments (Safaricom Daraja STK push). Leave the keys empty in development to simulate payments.
+  mpesa: {
+    environment: process.env.MPESA_ENV === "production" ? "production" : "sandbox",
+    consumerKey: process.env.MPESA_CONSUMER_KEY || "",
+    consumerSecret: process.env.MPESA_CONSUMER_SECRET || "",
+    // Sandbox defaults are Safaricom's public test shortcode and passkey.
+    shortcode: process.env.MPESA_SHORTCODE || "174379",
+    passkey: process.env.MPESA_PASSKEY || "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919",
+    // CustomerPayBillOnline for a paybill, CustomerBuyGoodsOnline for a till (then set MPESA_TILL_NUMBER).
+    transactionType: process.env.MPESA_TRANSACTION_TYPE || "CustomerPayBillOnline",
+    tillNumber: process.env.MPESA_TILL_NUMBER || "",
+    // Public https URL of this API, e.g. https://farmconnect-api.onrender.com. Safaricom posts results here.
+    callbackBaseUrl: (process.env.MPESA_CALLBACK_BASE_URL || "").replace(/\/$/, ""),
+    // Random string in the callback path so only Safaricom (who we give the URL to) can report payments.
+    callbackSecret: process.env.MPESA_CALLBACK_SECRET || "",
+  },
 };
 
 export function validateEnv() {

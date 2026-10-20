@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, Bell, Flag, History, LayoutDashboard, Loader2, LogOut, Megaphone, MessageSquare, Newspaper, Package, Receipt, Shield, Users } from "lucide-react";
+import { BarChart3, Bell, Flag, History, LayoutDashboard, Loader2, LogOut, Megaphone, MessageSquare, Newspaper, Package, Receipt, Shield, Users, Wallet } from "lucide-react";
 
 import { api, setUnauthorizedHandler, tokenStore, type DashboardSession } from "./api";
 import { Avatar, ConfirmProvider, ToastProvider, errorMessage } from "./components";
@@ -11,12 +11,14 @@ import { ListingsPage, OrdersPage } from "./pages/MarketPages";
 import { OverviewPage } from "./pages/OverviewPage";
 import { PartnerApp } from "./pages/PartnerApp";
 import { ReportsPage } from "./pages/ReportsPage";
+import { RevenuePage } from "./pages/RevenuePage";
 import { UsersPage } from "./pages/UsersPage";
 import type { OverviewResponse } from "./types";
 
 const tabs = [
   { key: "overview", label: "Overview", icon: LayoutDashboard, title: "Today", group: "Insights" },
   { key: "analytics", label: "Analytics", icon: BarChart3, title: "Analytics", group: "Insights" },
+  { key: "revenue", label: "Revenue", icon: Wallet, title: "Revenue", group: "Insights" },
   { key: "broadcasts", label: "Updates", icon: Megaphone, title: "Updates & partners", group: "Outreach" },
   { key: "reports", label: "Reports", icon: Flag, title: "Reports", group: "Trust & safety" },
   { key: "users", label: "People", icon: Users, title: "People & verification", group: "Trust & safety" },
@@ -189,6 +191,7 @@ function AdminApp() {
         {tab !== "overview" ? (
           <div className="page" key={tab}>
             {tab === "analytics" ? <AnalyticsPage /> : null}
+            {tab === "revenue" ? <RevenuePage /> : null}
             {tab === "broadcasts" ? <BroadcastsPage /> : null}
             {tab === "listings" ? <ListingsPage onChanged={() => void loadOverview()} /> : null}
             {tab === "orders" ? <OrdersPage onChanged={() => void loadOverview()} /> : null}

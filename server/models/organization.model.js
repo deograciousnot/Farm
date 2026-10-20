@@ -30,6 +30,8 @@ const organizationSchema = new mongoose.Schema(
       checkedAt: { type: Date, default: null },
       checkedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     },
+    // Paid sponsored updates a company has left. Submitting one holds a credit; sending it back returns it.
+    sponsoredCredits: { type: Number, default: 0, min: 0 },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }

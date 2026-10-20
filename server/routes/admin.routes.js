@@ -32,6 +32,7 @@ import {
   pinThread,
   updateReport,
 } from "../controllers/admin/moderation.controller.js";
+import { getRevenue } from "../controllers/admin/payments.controller.js";
 import { bulkDeleteUsers, listUsers, setStatus, setVerification } from "../controllers/admin/people.controller.js";
 import { seedDatabase } from "../data/seed.js";
 import { requireAdmin } from "../middleware/auth.middleware.js";
@@ -128,5 +129,6 @@ adminRouter.post("/broadcasts/:broadcastId/archive", archiveBroadcast);
 adminRouter.get("/notifications", listNotifications);
 adminRouter.delete("/notifications/:notificationId", deleteNotification);
 adminRouter.get("/audit", listAuditLog);
+adminRouter.get("/payments", getRevenue);
 
 export default adminRouter;

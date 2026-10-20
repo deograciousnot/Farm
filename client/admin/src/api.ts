@@ -15,6 +15,10 @@ import type {
   OverviewResponse,
   Paginated,
   PartnerSession,
+  AdminPayment,
+  RevenueWindow,
+  Payment,
+  PaymentPlans,
   Report,
 } from "./types";
 
@@ -193,7 +197,15 @@ export const api = {
     request<{ message: string; item: Organization }>(`/admin/organizations/${id}/members/${userId}`, { method: "DELETE" }),
   archiveBroadcast: (id: string) => request<{ message: string }>(`/admin/broadcasts/${id}/archive`, { method: "POST" }),
 
+  getRevenue: (params: { page?: number; status?: string }) =>
+    request<Paginated<AdminPayment> & { summary: { last30: RevenueWindow; previous30: RevenueWindow; allTime: RevenueWindow } }>(`/admin/payments${query(params)}`),
+  getPaymentPlans: () => request<PaymentPlans>("/payments/plans"),
+  getPayment: (id: string) => request<{ item: Payment }>(`/payments/${id}`),
+
   partner: {
+    getProfile: () => request<PartnerSession>("/partner/me"),
+    buyCredits: (input: { organization: string; plan: string; phone: string }) =>
+      request<{ message: string; item: Payment }>("/payments/sponsored-credits", { method: "POST", body: input }),
     getBroadcasts: (organization: string) => request<{ items: AdminBroadcast[] }>(`/partner/broadcasts${query({ organization })}`),
     getAudience: (organization: string, counties: string[], roles: string[]) =>
       request<{ count: number }>(`/partner/broadcasts/audience${query({ organization, counties: counties.join(","), roles: roles.join(",") })}`),

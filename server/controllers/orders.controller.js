@@ -1,7 +1,9 @@
 import { Order } from "../models/order.model.js";
 import { Product } from "../models/product.model.js";
 import { notRemoved } from "../models/moderation-fields.js";
+import { Report } from "../models/report.model.js";
 import { SellerRemark } from "../models/seller-remark.model.js";
+import { reportOrderProblem } from "../services/order-problems.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { createNotification } from "../utils/notifications.js";
@@ -59,9 +61,21 @@ export const getOrderById = asyncHandler(async (req, res) => {
     .populate("buyer", "name role location avatarUrl verificationStatus trustScore")
     .populate("seller", "name role location avatarUrl verificationStatus trustScore");
 
+  const isBuyer = String(order.buyer?._id) === String(req.user._id);
+  const problemReported = isBuyer ? Boolean(await Report.exists({ order: order._id, reporter: req.user._id })) : false;
+
   res.json({
     item: withMissingParties(order),
     remark: withMissingParties(remark),
+    problemReported,
+  });
+});
+
+/** The buyer tells FarmConnect an order went wrong (not delivered, wrong goods, seller vanished). */
+export const reportProblemWithOrder = asyncHandler(async (req, res) => {
+  await reportOrderProblem(req.user, req.params.orderId, req.body);
+  res.status(201).json({
+    message: "Thanks for telling us. FarmConnect will look into this seller, usually within a working day.",
   });
 });
 

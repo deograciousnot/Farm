@@ -5,6 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
+import { BoostSheet } from '@/components/market/boost-sheet';
+import { BuyerSafetyCard } from '@/components/orders/problem-sheet';
 import { AppText } from '@/components/ui/app-text';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -63,6 +65,7 @@ function ProductBody({ product }: { product: Product }) {
   const [deliveryContact, setDeliveryContact] = useState(user?.phone ?? '');
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBoostOpen, setIsBoostOpen] = useState(false);
 
   const isOwnListing = Boolean(user && getUserId(product.seller) === getUserId(user));
   const isOutOfStock = product.stock <= 0;
@@ -70,6 +73,11 @@ function ProductBody({ product }: { product: Product }) {
   const sellerIsVerified = product.seller.verificationStatus === 'verified' || product.seller.verificationStatus === 'top-rated';
   const images = product.mediaUrls ?? [];
   const galleryWidth = width - ScreenPadding * 2;
+  const boostEndsAt = product.featured && product.featuredUntil ? new Date(product.featuredUntil) : null;
+  // The server switches boosts off when they run out, so featured + an end date means it's live.
+  const isBoosted = Boolean(boostEndsAt);
+  const isFeaturedByFarmConnect = Boolean(product.featured && !product.featuredUntil);
+  const viewerIsVerified = user?.verificationStatus === 'verified' || user?.verificationStatus === 'top-rated';
 
   async function requestOrder() {
     const token = requireSignIn('Sign in to request an order from this seller.');
@@ -116,6 +124,7 @@ function ProductBody({ product }: { product: Product }) {
       <View style={styles.summary}>
         <View style={styles.badges}>
           <Badge label={product.category} tone="primary" />
+          {product.featured ? <Badge label="Featured" tone="accent" icon="zap" /> : null}
           {isOutOfStock ? <Badge label="Sold out" tone="danger" /> : <Badge label={`${product.stock} ${product.unit} available`} />}
         </View>
         <AppText variant="title">{product.name}</AppText>
@@ -172,7 +181,7 @@ function ProductBody({ product }: { product: Product }) {
           <AppText variant="label">How ordering works</AppText>
         </View>
         <AppText variant="callout" color="textMuted">
-          FarmConnect records your request and tracks it until delivery. You pay the seller directly — nothing is charged in the app.
+          FarmConnect records your request and tracks it until delivery. You pay the seller directly; FarmConnect never handles money for goods.
         </AppText>
         {sellerIsVerified && sellerPhone ? (
           <Button
@@ -191,9 +200,50 @@ function ProductBody({ product }: { product: Product }) {
       </Card>
 
       {isOwnListing ? (
-        <EmptyState icon="tag" title="This is your listing" body="Buyers' requests for it show up under Orders → Sales." />
+        <>
+          <Card tone={isBoosted ? 'accentSoft' : 'surface'}>
+            <View style={styles.policyTitle}>
+              <Feather name="zap" size={16} color={colors.accent} />
+              <AppText variant="label">
+                {isBoosted
+                  ? `Boosted until ${boostEndsAt!.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}`
+                  : isFeaturedByFarmConnect
+                    ? 'Featured by FarmConnect'
+                    : 'Sell faster with a boost'}
+              </AppText>
+            </View>
+            <AppText variant="callout" color="textMuted">
+              {isFeaturedByFarmConnect
+                ? 'FarmConnect picked this listing to show first in the market.'
+                : !viewerIsVerified && !isBoosted
+                  ? "Show this listing first in the market and on buyers' Home feed. Boosts are for verified sellers, so buyers can trust what's promoted. Ask FarmConnect to verify you."
+                  : isBoosted
+                  ? 'Your listing shows first in the market and on Home. Boost again to add more days.'
+                  : "Show this listing first in the market and on buyers' Home feed. Pay with M-Pesa, from KES 50."}
+            </AppText>
+            {isFeaturedByFarmConnect || !viewerIsVerified ? null : (
+              <Button
+                label={isBoosted ? 'Add more days' : 'Boost listing'}
+                icon="zap"
+                size="sm"
+                variant={isBoosted ? 'secondary' : 'primary'}
+                disabled={isOutOfStock}
+                onPress={() => setIsBoostOpen(true)}
+                style={styles.callButton}
+              />
+            )}
+            {isOutOfStock && !isFeaturedByFarmConnect ? (
+              <AppText variant="caption" color="textSubtle">
+                Add stock before boosting.
+              </AppText>
+            ) : null}
+          </Card>
+          <EmptyState icon="tag" title="This is your listing" body="Buyers' requests for it show up under Orders → Sales." />
+          <BoostSheet product={product} visible={isBoostOpen} onClose={() => setIsBoostOpen(false)} />
+        </>
       ) : isOutOfStock ? null : (
         <Section title="Request an order">
+          <BuyerSafetyCard />
           <View style={styles.quantityRow}>
             <AppText variant="label">Quantity ({product.unit})</AppText>
             <QuantityStepper value={quantity} onChange={setQuantity} max={product.stock} />
