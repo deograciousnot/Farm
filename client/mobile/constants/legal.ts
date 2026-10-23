@@ -12,7 +12,7 @@ export type LegalDoc = {
 export const TERMS: LegalDoc = {
   title: 'Terms of use',
   intro:
-    'FarmConnect is run by Ardesams, a Kenyan company. By creating an account or using the app you agree to these terms. FarmConnect is in early testing, so features may change and things may occasionally break.',
+    'FarmConnect is an independent project run by its founder in Kenya ("we" in these terms). By creating an account or using the app you agree to these terms. FarmConnect is in early testing, so features may change and things may occasionally break.',
   sections: [
     {
       heading: 'Who can use FarmConnect',
@@ -72,7 +72,7 @@ export const TERMS: LegalDoc = {
 export const PRIVACY: LegalDoc = {
   title: 'Privacy policy',
   intro:
-    'This explains what FarmConnect collects, why, and your rights under the Kenya Data Protection Act, 2019. FarmConnect is run by Ardesams, which is the data controller for your information.',
+    'This explains what FarmConnect collects, why, and your rights under the Kenya Data Protection Act, 2019. FarmConnect is run by its founder in Kenya, who is the data controller for your information.',
   sections: [
     {
       heading: 'What we collect',
