@@ -1,5 +1,24 @@
 import { env } from "../config/env.js";
+import { SmsLog } from "../models/sms-log.model.js";
 import { AppError } from "../utils/app-error.js";
+
+/**
+ * App-wide ceiling on texts per hour. Per-number and per-network limits stop one person; this stops
+ * someone cycling through many numbers and networks from draining the Africa's Talking balance
+ * ("SMS pumping"). Raise SMS_HOURLY_LIMIT on Render as sign-ups grow.
+ */
+const SMS_HOURLY_LIMIT = Number(process.env.SMS_HOURLY_LIMIT) || 100;
+
+async function assertWithinHourlyBudget() {
+  const sentLastHour = await SmsLog.countDocuments({ createdAt: { $gte: new Date(Date.now() - 60 * 60 * 1000) } });
+
+  if (sentLastHour >= SMS_HOURLY_LIMIT) {
+    console.error(`SMS hourly limit reached (${SMS_HOURLY_LIMIT}). If this is real demand, raise SMS_HOURLY_LIMIT on Render.`);
+    throw new AppError("Lots of people are signing in right now. Please try again in a few minutes, or sign in with email.", 503);
+  }
+
+  await SmsLog.create({});
+}
 
 /**
  * Sends SMS through Africa's Talking. Without credentials (local development), messages are printed
@@ -49,6 +68,8 @@ export async function sendSms(to, message) {
     console.log(`[sms:console] to ${to}: ${message}`);
     return { delivered: false, console: true };
   }
+
+  await assertWithinHourlyBudget();
 
   const host = env.africasTalkingUsername === "sandbox" ? "api.sandbox.africastalking.com" : "api.africastalking.com";
   const body = new URLSearchParams({ username: env.africasTalkingUsername, to, message });

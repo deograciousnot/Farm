@@ -32,6 +32,9 @@ services:
         sync: false
       - key: AT_SENDER_ID
         sync: false
+      # Most texts per hour across everyone; stops SMS pumping from draining the balance.
+      - key: SMS_HOURLY_LIMIT
+        value: "100"
       # Email confirmation and password-reset codes (Resend)
       - key: RESEND_API_KEY
         sync: false
