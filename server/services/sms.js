@@ -16,6 +16,31 @@ export function smsIsLive() {
   return Boolean(env.africasTalkingUsername && env.africasTalkingApiKey);
 }
 
+/**
+ * Turns an Africa's Talking failure into a message the member can act on. Only a bad number is the
+ * member's to fix; blocked lines and our own setup problems point them to email instead.
+ */
+function smsFailure(httpStatus, recipientStatus) {
+  if (recipientStatus === "UserInBlacklist" || recipientStatus === "DoNotDisturbRejection") {
+    return new AppError(
+      "Your line blocks promotional texts, so our code can't reach you. On Safaricom, dial *456*9*5# to allow them, or sign in with email instead.",
+      422
+    );
+  }
+
+  if (recipientStatus === "InvalidPhoneNumber") {
+    return new AppError("That number can't receive texts. Please check it and try again.", 400);
+  }
+
+  if (httpStatus === 401) {
+    console.error("Africa's Talking rejected the credentials: check AT_USERNAME and AT_API_KEY are from the same live app.");
+  } else if (recipientStatus === "InsufficientBalance") {
+    console.error("Africa's Talking balance is empty: top up via Paybill 525900, account = AT_USERNAME.");
+  }
+
+  return new AppError("Text messages aren't working right now. Please sign in with email, or try again later.", 503);
+}
+
 export async function sendSms(to, message) {
   if (!smsIsLive()) {
     if (env.nodeEnv === "production") {
@@ -40,7 +65,7 @@ export async function sendSms(to, message) {
   // Africa's Talking returns 2xx even for some per-recipient failures, so check the recipient status too.
   if (!response.ok || !recipient || !["Success", "Sent"].includes(recipient.status)) {
     console.error("SMS send failed", response.status, JSON.stringify(data));
-    throw new AppError("We couldn't send the text message. Please check the number and try again.", 502);
+    throw smsFailure(response.status, recipient?.status);
   }
 
   return { delivered: true, console: false };
