@@ -49,7 +49,10 @@ export function RevenuePage() {
         <div className="card-head with-controls">
           <div>
             <h2>Payments</h2>
-            <p>Every M-Pesa prompt sent. Payments marked Test were simulated in development and aren&apos;t counted above.</p>
+            <p>
+              Every M-Pesa prompt sent, plus payments recorded by hand from Updates → Organisations. Payments marked Test were simulated in
+              development and aren&apos;t counted above.
+            </p>
           </div>
           <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Payment status">
             <option value="all">All payments</option>
@@ -69,12 +72,14 @@ export function RevenuePage() {
                     {payment.status}
                   </Pill>
                   {payment.simulated ? <Pill>Test</Pill> : null}
+                  {payment.method === "manual" ? <Pill>Recorded by hand</Pill> : null}
                   <strong>{formatKes(payment.amount)}</strong>
                 </div>
                 <p>{describePayment(payment)}</p>
                 <small className="muted">
                   {payment.user?.name ?? "Deleted account"}
                   {payment.receipt ? ` · receipt ${payment.receipt}` : ""}
+                  {payment.method === "manual" && payment.note ? ` · ${payment.note}` : ""}
                   {payment.status !== "paid" && payment.message ? ` · ${payment.message}` : ""}
                 </small>
               </div>

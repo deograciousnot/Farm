@@ -65,3 +65,22 @@ services:
     envVars:
       - key: VITE_API_URL
         sync: false
+    # Keep in step with securityHeaders in client/admin/vite.config.ts (`npm run preview` tests them locally).
+    headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://*.onrender.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+      # The admin can't be shown inside another site, so nobody can trick an admin into clicking hidden buttons.
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      # Keep the admin login page out of search engines.
+      - path: /*
+        name: X-Robots-Tag
+        value: noindex, nofollow
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=()

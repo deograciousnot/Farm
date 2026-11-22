@@ -10,6 +10,7 @@ import {
   listBroadcasts,
   listOrganizations,
   addOrganizationMember,
+  addSponsoredCredits,
   publishBroadcast,
   rejectBroadcast,
   removeOrganizationMember,
@@ -117,6 +118,7 @@ adminRouter.post("/organizations", createOrganization);
 adminRouter.patch("/organizations/:organizationId", updateOrganization);
 adminRouter.patch("/organizations/:organizationId/verification", setOrganizationVerification);
 adminRouter.post("/organizations/:organizationId/members", addOrganizationMember);
+adminRouter.post("/organizations/:organizationId/credits", addSponsoredCredits);
 adminRouter.delete("/organizations/:organizationId/members/:userId", removeOrganizationMember);
 adminRouter.get("/broadcasts", listBroadcasts);
 adminRouter.get("/broadcasts/audience", getAudience);

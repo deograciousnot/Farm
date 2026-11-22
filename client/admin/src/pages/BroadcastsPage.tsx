@@ -627,6 +627,56 @@ function OrganizationsPanel({ organizations, onChanged }: { organizations: Organ
   );
 }
 
+/**
+ * Sponsored credits for a company that paid outside the app (cash, bank, or M-Pesa sent straight to you).
+ * A paid amount shows in Revenue as "Recorded by hand"; 0 is a free grant and needs a reason.
+ */
+function CreditsPanel({ organization, onChanged }: { organization: Organization; onChanged: () => void }) {
+  const toast = useToast();
+  const [credits, setCredits] = useState("1");
+  const [amount, setAmount] = useState("5000");
+  const [receipt, setReceipt] = useState("");
+  const [note, setNote] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const isFree = Number(amount) === 0;
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setIsSaving(true);
+    try {
+      toast((await api.addSponsoredCredits(organization._id, { credits: Number(credits), amount: Number(amount), receipt: receipt.trim(), note: note.trim() })).message);
+      setReceipt("");
+      setNote("");
+      onChanged();
+    } catch (saveError) {
+      toast(errorMessage(saveError), "error");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <div className="member-list">
+      <span className="member-heading">Sponsored credits: {organization.sponsoredCredits ?? 0} left</span>
+      <small className="muted">Paid you outside the app? Record it here to add credits. It shows in Revenue and the audit log.</small>
+      <form className="member-add credits-add" onSubmit={submit}>
+        <input type="number" min={1} max={50} value={credits} onChange={(event) => setCredits(event.target.value)} aria-label="Credits to add" title="Credits" />
+        <input type="number" min={0} value={amount} onChange={(event) => setAmount(event.target.value)} aria-label="Amount paid in KES" title="KES paid (0 = free)" />
+        <input
+          value={isFree ? note : receipt}
+          onChange={(event) => (isFree ? setNote(event.target.value) : setReceipt(event.target.value))}
+          placeholder={isFree ? "Why free? e.g. Launch trial" : "M-Pesa or bank receipt"}
+          aria-label={isFree ? "Reason for free credits" : "Payment receipt"}
+        />
+        <button className="ghost" type="submit" disabled={isSaving || !Number(credits) || (isFree ? !note.trim() : !receipt.trim())}>
+          <Plus size={15} />
+          Add credits
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function OrganizationRow({ organization, onEdit, onChanged }: { organization: Organization; onEdit: () => void; onChanged: () => void }) {
   const [memberEmail, setMemberEmail] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -715,6 +765,8 @@ function OrganizationRow({ organization, onEdit, onChanged }: { organization: Or
             </button>
           </form>
         </div>
+
+        {organization.type === "company" ? <CreditsPanel organization={organization} onChanged={onChanged} /> : null}
       </div>
       <div className="actions">
         <button className="ghost" onClick={onEdit}>

@@ -193,6 +193,9 @@ export const api = {
     request<{ message: string; item: Organization }>(`/admin/organizations/${id}/verification`, { method: "PATCH", body: { status, note } }),
   addOrganizationMember: (id: string, email: string) =>
     request<{ message: string; item: Organization }>(`/admin/organizations/${id}/members`, { method: "POST", body: { email } }),
+  /** Credits for a company that paid outside the app; amount 0 is a free grant and needs a note. */
+  addSponsoredCredits: (id: string, input: { credits: number; amount: number; receipt: string; note: string }) =>
+    request<{ message: string; item: Organization }>(`/admin/organizations/${id}/credits`, { method: "POST", body: input }),
   removeOrganizationMember: (id: string, userId: string) =>
     request<{ message: string; item: Organization }>(`/admin/organizations/${id}/members/${userId}`, { method: "DELETE" }),
   archiveBroadcast: (id: string) => request<{ message: string }>(`/admin/broadcasts/${id}/archive`, { method: "POST" }),

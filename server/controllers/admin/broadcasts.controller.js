@@ -1,4 +1,7 @@
+import mongoose from "mongoose";
+
 import { Broadcast } from "../../models/broadcast.model.js";
+import { Payment } from "../../models/payment.model.js";
 import { Notification } from "../../models/notification.model.js";
 import { Organization } from "../../models/organization.model.js";
 import { User } from "../../models/user.model.js";
@@ -117,6 +120,75 @@ export const setOrganizationVerification = asyncHandler(async (req, res) => {
   });
 
   res.json({ message: status === "verified" ? "Marked as verified." : "Verification removed.", item: await populatedOrganization(organization._id) });
+});
+
+/**
+ * Adds sponsored-update credits for a company that paid outside the app (cash, bank, or M-Pesa sent straight
+ * to FarmConnect). A paid amount is recorded as a manual payment so it shows in Revenue; an amount of 0 is a
+ * free grant (e.g. a trial) and only appears in the audit log.
+ */
+export const addSponsoredCredits = asyncHandler(async (req, res) => {
+  const organization = await findOrganization(req.params.organizationId);
+  const credits = Number(req.body.credits);
+  const amount = Number(req.body.amount ?? 0);
+  const receipt = String(req.body.receipt ?? "").trim().slice(0, 40);
+  const note = String(req.body.note ?? "").trim().slice(0, 300);
+
+  if (organization.type !== "company") {
+    throw new AppError("Only companies use sponsored credits. Official updates from public bodies and NGOs are free.", 400);
+  }
+
+  if (!Number.isInteger(credits) || credits < 1 || credits > 50) {
+    throw new AppError("Add between 1 and 50 credits.", 400);
+  }
+
+  if (!Number.isInteger(amount) || amount < 0 || amount > 1_000_000) {
+    throw new AppError("Enter the amount paid in whole shillings, or 0 for free credits.", 400);
+  }
+
+  if (amount > 0 && !receipt) {
+    throw new AppError("Enter the M-Pesa or bank receipt, so this payment can be traced later.", 400);
+  }
+
+  if (amount === 0 && !note) {
+    throw new AppError("Say why these credits are free, for example \"Launch trial\".", 400);
+  }
+
+  if (amount > 0) {
+    // Revenue counts payers by user; use the company's first staff member, or the admin if it has none yet.
+    const payer = organization.members?.[0]?.user ?? req.user._id;
+    await Payment.create({
+      user: payer,
+      purpose: "sponsored-credits",
+      plan: `manual-${credits}`,
+      organization: organization._id,
+      amount,
+      phone: "manual",
+      checkoutRequestId: `manual-${new mongoose.Types.ObjectId()}`,
+      receipt,
+      status: "paid",
+      method: "manual",
+      recordedBy: req.user._id,
+      note,
+      resultDesc: `Recorded by ${req.user.name}`,
+      paidAt: new Date(),
+      fulfilledAt: new Date(),
+    });
+  }
+
+  await Organization.updateOne({ _id: organization._id }, { $inc: { sponsoredCredits: credits } });
+  await logAction(req, {
+    action: "organization.credits",
+    targetType: "organization",
+    target: organization._id,
+    summary: `${organization.name}: +${credits} sponsored credit${credits === 1 ? "" : "s"}${amount ? ` for KES ${amount.toLocaleString("en-KE")} (receipt ${receipt})` : " (free)"}`,
+    reason: note,
+  });
+
+  res.json({
+    message: `Added ${credits} credit${credits === 1 ? "" : "s"} to ${organization.name}.`,
+    item: await populatedOrganization(organization._id),
+  });
 });
 
 /** Gives a FarmConnect account access to this organisation's partner dashboard. */

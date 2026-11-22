@@ -1647,3 +1647,12 @@ button.ghost.small {
 .org-switcher {
   margin: 16px 0 4px;
 }
+
+/* Recording a payment made outside the app: two short number fields, then the receipt. */
+.credits-add input {
+  padding-left: 12px;
+}
+
+.credits-add input[type="number"] {
+  flex: 0 0 110px;
+}

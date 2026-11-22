@@ -22,6 +22,11 @@ const paymentSchema = new mongoose.Schema(
     resultCode: { type: String, default: "" },
     resultDesc: { type: String, default: "" },
     simulated: { type: Boolean, default: false },
+    // "mpesa-stk": the in-app PIN prompt. "manual": paid outside the app (cash, bank, M-Pesa to the till
+    // directly) and recorded by an admin, who is named in recordedBy.
+    method: { type: String, enum: ["mpesa-stk", "manual"], default: "mpesa-stk" },
+    recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    note: { type: String, default: "", trim: true },
     lastQueriedAt: { type: Date, default: null },
     paidAt: { type: Date, default: null },
     fulfilledAt: { type: Date, default: null },

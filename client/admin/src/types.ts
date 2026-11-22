@@ -248,6 +248,8 @@ export type Organization = {
   verification: { status: "unverified" | "verified"; note: string; checkedAt: string | null };
   broadcasts: number;
   reach: number;
+  /** Paid sponsored updates the company has left (companies only). */
+  sponsoredCredits?: number;
 };
 
 /** Someone signed in to the partner dashboard, and the organisations they can post for. */
@@ -268,6 +270,9 @@ export type AdminPayment = Payment & {
   user: { _id: string; name: string; email?: string; phone?: string } | null;
   product?: { _id: string; name: string } | null;
   organization?: { _id: string; name: string } | null;
+  /** "manual" when an admin recorded a payment made outside the app. */
+  method?: "mpesa-stk" | "manual";
+  note?: string;
 };
 
 export type SponsoredPack = { id: string; label: string; credits: number; amount: number };

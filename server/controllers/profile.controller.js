@@ -1,3 +1,4 @@
+import { env } from "../config/env.js";
 import { Notification } from "../models/notification.model.js";
 import { Order } from "../models/order.model.js";
 import { Post } from "../models/post.model.js";
@@ -151,7 +152,19 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
   }
 
   if (typeof phone === "string") {
-    req.user.phone = phone.trim().slice(0, 20);
+    const nextPhone = phone.trim().slice(0, 20);
+    const isVerified = ["verified", "top-rated"].includes(req.user.verificationStatus);
+
+    // Buyers trust a verified seller's number because FarmConnect checked it; swapping it afterwards
+    // would carry the badge over to a number nobody checked.
+    if (isVerified && nextPhone !== req.user.phone) {
+      throw new AppError(
+        `Verified sellers can't change their phone number in the app. Contact ${env.supportEmail} and we'll update it after checking the new number.`,
+        403
+      );
+    }
+
+    req.user.phone = nextPhone;
   }
 
   if (interests !== undefined) {
