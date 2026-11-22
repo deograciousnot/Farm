@@ -7,23 +7,23 @@ The primary product is the mobile app. The backend is the shared system engine. 
 ## Product hierarchy
 
 1. `client/mobile`
-   Expo mobile app for the main user journey
+   Expo mobile app for the main user journey (Android first)
 2. `server`
-   Shared backend for mobile and future web
-3. `client/web` (planned)
-   Secondary dashboard layer for admin and support use cases
+   Express + MongoDB API shared by the mobile app and the dashboard
+3. `client/admin`
+   Web dashboard for admins (moderation, verification, analytics, broadcasts, revenue) and partner organisations (sponsored updates)
 
 ## Mobile-first product direction
 
-The core FarmConnect experience should center on:
+The core FarmConnect experience centers on:
 
-- onboarding and authentication
-- a mixed home feed for knowledge, listings, and trending content
-- marketplace transactions
+- onboarding and authentication (phone code or email)
+- a mixed home feed for knowledge, listings, and official updates
+- marketplace listings and order requests
 - community discussions and Q&A
-- order tracking
+- order tracking and seller ratings
 - profile identity and reputation
-- notifications
+- notifications, including push
 
 Bottom navigation should remain:
 
@@ -35,55 +35,24 @@ Bottom navigation should remain:
 
 Path: `client/mobile`
 
-Current role:
-
-- main user interface for Android and iOS
-- feed-first discovery experience
-- marketplace browsing and ordering
-- community participation
-- trust and profile visibility
-
-Recommended stack direction:
-
-- Expo
-- Expo Router / React Navigation
-- Axios for API calls
-- Lottie for splash and loading animation
+- Expo with Expo Router
+- TanStack Query for API data and caching
+- Sign-in token kept in the phone's encrypted keystore (`expo-secure-store`)
+- Over-the-air updates through EAS Update; native changes (new modules) need a new build and a version bump
 
 ### Backend
 
 Path: `server`
 
-Current role:
-
-- Express API
-- shared business logic for mobile and future web
-- authentication, listings, orders, community, notifications, and reputation services
-
-Stack:
-
-- Node.js
-- Express
-- MongoDB
-- JWT auth
-
-Planned integrations:
-
-- Cloudinary for images
-- Flutterwave or Paystack for payments later
+- Node.js, Express, MongoDB (Mongoose), JWT auth
+- Cloudinary for images and video
+- Africa's Talking for SMS sign-in codes, Resend for email codes
+- M-Pesa (Safaricom Daraja STK push) for listing boosts and sponsored-update credits
+- Expo push notifications
 
 ### Web dashboard
 
-Status: planned secondary product
-
-Suggested role:
-
-- admin dashboard
-- analytics
-- moderation
-- fallback web access
-
-This should not drive the main product decisions ahead of mobile.
+Path: `client/admin` (Vite + React). It supports the mobile product and should not drive product decisions ahead of mobile.
 
 ## Workspace
 
@@ -142,7 +111,7 @@ What admins can do:
 - **People**: verify farmers (verified sellers get a badge and their phone shown to buyers), and suspend or reinstate accounts. Suspension blocks sign-in and hides the seller's listings.
 - **Feed / Community**: pin or remove posts and discussions.
 - **Listings**: feature listings on the market, remove misleading ones.
-- **Orders**: find stuck orders (pending 3+ days, or no progress for a week) and cancel them with a reason; stock returns to the listing.
+- **Orders**: find stuck orders (accepted or in transit with no progress for a week) and cancel them with a reason; stock returns to the listing. Requests a seller never accepts are cancelled automatically after 3 days, and a buyer can hold at most 5 unanswered requests at once (`server/utils/orders.js`).
 - **Analytics**: growth, knowledge sharing, orders and delivered value over time; a county-by-county breakdown; asking prices by county; what buyers order; what farmers ask about and which questions go unanswered. Filter by date range and county.
 - **Broadcasts**: add verified organisations (ministries, county departments, research bodies, NGOs), then publish advisories, pest alerts, weather and programme updates on their behalf to chosen counties and roles. The composer shows exactly how many people will be notified; recipients get a notification and the update sits at the top of their Home feed. Reach and opens are tracked per broadcast.
 - **Partner report (CSV)**: aggregated county figures safe to share with partners. Counts under 5 show as "<5" and values from fewer than 5 orders are withheld, so no individual can be identified.

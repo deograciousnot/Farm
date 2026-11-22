@@ -9,6 +9,8 @@ import { uploadManyToCloudinary } from "../utils/media-upload.js";
 import { escapeRegex } from "../utils/request.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
+const MAX_PRODUCTS_PER_PAGE = 200;
+
 export const getMarketplaceOverview = asyncHandler(async (_req, res) => {
   let [featuredProducts, totalListings, verifiedSellerListings, wholesaleListings] = await Promise.all([
     Product.find({ ...activeFeaturedFilter(), ...notRemoved }).populate("seller", "name verificationStatus location role avatarUrl").limit(4),
@@ -62,11 +64,27 @@ export const getProducts = asyncHandler(async (req, res) => {
     ];
   }
 
-  const products = await Product.find(filters)
-    .populate("seller", "name verificationStatus location role avatarUrl")
-    .sort({ featured: -1, createdAt: -1 });
+  // The app filters on the phone, so it gets one big page; the cap keeps a growing market from
+  // sending megabytes to farmers on mobile data. Pass ?page= to read further.
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.min(MAX_PRODUCTS_PER_PAGE, Math.max(1, Number(req.query.limit) || MAX_PRODUCTS_PER_PAGE));
 
-  res.json({ items: await withSupplier(products.filter((product) => product.seller)) });
+  const [products, total] = await Promise.all([
+    Product.find(filters)
+      .populate("seller", "name verificationStatus location role avatarUrl")
+      .sort({ featured: -1, createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
+    Product.countDocuments(filters),
+  ]);
+
+  res.json({
+    items: await withSupplier(products.filter((product) => product.seller)),
+    page,
+    limit,
+    total,
+    hasMore: (page - 1) * limit + products.length < total,
+  });
 });
 
 export const getProductById = asyncHandler(async (req, res) => {

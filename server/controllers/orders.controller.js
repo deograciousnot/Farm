@@ -7,7 +7,7 @@ import { reportOrderProblem } from "../services/order-problems.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { createNotification } from "../utils/notifications.js";
-import { restockOrder } from "../utils/orders.js";
+import { MAX_PENDING_ORDERS_PER_BUYER, restockOrder } from "../utils/orders.js";
 import { assertObjectId } from "../utils/request.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
@@ -105,6 +105,23 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   if (String(product.seller._id) === String(req.user._id)) {
     throw new AppError("You cannot order your own listing.", 400);
+  }
+
+  // Requests hold stock until the seller answers, so limit how much one buyer can hold at once.
+  const [pendingCount, pendingForListing] = await Promise.all([
+    Order.countDocuments({ buyer: req.user._id, status: "pending" }),
+    Order.exists({ buyer: req.user._id, status: "pending", "items.product": product._id }),
+  ]);
+
+  if (pendingForListing) {
+    throw new AppError("You already have a request waiting on this listing. Wait for the seller to answer, or cancel it first.", 409);
+  }
+
+  if (pendingCount >= MAX_PENDING_ORDERS_PER_BUYER) {
+    throw new AppError(
+      `You have ${pendingCount} requests waiting for sellers. Wait for one to be answered, or cancel one, before ordering more.`,
+      429
+    );
   }
 
   // Take the stock in one step, so two buyers ordering the last bags at once can't both succeed.

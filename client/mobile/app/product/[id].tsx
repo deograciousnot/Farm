@@ -29,6 +29,15 @@ import { useToast } from '@/providers/toast-provider';
 import { formatCurrency } from '@/utils/format';
 import { describeUser, getUserId, openProfile } from '@/utils/user';
 
+/** Opens a WhatsApp chat with the seller, with a first message about the listing ready to send. */
+function whatsAppLink(phone: string, listingName: string) {
+  const digits = phone.replace(/\D/g, '');
+  // WhatsApp needs the international form: 0712… becomes 254712….
+  const international = digits.startsWith('0') ? `254${digits.slice(1)}` : digits;
+  const message = `Hello, I saw your listing "${listingName}" on FarmConnect. Is it still available?`;
+  return `https://wa.me/${international}?text=${encodeURIComponent(message)}`;
+}
+
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const product = useProduct(id);
@@ -184,17 +193,29 @@ function ProductBody({ product }: { product: Product }) {
           FarmConnect records your request and tracks it until delivery. You pay the seller directly; FarmConnect never handles money for goods.
         </AppText>
         {sellerIsVerified && sellerPhone ? (
-          <Button
-            label={`Call ${product.seller.name.split(' ')[0]}`}
-            icon="phone"
-            variant="secondary"
-            size="sm"
-            onPress={() => void Linking.openURL(`tel:${sellerPhone.replace(/\s/g, '')}`)}
-            style={styles.callButton}
-          />
+          <View style={styles.contactRow}>
+            <Button
+              label={`Call ${product.seller.name.split(' ')[0]}`}
+              icon="phone"
+              variant="secondary"
+              size="sm"
+              onPress={() => void Linking.openURL(`tel:${sellerPhone.replace(/\s/g, '')}`)}
+              style={styles.contactButton}
+            />
+            <Button
+              label="WhatsApp"
+              icon="message-circle"
+              variant="secondary"
+              size="sm"
+              onPress={() => void Linking.openURL(whatsAppLink(sellerPhone, product.name))}
+              style={styles.contactButton}
+            />
+          </View>
         ) : (
           <AppText variant="caption" color="textSubtle">
-            The seller&apos;s phone number appears once they are verified.
+            {sellerIsVerified
+              ? "This seller hasn't added a phone number. Send a request below and they'll get back to you."
+              : "The seller's phone number appears once FarmConnect has verified them."}
           </AppText>
         )}
       </Card>
@@ -282,6 +303,8 @@ const styles = StyleSheet.create({
   sellerCard: { paddingHorizontal: Spacing.sm },
   policyTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   callButton: { alignSelf: 'flex-start' },
+  contactRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
+  contactButton: { alignSelf: 'flex-start' },
   quantityRow: { gap: Spacing.xs },
   total: {
     flexDirection: 'row',

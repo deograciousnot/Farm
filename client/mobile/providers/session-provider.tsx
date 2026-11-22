@@ -3,6 +3,7 @@ import { createContext, PropsWithChildren, useContext, useEffect, useState } fro
 import { router } from 'expo-router';
 
 import { api, ApiRequestError } from '@/lib/api';
+import { clearToken, readToken, saveToken } from '@/lib/token-storage';
 import { unregisterPush } from '@/lib/push';
 import { queryClient, setStaleSessionListener } from '@/lib/query-client';
 import type { ApiUser, RegisterInput } from '@/lib/types';
@@ -10,7 +11,6 @@ import type { ApiUser, RegisterInput } from '@/lib/types';
 type SessionMode = 'signed-out' | 'guest' | 'authenticated';
 
 const STORAGE_KEYS = {
-  token: 'farmconnect.session.token',
   user: 'farmconnect.session.user',
   mode: 'farmconnect.session.mode',
   hasSeenIntro: 'farmconnect.session.hasSeenIntro',
@@ -68,7 +68,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
       try {
         const [storedToken, storedMode, storedIntro, storedUser] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.token),
+          readToken(),
           AsyncStorage.getItem(STORAGE_KEYS.mode),
           AsyncStorage.getItem(STORAGE_KEYS.hasSeenIntro),
           AsyncStorage.getItem(STORAGE_KEYS.user),
@@ -115,11 +115,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         }
 
         console.warn('Failed to restore FarmConnect session.', error);
-        await AsyncStorage.multiRemove([
-          STORAGE_KEYS.token,
-          STORAGE_KEYS.user,
-          STORAGE_KEYS.mode,
-        ]);
+        await Promise.all([clearToken(), AsyncStorage.multiRemove([STORAGE_KEYS.user, STORAGE_KEYS.mode])]);
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -162,8 +158,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setMode('authenticated');
     setToken(nextToken);
     setUser(nextUser);
+    await saveToken(nextToken);
     await AsyncStorage.multiSet([
-      [STORAGE_KEYS.token, nextToken],
       [STORAGE_KEYS.user, JSON.stringify(nextUser)],
       [STORAGE_KEYS.mode, 'authenticated'],
       [STORAGE_KEYS.hasSeenIntro, 'true'],
@@ -192,7 +188,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setMode('signed-out');
     setToken(null);
     setUser(null);
-    await AsyncStorage.multiRemove([STORAGE_KEYS.token, STORAGE_KEYS.user, STORAGE_KEYS.mode]);
+    await Promise.all([clearToken(), AsyncStorage.multiRemove([STORAGE_KEYS.user, STORAGE_KEYS.mode])]);
     router.replace('/auth?mode=login');
   }
 
@@ -202,7 +198,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setMode('guest');
     setToken(null);
     setUser(null);
-    await AsyncStorage.multiRemove([STORAGE_KEYS.token, STORAGE_KEYS.user]);
+    await Promise.all([clearToken(), AsyncStorage.removeItem(STORAGE_KEYS.user)]);
     await AsyncStorage.multiSet([
       [STORAGE_KEYS.mode, 'guest'],
       [STORAGE_KEYS.hasSeenIntro, 'true'],
@@ -215,7 +211,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setMode('signed-out');
     setToken(null);
     setUser(null);
-    await AsyncStorage.multiRemove([STORAGE_KEYS.token, STORAGE_KEYS.user, STORAGE_KEYS.mode]);
+    await Promise.all([clearToken(), AsyncStorage.multiRemove([STORAGE_KEYS.user, STORAGE_KEYS.mode])]);
     router.replace('/auth?mode=login');
   }
 
