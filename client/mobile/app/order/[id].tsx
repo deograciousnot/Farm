@@ -124,7 +124,7 @@ function OrderBody({ order, remark, problemReported }: { order: Order; remark: S
           {isSeller && order.status === 'accepted' ? (
             <Button label="Mark as dispatched" icon="truck" onPress={() => void updateStatus('in-transit')} loading={pendingStatus === 'in-transit'} fullWidth />
           ) : null}
-          {isBuyer && !remark ? <Button label="Confirm delivery" icon="check-circle" onPress={() => setIsReviewOpen(true)} fullWidth /> : null}
+          {isBuyer && !remark && order.status !== 'pending' ? <Button label="Confirm delivery" icon="check-circle" onPress={() => setIsReviewOpen(true)} fullWidth /> : null}
           {isSeller || order.status === 'pending' ? (
             <Button label="Cancel order" variant="danger" onPress={confirmCancel} loading={pendingStatus === 'cancelled'} fullWidth />
           ) : null}

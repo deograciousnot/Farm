@@ -5,6 +5,9 @@ import { User } from "../models/user.model.js";
 import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
+// The app signs out when it sees this message, so keep it in step with isStaleSessionError in client/mobile/lib/api.ts.
+const SESSION_EXPIRED = "Your session has expired. Please sign in again.";
+
 function extractToken(req) {
   const header = req.headers.authorization || "";
 
@@ -15,6 +18,34 @@ function extractToken(req) {
   return null;
 }
 
+/** Returns the member a session token belongs to, or throws a 401 if it is invalid, expired or revoked. */
+async function userFromToken(token) {
+  let payload;
+
+  try {
+    payload = jwt.verify(token, env.jwtSecret, { algorithms: ["HS256"] });
+  } catch {
+    throw new AppError(SESSION_EXPIRED, 401);
+  }
+
+  // Short-lived sign-up tokens are signed with the same key but carry no member id.
+  if (!payload.sub || payload.purpose) {
+    throw new AppError(SESSION_EXPIRED, 401);
+  }
+
+  const user = await User.findById(payload.sub);
+
+  if (!user || user.accountStatus === "deleted") {
+    throw new AppError("User no longer exists.", 401);
+  }
+
+  if (user.passwordChangedAt && payload.iat * 1000 < user.passwordChangedAt.getTime()) {
+    throw new AppError(SESSION_EXPIRED, 401);
+  }
+
+  return user;
+}
+
 export const attachUserIfPresent = asyncHandler(async (req, _res, next) => {
   const token = extractToken(req);
 
@@ -23,10 +54,9 @@ export const attachUserIfPresent = asyncHandler(async (req, _res, next) => {
   }
 
   try {
-    const payload = jwt.verify(token, env.jwtSecret);
-    const user = await User.findById(payload.sub);
+    const user = await userFromToken(token);
 
-    if (user && user.accountStatus === "active") {
+    if (user.accountStatus === "active") {
       req.user = user;
     }
   } catch (_error) {
@@ -43,12 +73,7 @@ export const requireAuth = asyncHandler(async (req, _res, next) => {
     throw new AppError("Authentication token is required.", 401);
   }
 
-  const payload = jwt.verify(token, env.jwtSecret);
-  const user = await User.findById(payload.sub);
-
-  if (!user || user.accountStatus === "deleted") {
-    throw new AppError("User no longer exists.", 401);
-  }
+  const user = await userFromToken(token);
 
   if (user.accountStatus === "suspended") {
     throw new AppError(`This account has been suspended. Contact ${env.supportEmail} for help.`, 403);

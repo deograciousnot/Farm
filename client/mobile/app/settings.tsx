@@ -169,7 +169,7 @@ export default function SettingsScreen() {
 }
 
 function ChangePasswordSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const { token } = useSession();
+  const { token, user, signInWithToken } = useSession();
   const { showToast } = useToast();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -203,7 +203,11 @@ function ChangePasswordSheet({ visible, onClose }: { visible: boolean; onClose: 
     setIsSaving(true);
 
     try {
-      await api.changePassword(token, { currentPassword: current, newPassword: next });
+      const response = await api.changePassword(token, { currentPassword: current, newPassword: next });
+      // The old session stops working once the password changes; keep this phone signed in with the new one.
+      if (response.token && user) {
+        await signInWithToken(response.token, user);
+      }
       showToast('Password updated');
       close();
     } catch (saveError) {

@@ -8,6 +8,7 @@ import { AppError } from "../utils/app-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { createNotification } from "../utils/notifications.js";
 import { restockOrder } from "../utils/orders.js";
+import { assertObjectId } from "../utils/request.js";
 import { recalculateTrustScoreForUser } from "../utils/trust-score.js";
 
 // An order outlives a deleted buyer or seller account; show it with a placeholder instead.
@@ -80,15 +81,25 @@ export const reportProblemWithOrder = asyncHandler(async (req, res) => {
 });
 
 export const createOrder = asyncHandler(async (req, res) => {
-  const { productId, quantity = 1, note = "", deliveryLocation = "", deliveryContact = "" } = req.body;
+  const { productId } = req.body;
+  const quantity = Number(req.body.quantity ?? 1);
+  const note = String(req.body.note ?? "").trim().slice(0, 500);
+  const deliveryLocation = String(req.body.deliveryLocation ?? "").trim().slice(0, 200);
+  const deliveryContact = String(req.body.deliveryContact ?? "").trim().slice(0, 40);
 
   if (!productId) {
     throw new AppError("A productId is required to create an order.", 400);
   }
 
+  assertObjectId(productId, "listing id");
+
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    throw new AppError("Quantity must be a whole number of at least 1.", 400);
+  }
+
   const product = await Product.findOne({ _id: productId, ...notRemoved }).populate("seller");
 
-  if (!product) {
+  if (!product || !product.seller) {
     throw new AppError("Product not found.", 404);
   }
 
@@ -96,17 +107,18 @@ export const createOrder = asyncHandler(async (req, res) => {
     throw new AppError("You cannot order your own listing.", 400);
   }
 
-  if (Number(quantity) < 1) {
-    throw new AppError("Quantity must be at least 1.", 400);
-  }
+  // Take the stock in one step, so two buyers ordering the last bags at once can't both succeed.
+  const reserved = await Product.findOneAndUpdate(
+    { _id: product._id, stock: { $gte: quantity } },
+    { $inc: { stock: -quantity } },
+    { returnDocument: "after" }
+  );
 
-  if (quantity > product.stock) {
+  if (!reserved) {
     throw new AppError("Requested quantity is higher than available stock.", 400);
   }
 
   const totalAmount = product.price * quantity;
-  product.stock -= quantity;
-  await product.save();
 
   const order = await Order.create({
     buyer: req.user._id,
@@ -124,8 +136,8 @@ export const createOrder = asyncHandler(async (req, res) => {
     status: "pending",
     etaLabel: "Confirming delivery window",
     note,
-    deliveryLocation: String(deliveryLocation || req.user.location || "").trim(),
-    deliveryContact: String(deliveryContact || req.user.phone || "").trim(),
+    deliveryLocation: deliveryLocation || String(req.user.location || "").trim(),
+    deliveryContact: deliveryContact || String(req.user.phone || "").trim(),
   });
 
   const populatedOrder = await Order.findById(order._id)
@@ -183,6 +195,15 @@ export const completeOrderWithRemark = asyncHandler(async (req, res) => {
 
   if (order.status === "cancelled") {
     throw new AppError("Cancelled orders cannot be completed.", 400);
+  }
+
+  // Ratings feed the seller's trust score, so only count orders the seller actually took on.
+  if (order.status === "pending") {
+    throw new AppError("You can confirm delivery once the seller has accepted the order.", 400);
+  }
+
+  if (String(body).trim().length > 1000) {
+    throw new AppError("Keep your remark under 1000 characters.", 400);
   }
 
   const remark = await SellerRemark.findOneAndUpdate(

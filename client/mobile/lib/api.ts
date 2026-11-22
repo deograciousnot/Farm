@@ -41,8 +41,13 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** The server no longer accepts this session: the account is gone, or the token expired or was revoked. */
 export function isStaleSessionError(error: unknown) {
-  return error instanceof ApiRequestError && error.status === 401 && /user no longer exists/i.test(error.message);
+  return (
+    error instanceof ApiRequestError &&
+    error.status === 401 &&
+    /user no longer exists|session has expired/i.test(error.message)
+  );
 }
 
 // Over-the-air updates don't carry eas.json build env, so release bundles fall back to the live API.
@@ -196,15 +201,6 @@ function appendSingleAsset(formData: FormData, field: string, asset?: Uploadable
 
 export const api = {
   baseUrl: API_BASE_URL,
-  loginDemoBuyer() {
-    return request<AuthResponse>('/auth/login', {
-      method: 'POST',
-      body: {
-        email: 'amina@farmconnect.app',
-        password: 'password123',
-      },
-    });
-  },
   login(email: string, password: string) {
     return request<AuthResponse>('/auth/login', {
       method: 'POST',
@@ -255,8 +251,9 @@ export const api = {
   resetPassword(input: { email: string; code: string; newPassword: string }) {
     return request<AuthResponse>('/auth/password/reset', { method: 'POST', body: input });
   },
+  /** Changing the password signs out every other session; the response carries this phone's new token. */
   changePassword(token: string, input: { currentPassword: string; newPassword: string }) {
-    return request<{ message: string }>('/auth/password', {
+    return request<{ message: string; token?: string }>('/auth/password', {
       method: 'PATCH',
       token,
       body: input,

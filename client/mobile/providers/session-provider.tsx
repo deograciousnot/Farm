@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react';
 import { router } from 'expo-router';
 
-import { api } from '@/lib/api';
+import { api, ApiRequestError } from '@/lib/api';
 import { unregisterPush } from '@/lib/push';
 import { queryClient, setStaleSessionListener } from '@/lib/query-client';
 import type { ApiUser, RegisterInput } from '@/lib/types';
@@ -24,7 +24,6 @@ type SessionContextValue = {
   hasSeenIntro: boolean;
   markIntroSeen: () => void;
   continueAsGuest: () => void;
-  signInDemo: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   /** Store a session the server already issued (e.g. after phone code sign-in). */
   signInWithToken: (token: string, user: ApiUser) => Promise<void>;
@@ -44,7 +43,6 @@ const SessionContext = createContext<SessionContextValue>({
   hasSeenIntro: false,
   markIntroSeen: () => {},
   continueAsGuest: () => {},
-  signInDemo: async () => {},
   login: async () => {},
   signInWithToken: async () => {},
   register: async () => ({}),
@@ -65,12 +63,18 @@ export function SessionProvider({ children }: PropsWithChildren) {
     let isMounted = true;
 
     async function restoreSession() {
+      let cachedToken: string | null = null;
+      let cachedUser: ApiUser | null = null;
+
       try {
-        const [storedToken, storedMode, storedIntro] = await Promise.all([
+        const [storedToken, storedMode, storedIntro, storedUser] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.token),
           AsyncStorage.getItem(STORAGE_KEYS.mode),
           AsyncStorage.getItem(STORAGE_KEYS.hasSeenIntro),
+          AsyncStorage.getItem(STORAGE_KEYS.user),
         ]);
+        cachedUser = storedUser ? (JSON.parse(storedUser) as ApiUser) : null;
+        cachedToken = storedToken;
 
         if (!isMounted) {
           return;
@@ -97,6 +101,19 @@ export function SessionProvider({ children }: PropsWithChildren) {
           setMode('authenticated');
         }
       } catch (error) {
+        // Offline, or the free server still waking up: stay signed in with the saved profile.
+        // Only sign out when the server actually rejected the session.
+        const rejected = error instanceof ApiRequestError && (error.status === 401 || error.status === 403);
+
+        if (!rejected && cachedToken && cachedUser) {
+          if (isMounted) {
+            setToken(cachedToken);
+            setUser(cachedUser);
+            setMode('authenticated');
+          }
+          return;
+        }
+
         console.warn('Failed to restore FarmConnect session.', error);
         await AsyncStorage.multiRemove([
           STORAGE_KEYS.token,
@@ -151,11 +168,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
       [STORAGE_KEYS.mode, 'authenticated'],
       [STORAGE_KEYS.hasSeenIntro, 'true'],
     ]);
-  }
-
-  async function signInDemo() {
-    const response = await api.loginDemoBuyer();
-    await persistSession(response.token, response.user);
   }
 
   async function login(email: string, password: string) {
@@ -217,7 +229,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
         hasSeenIntro,
         markIntroSeen,
         continueAsGuest,
-        signInDemo,
         login,
         signInWithToken: persistSession,
         register,

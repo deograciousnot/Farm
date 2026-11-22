@@ -80,6 +80,12 @@ export const getProductById = asyncHandler(async (req, res) => {
   }
 
   const [item] = await withSupplier([product]);
+
+  // Only verified sellers' numbers are public, so unchecked accounts can't be scraped for contacts.
+  if (!["verified", "top-rated"].includes(item.seller.verificationStatus)) {
+    item.seller = { ...item.seller, phone: "" };
+  }
+
   res.json({ item });
 });
 

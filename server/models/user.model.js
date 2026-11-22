@@ -114,6 +114,11 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Sessions issued before this moment stop working, so a password change signs out other phones.
+    passwordChangedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -126,6 +131,11 @@ userSchema.pre("save", async function hashPassword() {
   }
 
   this.password = await bcrypt.hash(this.password, 10);
+
+  if (!this.isNew) {
+    // A second back, so the token handed out with this change (issued within the same second) stays valid.
+    this.passwordChangedAt = new Date(Date.now() - 1000);
+  }
 });
 
 userSchema.methods.comparePassword = function comparePassword(candidatePassword) {

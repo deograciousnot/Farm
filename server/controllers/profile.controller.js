@@ -80,8 +80,11 @@ async function buildProfilePayload(viewer, targetUser, { includeNotifications = 
   const isOwner = Boolean(viewerId) && viewerId === targetId;
   const isFollowing = Boolean(viewerId) && (targetUser.followers ?? []).some((entry) => String(entry) === viewerId);
 
+  // Phone numbers are public only for sellers FarmConnect has verified; otherwise only the owner sees theirs.
+  const showPhone = isOwner || ["verified", "top-rated"].includes(targetUser.verificationStatus);
+
   return {
-    profile: shapeProfileSummary(targetUser),
+    profile: { ...shapeProfileSummary(targetUser), phone: showPhone ? targetUser.phone : "" },
     metrics: {
       posts: posts.length,
       listings: listings.length,
@@ -133,34 +136,29 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
   const { name, location, bio, phone, interests } = req.body;
 
   if (typeof name === "string") {
-    req.user.name = name.trim();
+    if (name.trim().length < 2) {
+      throw new AppError("Your name needs at least 2 characters.", 400);
+    }
+    req.user.name = name.trim().slice(0, 80);
   }
 
   if (typeof location === "string") {
-    req.user.location = location.trim();
+    req.user.location = location.trim().slice(0, 100);
   }
 
   if (typeof bio === "string") {
-    req.user.bio = bio.trim();
+    req.user.bio = bio.trim().slice(0, 500);
   }
 
   if (typeof phone === "string") {
-    req.user.phone = phone.trim();
+    req.user.phone = phone.trim().slice(0, 20);
   }
 
   if (interests !== undefined) {
-    const parsedInterests = Array.isArray(interests)
-      ? interests
-      : String(interests)
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-
-    if (!Array.isArray(parsedInterests)) {
-      throw new AppError("Interests must be a list.", 400);
-    }
-
-    req.user.interests = parsedInterests;
+    req.user.interests = (Array.isArray(interests) ? interests : String(interests).split(","))
+      .map((item) => String(item).trim().slice(0, 40))
+      .filter(Boolean)
+      .slice(0, 20);
   }
 
   if (req.file) {

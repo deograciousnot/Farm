@@ -41,14 +41,36 @@ export function sanitizeUser(user) {
   };
 }
 
+const ROLES = ["farmer", "buyer", "hobbyist"];
+
+function textField(value, maxLength) {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
 export const registerUser = asyncHandler(async (req, res) => {
-  const { name, email, password, role = "buyer", location = "Unknown", interests = [] } = req.body;
+  const name = textField(req.body.name, 80);
+  const email = textField(req.body.email, 254).toLowerCase();
+  const password = typeof req.body.password === "string" ? req.body.password : "";
+  const role = ROLES.includes(req.body.role) ? req.body.role : "buyer";
+  const location = textField(req.body.location, 100) || "Unknown";
+  const interests = (Array.isArray(req.body.interests) ? req.body.interests : String(req.body.interests ?? "").split(","))
+    .map((item) => textField(item, 40))
+    .filter(Boolean)
+    .slice(0, 20);
 
   if (!name || !email || !password) {
     throw new AppError("Name, email, and password are required.", 400);
   }
 
-  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    throw new AppError("Enter a valid email address.", 400);
+  }
+
+  if (password.length < 6 || password.length > 128) {
+    throw new AppError("Your password must be between 6 and 128 characters.", 400);
+  }
+
+  const existingUser = await User.findOne({ email });
 
   if (existingUser) {
     throw new AppError("An account with that email already exists.", 409);
@@ -168,8 +190,10 @@ export const changePassword = asyncHandler(async (req, res) => {
   user.password = newPassword;
   await user.save();
 
+  // Older sessions stop working, so hand this phone a fresh one.
   res.json({
-    message: "Password updated successfully.",
+    message: "Password updated. Other phones signed in to this account have been signed out.",
+    token: signToken(user),
   });
 });
 
