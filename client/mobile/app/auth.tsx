@@ -27,8 +27,10 @@ type Role = (typeof roles)[number]['value'];
 
 const defaultInterests = ['Market tea', 'Buyer demand'];
 
-// Off until the SMS provider is live; set EXPO_PUBLIC_PHONE_SIGN_IN=true in the build to turn it on.
-const PHONE_SIGN_IN = process.env.EXPO_PUBLIC_PHONE_SIGN_IN === 'true';
+// On by default, because most farmers sign in with a phone number rather than email. If SMS isn't set up on the
+// server it answers "use email for now" and the screen offers email. Set EXPO_PUBLIC_PHONE_SIGN_IN=false to hide it.
+// (It defaults on rather than reading eas.json, since over-the-air updates don't carry build env.)
+const PHONE_SIGN_IN = process.env.EXPO_PUBLIC_PHONE_SIGN_IN !== 'false';
 
 export default function AuthScreen() {
   const { colors } = useTheme();

@@ -7,6 +7,12 @@ import { AppError } from "../utils/app-error.js";
  * Production refuses to start a sign-in without a real provider rather than silently not sending.
  */
 export function smsIsLive() {
+  // Sandbox texts only reach Africa's Talking's simulator, never a real phone, so they don't count in production:
+  // members would wait for a code that never comes. Treat it as "not set up" so the app points them to email.
+  if (env.nodeEnv === "production" && env.africasTalkingUsername === "sandbox") {
+    return false;
+  }
+
   return Boolean(env.africasTalkingUsername && env.africasTalkingApiKey);
 }
 
